@@ -1659,10 +1659,8 @@ def _run_flow(item: dict):
         FLOWS.WAIT.pop(sid, None)
 
 
-VOICE_NOTE = ("\n[Live voice conversation: Sergio is talking to you and hears your answer through a speaker. Answer like "
-              "a person on a call: 1-3 short sentences, plain spoken Spanish, no markdown, lists, tables, links, code or "
-              "emojis. Numbers and dates written as they are said. If something needs tools, say in a few words what you "
-              "are doing, use them, then give the result briefly.]")
+VOICE_NOTE = "\n[Voz en directo: contesta como en una llamada, 1-3 frases cortas, sin formato. Si usas herramientas, dilo breve.]"
+_UNFINISHED = re.compile(r"(\.\.\.|…|\b(y|o|que|pero|porque|de|del|a|al|en|con|por|para|el|la|los|las|un|una|mi|tu|su|si|cuando|como|pues|entonces|o sea)\W*)$", re.I)
 _SENT = re.compile(r"(.+?[.!?…:;](?=\s)|.+?\n)", re.S)
 
 
@@ -1750,7 +1748,7 @@ def _is_echo(heard: str, said: str) -> bool:
 
 
 @app.post("/api/live/turn", dependencies=[Depends(auth)])
-async def live_turn(request: Request, chat: str | None = None, echo: int = 0):
+async def live_turn(request: Request, chat: str | None = None, echo: int = 0, smart: int = 0):
     """One spoken turn of Atenea en vivo: audio in, a streamed spoken answer out. The turn is a normal chat message,
     so it is saved in the conversation and can use tools."""
     import urllib.request
@@ -1760,13 +1758,19 @@ async def live_turn(request: Request, chat: str | None = None, echo: int = 0):
     t0 = time.time()
     try:
         eng = (C.load().get("voice") or {}).get("live_stt", "parakeet")
-        req = urllib.request.Request(VOICE + "/stt" + (f"?engine={eng}" if eng else ""), data, {"Content-Type": "application/octet-stream"})
-        text = (json.load(urllib.request.urlopen(req, timeout=60)).get("text") or "").strip()
+        q = ([f"engine={eng}"] if eng else []) + (["turn=1"] if smart else [])
+        req = urllib.request.Request(VOICE + "/stt" + ("?" + "&".join(q) if q else ""), data, {"Content-Type": "application/octet-stream"})
+        res = json.load(urllib.request.urlopen(req, timeout=60))
+        text = (res.get("text") or "").strip()
     except Exception as e:
         raise HTTPException(503, f"Voice service unavailable: {e}")
     stt_secs = round(time.time() - t0, 2)
     if echo and _is_echo(text, request.headers.get("X-Atenea-Said", "")[:4000].encode("latin-1", "ignore").decode("utf-8", "ignore")):
         return StreamingResponse(iter([json.dumps({"type": "echo", "text": text}) + "\n"]), media_type="application/x-ndjson")
+    if smart and text and (_UNFINISHED.search(text) or (res.get("complete") is not None and res["complete"] < 0.5)):
+        # Sergio is pausing mid-sentence: keep listening (the client resends with the rest, or by itself after a while)
+        return StreamingResponse(iter([json.dumps({"type": "wait", "text": text, "p": res.get("complete"), "stt": stt_secs}) + "\n"]),
+                                 media_type="application/x-ndjson")
     if len(re.sub(r"\W", "", text)) < 2 or re.fullmatch(r"(?i)\W*(gracias|subtítulos.*|amara\.org.*)\W*", text):
         return StreamingResponse(iter([json.dumps({"type": "empty", "stt": stt_secs}) + "\n"]), media_type="application/x-ndjson")
     with _lock:

@@ -24,6 +24,26 @@ _stt = {"model": None, "last": 0.0, "fast": None, "fast_last": 0.0}
 _tts: dict = {}
 PARAKEET = os.environ.get("ATENEA_PARAKEET", os.path.join(os.path.dirname(VOICES), "models", "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8"))
 _pk: dict = {"rec": None}
+SMART_TURN = os.environ.get("ATENEA_SMART_TURN", os.path.join(os.path.dirname(VOICES), "models", "smart-turn", "smart-turn-v3.0.onnx"))
+_st: dict = {}
+
+
+def turn_complete(audio) -> float | None:
+    """Pipecat Smart Turn v3: probability that the speaker has finished (vs. pausing mid-sentence). ~40 ms on CPU."""
+    if not os.path.isfile(SMART_TURN):
+        return None
+    with _lock:
+        if "s" not in _st:
+            import onnxruntime as ort
+            from transformers import WhisperFeatureExtractor
+            so = ort.SessionOptions()
+            so.inter_op_num_threads, so.intra_op_num_threads = 1, 2
+            _st["s"], _st["fe"] = ort.InferenceSession(SMART_TURN, so), WhisperFeatureExtractor(chunk_length=8)
+    a = np.asarray(audio, dtype=np.float32)[-128000:]
+    a = np.pad(a, (128000 - len(a), 0))
+    f = _st["fe"](a, sampling_rate=16000, return_tensors="np", padding="max_length", max_length=128000,
+                  truncation=True, do_normalize=True).input_features.astype(np.float32)
+    return float(_st["s"].run(None, {"input_features": f})[0][0][0])
 
 
 def parakeet():
@@ -37,7 +57,7 @@ def parakeet():
         return _pk["rec"]
 
 
-def transcribe_parakeet(data: bytes) -> dict:
+def transcribe_parakeet(data: bytes, turn: bool = False) -> dict:
     t0 = time.time()
     pcm = subprocess.run(["ffmpeg", "-v", "quiet", "-i", "pipe:0", "-f", "f32le", "-ac", "1", "-ar", "16000", "pipe:1"],
                          input=data, capture_output=True, timeout=60).stdout
@@ -48,8 +68,11 @@ def transcribe_parakeet(data: bytes) -> dict:
     st = rec.create_stream()
     st.accept_waveform(16000, audio)
     rec.decode_stream(st)
-    return {"text": st.result.text.strip(), "engine": "parakeet", "audio_secs": round(audio.size / 16000, 1),
-            "secs": round(time.time() - t0, 2)}
+    out = {"text": st.result.text.strip(), "engine": "parakeet", "audio_secs": round(audio.size / 16000, 1)}
+    if turn:
+        out["complete"] = turn_complete(np.concatenate([audio, np.zeros(3200, np.float32)]))
+    out["secs"] = round(time.time() - t0, 2)
+    return out
 _lock = threading.Lock()
 
 
@@ -175,7 +198,7 @@ class H(BaseHTTPRequestHandler):
         data = self.rfile.read(int(self.headers.get("Content-Length") or 0))
         try:
             if self.path.startswith("/stt") and "engine=parakeet" in self.path and os.path.isdir(PARAKEET):
-                return self._send(200, json.dumps(transcribe_parakeet(data)).encode())
+                return self._send(200, json.dumps(transcribe_parakeet(data, "turn=1" in self.path)).encode())
             if self.path.startswith("/stt"):
                 return self._send(200, json.dumps(transcribe(data, "fast=1" in self.path)).encode())
             if self.path.startswith("/tts"):
@@ -191,5 +214,6 @@ if __name__ == "__main__":
     threading.Thread(target=reaper, daemon=True).start()
     if os.path.isdir(PARAKEET):
         threading.Thread(target=parakeet, daemon=True).start()
-    threading.Thread(target=lambda: speak("Hola.", DEFAULT_VOICE), daemon=True).start()   # warm the default voice      # load at start: live voice needs it instantly
+    threading.Thread(target=lambda: speak("Hola.", DEFAULT_VOICE), daemon=True).start()
+    threading.Thread(target=lambda: turn_complete(np.zeros(16000, np.float32)), daemon=True).start()   # warm the default voice      # load at start: live voice needs it instantly
     ThreadingHTTPServer(("127.0.0.1", 8083), H).serve_forever()
