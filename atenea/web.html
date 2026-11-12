@@ -298,6 +298,9 @@ img.media,.uatt img{cursor:zoom-in}
         <div class="f"><label for="s_mcp">MCP servers</label><div><textarea class="code" id="s_mcp" spellcheck="false"></textarea><div class="err" id="mcperr"></div></div></div></div>
       <div class="card"><h2>Telegram · Hermes</h2><p class="d">Talk to Atenea from your phone. Create a bot with @BotFather and get your user id from @userinfobot.</p>
         <div class="f"><label for="s_tok">Bot token</label><input id="s_tok" autocomplete="off"><label for="s_users">Allowed user ids</label><input id="s_users" placeholder="123456789, …"></div></div>
+      <div class="card"><h2>Backups and trash</h2><p class="d">A copy of your chats, memory, settings, artifacts and images is made every night at 03:17 on the second disk (the last 30 are kept). Deleted chats stay in the trash for 30 days.</p>
+        <div id="bkbox" style="font-size:14px"></div><div class="row"><button class="btn" id="bknow">Back up now</button></div>
+        <div style="font-size:13.5px;color:var(--ink2);margin-top:6px">Trash</div><div id="trashbox"></div></div>
       <div class="card"><h2>Notifications</h2><p class="d">Push notifications on this phone or computer when Atenea finishes something while you are not looking, needs your OK, asks you a question, or a monitor or scheduled task fires.</p>
         <div id="pushbox" style="font-size:14px;line-height:1.55"></div></div>
       <div class="card"><h2>Memory</h2><p class="d">What Atenea remembers about you in every conversation (web and Telegram). Tell her “remember that…” in any chat, or add it here.</p>
@@ -397,7 +400,7 @@ function renderList(){const L=$('#list');if(!S.chats.length){L.innerHTML=`<div c
       <button class="ib del" title="Delete" aria-label="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button></span></a>`;}
   L.innerHTML=h;}
 $('#list').addEventListener('click',async e=>{const a=e.target.closest('.it');if(!a)return;e.preventDefault();const id=a.dataset.id;
-  if(e.target.closest('.del')){if(!confirm('Delete this conversation?'))return;await api('/api/chats/'+id,{method:'DELETE'});if(S.chat?.id===id)newChat();loadList();return;}
+  if(e.target.closest('.del')){if(!confirm('Move this conversation to the trash? (kept 30 days)'))return;await api('/api/chats/'+id,{method:'DELETE'});if(S.chat?.id===id)newChat();loadList();return;}
   if(e.target.closest('.ren')){const c=S.chats.find(x=>x.id===id);const t=prompt('Rename conversation',c?.title||'');if(t&&t.trim()){await api('/api/chats/'+id,{method:'PATCH',body:JSON.stringify({title:t})});if(S.chat?.id===id)$('#title').textContent=t.trim();loadList();}return;}
   openChat(id);});
 let qt;$('#q').addEventListener('input',()=>{clearTimeout(qt);qt=setTimeout(loadList,250);});
@@ -405,7 +408,7 @@ function side(open){$('#side').classList.toggle('open',open);$('#scrim').classLi
 $('#menu').onclick=()=>side(true);$('#scrim').onclick=()=>side(false);
 // ---------- views ----------
 function show(v){S.view=v;$$('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));$('#nav-settings').classList.toggle('on',v==='settings');side(false);
-  if(v==='settings'){$('#title').textContent='Settings';$('#hproj').hidden=$('#hstate').hidden=true;fillSettings();loadStatus();loadMemory();renderRules();loadSched();loadBg();renderPush();}
+  if(v==='settings'){$('#title').textContent='Settings';$('#hproj').hidden=$('#hstate').hidden=true;fillSettings();loadStatus();loadMemory();renderRules();loadSched();loadBg();renderPush();loadBackups();}
   else{$('#title').textContent=S.chat?.title||'New chat';headerProj();}}
 $('#nav-settings').onclick=()=>show(S.view==='settings'?'chat':'settings');
 $('#logout').onclick=async()=>{await api('/api/logout',{method:'POST'});location.href='/login';};
@@ -809,6 +812,13 @@ async function loadActivity(){let r;try{r=await api('/api/activity'+(S.chat?.id?
 }
 setInterval(()=>{if(!document.hidden)loadActivity();},4000);
 $('#popact').addEventListener('click',e=>e.stopPropagation());
+
+// ---------- backups & trash ----------
+async function loadBackups(){const fmt=t=>new Date(t*1000).toLocaleString([], {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+  const b=await api('/api/backups');$('#bkbox').innerHTML=b.items.length?`Last copy: <b>${fmt(b.items[0].time)}</b> · ${(b.items[0].size/1e6).toFixed(1)} MB · ${b.items.length} kept in <code>${esc(b.dir)}</code>`:'No copies yet.';
+  const t=await api('/api/trash');$('#trashbox').innerHTML=t.items.length?t.items.map(x=>`<div class="memrow"><span>${esc(x.title)} <span style="color:var(--muted);font-size:12px">· deleted ${fmt(x.deleted)}</span></span><button class="btn" style="height:30px;padding:0 10px" data-r="${x.id}">Restore</button></div>`).join(''):'<div style="font-size:13px;color:var(--muted)">Empty.</div>';
+  $$('#trashbox [data-r]').forEach(x=>x.onclick=async()=>{await api(`/api/trash/${x.dataset.r}/restore`,{method:'POST'});toast('Restored');loadBackups();loadList();});}
+$('#bknow').onclick=async()=>{toast('Backing up…');try{await api('/api/backups',{method:'POST'});toast('Backup done');loadBackups();}catch(e){toast(e.message);}};
 
 // ---------- settings ----------
 function projRow(a='',p=''){const d=document.createElement('div');d.className='prow';d.innerHTML=`<input placeholder="alias" value="${esc(a)}" aria-label="Alias"><input placeholder="~/projects/my-app" value="${esc(p)}" aria-label="Folder"><button class="ib" title="Remove" aria-label="Remove">✕</button>`;

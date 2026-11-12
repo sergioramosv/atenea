@@ -68,6 +68,7 @@ SESSION_DAYS = 30
 HERE = os.path.dirname(__file__)
 CHATS_DIR = os.path.join(os.path.dirname(C.PATH), "chats")
 CKPT_DIR = os.path.join(os.path.dirname(C.PATH), "checkpoints")
+TRASH_DIR = os.path.join(os.path.dirname(C.PATH), "trash")
 EDIT_TOOLS = ("write_file", "edit_file")
 _lock = threading.Lock()
 
@@ -134,7 +135,9 @@ def login(inp: LoginIn, request: Request, response: Response):
         _attempts[ip] = recent + [time.time()]
         time.sleep(0.8)
         raise HTTPException(401, "Wrong password")
-    response.set_cookie(COOKIE, _make_token(), max_age=SESSION_DAYS * 86400, httponly=True, samesite="lax")
+    secure = request.headers.get("x-forwarded-proto") == "https" or request.url.scheme == "https" \
+        or request.headers.get("host", "").endswith(".ts.net")
+    response.set_cookie(COOKIE, _make_token(), max_age=SESSION_DAYS * 86400, httponly=True, samesite="lax", secure=secure)
     return {"ok": True}
 
 
@@ -797,11 +800,57 @@ def delete_chat(cid: str):
     except OSError:
         pass
     with _lock:
-        try:
+        try:                                              # to the trash for 30 days, not gone forever
+            os.makedirs(TRASH_DIR, exist_ok=True)
+            c = _read(cid)
+            c["deleted"] = time.time()
+            json.dump(c, open(os.path.join(TRASH_DIR, cid + ".json"), "w", encoding="utf-8"), ensure_ascii=False)
             os.remove(_path(cid))
-        except FileNotFoundError:
+        except (FileNotFoundError, HTTPException):
             pass
     return {"ok": True}
+
+
+@app.get("/api/trash", dependencies=[Depends(auth)])
+def trash_list():
+    out = []
+    if os.path.isdir(TRASH_DIR):
+        for f in os.listdir(TRASH_DIR):
+            p = os.path.join(TRASH_DIR, f)
+            try:
+                c = json.load(open(p, encoding="utf-8"))
+            except Exception:
+                continue
+            if time.time() - c.get("deleted", 0) > 30 * 86400:
+                os.remove(p)
+                continue
+            out.append({"id": c["id"], "title": c["title"], "deleted": c.get("deleted"), "turns": len(c.get("log", []))})
+    return {"items": sorted(out, key=lambda x: -(x["deleted"] or 0))}
+
+
+@app.post("/api/trash/{cid}/restore", dependencies=[Depends(auth)])
+def trash_restore(cid: str):
+    p = os.path.join(TRASH_DIR, os.path.basename(cid) + ".json")
+    if not os.path.isfile(p):
+        raise HTTPException(404, "Not in the trash")
+    c = json.load(open(p, encoding="utf-8"))
+    c.pop("deleted", None)
+    with _lock:
+        _write(c)
+    os.remove(p)
+    return {"ok": True}
+
+
+@app.get("/api/backups", dependencies=[Depends(auth)])
+def backups():
+    from . import backup as BK
+    return {"dir": BK.DEST, "items": BK.listing()[:10]}
+
+
+@app.post("/api/backups", dependencies=[Depends(auth)])
+def backup_now():
+    from . import backup as BK
+    return BK.make()
 
 
 @app.post("/api/chat", dependencies=[Depends(auth)])
@@ -1614,7 +1663,11 @@ def local_file(path: str, download: int = 0):
     real = os.path.realpath(os.path.expanduser(path))
     if not any(real == r or real.startswith(r.rstrip("/") + "/") for r in MEDIA_ROOTS):
         raise HTTPException(403, "Outside the allowed folders")
-    if os.path.basename(real).startswith(".") or "/.ssh/" in real or "/.config/atenea/config.json" in real:
+    cfg_dir = os.path.realpath(os.path.dirname(C.PATH))
+    private = {os.path.realpath(C.PATH), os.path.join(cfg_dir, "push.json"), os.path.join(cfg_dir, "cli.json"),
+               os.path.join(cfg_dir, "config.json")}
+    if (os.path.basename(real).startswith(".") or real in private or "/.ssh/" in real or "/.gnupg/" in real
+            or "/.config/ornith/" in real or real.startswith("/etc/")):
         raise HTTPException(403, "Private file")
     if not os.path.isfile(real):
         raise HTTPException(404, "File not found")
