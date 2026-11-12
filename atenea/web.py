@@ -1609,7 +1609,7 @@ MEDIA_ROOTS = [os.path.expanduser("~"), "/mnt/models", "/tmp"]
 
 
 @app.get("/api/file", dependencies=[Depends(auth)])
-def local_file(path: str):
+def local_file(path: str, download: int = 0):
     """Images, videos, PDFs and other files from this machine, so Atenea can show them in the chat."""
     real = os.path.realpath(os.path.expanduser(path))
     if not any(real == r or real.startswith(r.rstrip("/") + "/") for r in MEDIA_ROOTS):
@@ -1620,6 +1620,9 @@ def local_file(path: str):
         raise HTTPException(404, "File not found")
     mt = mimetypes.guess_type(real)[0] or "application/octet-stream"
     headers = {"Cache-Control": "private, max-age=300"}
+    if download:
+        name = re.sub(r"^[0-9a-f]{6}-", "", os.path.basename(real))
+        headers["Content-Disposition"] = f'attachment; filename="{re.sub(r"[^\w.\- ]+", "_", name)}"'
     if mt in ("text/html", "image/svg+xml"):
         headers.update(SANDBOX)                         # never run local HTML/SVG with the panel's origin
     return FileResponse(real, media_type=mt, headers=headers)
