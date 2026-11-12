@@ -208,8 +208,15 @@ def _slot_acquire(cid: str, ag) -> int | None:
             restore = True                               # cheap (~0.1 s) and safe even if a subagent used the slot
             _slots["owner"][slot] = cid
         if restore and os.path.exists(os.path.join(SLOT_DIR, _slot_file(cid))):
-            r = _llama(f"/slots/{slot}?action=restore", {"filename": _slot_file(cid)})
-            print(f"[slots] restored {r.get('n_restored')} tokens of {cid} into slot {slot}", flush=True)
+            try:
+                r = _llama(f"/slots/{slot}?action=restore", {"filename": _slot_file(cid)})
+                print(f"[slots] restored {r.get('n_restored')} tokens of {cid} into slot {slot}", flush=True)
+            except Exception as e:                   # e.g. saved by an older server config: drop it, re-read once
+                print(f"[slots] could not restore {cid} ({e}); discarding that cache file", flush=True)
+                try:
+                    os.remove(os.path.join(SLOT_DIR, _slot_file(cid)))
+                except OSError:
+                    pass
         ag.profile.extra = {"id_slot": slot}
         return slot
     except Exception as e:

@@ -49,6 +49,13 @@ def environment(cfg: dict) -> str:
         gguf = next((a for a in args if a.endswith(".gguf")), "")
         ctx, slots = arg("-c"), arg("-np")
         per_slot = f"{int(ctx) // int(slots):,} tokens per conversation" if ctx.isdigit() and slots.isdigit() else "unknown"
+        try:                                                    # the real per-chat limit (unified KV, training limit)
+            import json as _j, urllib.request as _u
+            _k = open(os.path.expanduser("~/.config/ornith/api_key")).read().strip()
+            _s = _j.load(_u.urlopen(_u.Request("http://127.0.0.1:8080/slots", headers={"Authorization": f"Bearer {_k}"}), timeout=3))
+            per_slot = f"up to {_s[0]['n_ctx']:,} tokens per conversation (shared pool of {int(ctx):,} for {slots} parallel chats)"
+        except Exception:
+            pass
         _env_cache.update(
             host=platform.node(), os=_sh("lsb_release -ds") or platform.platform(),
             cpu=_sh("grep -m1 'model name' /proc/cpuinfo | cut -d: -f2").strip(),
