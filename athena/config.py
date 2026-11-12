@@ -7,7 +7,7 @@ import os
 PATH = os.path.expanduser(os.environ.get("ATHENA_CONFIG", "~/.config/athena/config.json"))
 
 DEFAULTS = {
-    "assistant_name": "Athena",
+    "assistant_name": "Atenea",
     "model": {"url": "http://127.0.0.1:8080/v1/chat/completions", "model": "ornith", "temperature": 1.0},
     "telegram": {"token": "", "allowed_users": []},
     "workspace": "~/projects",

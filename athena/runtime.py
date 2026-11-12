@@ -46,7 +46,7 @@ def build_agent(cwd: str | None = None, on_event=None, approve=None, verify: str
     for t in tools:
         if t.name in set(cfg.get("confirm_tools") or []):
             t.dangerous = True
-    return Agent(cwd=cwd, profile=profile, name=cfg.get("assistant_name", "Athena"), tools=tools,
+    return Agent(cwd=cwd, profile=profile, name=cfg.get("assistant_name", "Atenea"), tools=tools,
                  skills=SkillSet(*cfg.get("skills_dirs", [])),
                  extra_instructions=GOVERNOR_EXTRA + "\n- " + cfg.get("instructions", ""),
                  verify=verify or cfg.get("verify_default") or None, on_event=on_event, approve=approve)

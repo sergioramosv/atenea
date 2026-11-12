@@ -152,7 +152,7 @@ class Hermes:
         cmd, _, arg = text.partition(" ")
         cmd = cmd.split("@")[0]
         if cmd in ("/start", "/help"):
-            self.tg.send(s.chat, "Hi, I'm Athena 🦉. Tell me what you need.\n"
+            self.tg.send(s.chat, f"Hi, I'm {C.load().get('assistant_name', 'Atenea')} 🦉. Tell me what you need.\n"
                                  "/new — start a new conversation\n/project <alias|path> — switch project\n"
                                  "/status — ZEUS status\n/cancel — stop the running task")
         elif cmd == "/new":
