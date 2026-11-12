@@ -175,6 +175,24 @@ def _mode(m: str | None) -> str:
     return m if m in MODES else (C.load().get("default_mode") or "auto")
 
 
+# ---------------- quick replies ----------------
+# Greetings, thanks and short factual questions are answered without reasoning (~1-2 s instead of ~5 s).
+# Conservative: anything that looks like a task, mentions files/code or is long keeps full reasoning.
+_TASK_WORDS = re.compile(r"\b(arregl|crea|crear|haz|hazme|genera|escrib|busca|investig|analiz|compar|programa|codig|código|"
+                         r"archivo|fichero|carpeta|repo|test|error|bug|instala|configura|ejecuta|corre|lanza|revisa|resume|"
+                         r"resumen|traduce|calcula|planifica|expli|por qu|correo|email|calendario|agenda|imagen|foto|"
+                         r"fix|create|make|write|search|find|build|run|install|explain|why|code|file|image|plan|review)",
+                         re.I)
+
+
+def _is_quick(text: str, mode: str) -> bool:
+    if not C.load().get("quick_replies", True) or mode == "plan":
+        return False
+    t = text.strip()
+    return (len(t) <= 140 and "\n" not in t and "@" not in t and "[attachment:" not in t and "/" not in t
+            and not _TASK_WORDS.search(t))
+
+
 # ---------------- prompt-cache friendly context ----------------
 # The system prompt never changes during a chat (no date, memory frozen at the chat's start), so llama.cpp can reuse
 # the processed prefix. Things that change go at the END of each new message instead.
@@ -542,12 +560,17 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False, origin: str | 
         job["base"] = (ag.stats.completion_tokens, ag.stats.secs_model)
         text_for_model = text if chat.get("runner") else _expand_mentions(text, ag.cwd)   # the CLI expands @files
         ag.note = _turn_note(ag)
+        fast = _is_quick(text, ag.mode) and not resume
+        ag.profile.think = False if fast else None
+        job["quick"] = fast
         slot = _slot_acquire(cid, ag)
         try:
             job["result"] = ag.run(RESUME_NOTE + text_for_model if resume else text_for_model)
         finally:
             _slot_release(cid, ag, slot)
-        job["meta"] = {"steps": ag.stats.requests - s0, "secs": round(time.time() - t0), "mode": job.get("mode")}
+        job["meta"] = {"steps": ag.stats.requests - s0, "secs": round(time.time() - t0), "mode": job.get("mode"),
+                       **({"quick": True} if job.get("quick") else {})}
+        ag.profile.think = None
     except KeyboardInterrupt:
         job["result"] = "_Stopped._"
         job["meta"] = {"steps": 0, "secs": round(time.time() - job["t0"]), "stopped": True}
@@ -1283,6 +1306,11 @@ def doctor():
     from .runtime import mcp_status
     for m in mcp_status(C.load()):
         add(f"MCP · {m['name']}", not m["error"] and m["enabled"], m["error"] or (f"{len(m['tools'])} tools" if m["enabled"] else "disabled"))
+    try:
+        from .web_tools import _searx
+        add("Atenea buscador (SearXNG)", bool(_searx("test", 1)), "private meta-search on :8888" if _searx("test", 1) else "down: using DuckDuckGo as fallback")
+    except Exception as e:
+        add("Atenea buscador (SearXNG)", False, str(e)[:120])
     try:
         from .web_tools import web_search
         r = web_search("test", 1)

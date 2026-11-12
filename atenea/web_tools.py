@@ -4,6 +4,8 @@ Search uses DuckDuckGo's lightweight HTML endpoint; fetch downloads a page and e
 from __future__ import annotations
 
 import html
+import json
+import os
 import re
 import urllib.parse
 import urllib.request
@@ -24,7 +26,29 @@ def _get(url: str, timeout: int = 20, limit: int = 3_000_000) -> tuple[str, str]
     return raw.decode(m.group(1) if m else "utf-8", errors="replace"), ctype
 
 
+SEARX = os.environ.get("ATENEA_SEARCH_URL", "http://127.0.0.1:8888")
+
+
+def _searx(query: str, n: int) -> str | None:
+    """Private meta-search on ZEUS (SearXNG: Brave, DuckDuckGo, Google… combined). None if unavailable."""
+    try:
+        page, _ = _get(f"{SEARX}/search?" + urllib.parse.urlencode({"q": query, "format": "json"}), timeout=25)
+        res = json.loads(page).get("results") or []
+    except Exception:
+        return None
+    if not res:
+        return None
+    out = [f"{i + 1}. {r.get('title', '').strip()}\n   {r.get('url')}\n   {' '.join((r.get('content') or '').split())[:300]}"
+           for i, r in enumerate(res[:n])]
+    return NOTE + f"Search results for: {query}\n\n" + "\n".join(out) + \
+        "\n\nUse web_fetch on the most relevant URLs to read them before answering, and cite the sources."
+
+
 def web_search(query: str, max_results: int = 8) -> str:
+    n = max(1, min(int(max_results or 8), 15))
+    r = _searx(query, n)
+    if r:
+        return r
     try:
         page, _ = _get("https://lite.duckduckgo.com/lite/?" + urllib.parse.urlencode({"q": query}))
     except Exception as e:

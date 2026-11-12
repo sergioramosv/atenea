@@ -24,6 +24,7 @@ class ModelProfile:
     timeout: int = 1800
     keep_reasoning: bool = True      # send the model's previous reasoning back (essential with Ornith)
     extra: dict | None = None        # extra request fields, e.g. {"id_slot": 1} to pin a llama.cpp slot
+    think: bool | None = None        # False = answer without reasoning (fast path for simple messages)
 
     def key(self) -> str | None:
         if self.api_key:
@@ -75,6 +76,8 @@ class LLM:
             body["tools"] = tools
         if self.p.extra:
             body.update(self.p.extra)
+        if self.p.think is False:                    # quick reply: no reasoning (Qwen3-style chat templates)
+            body["chat_template_kwargs"] = {**body.get("chat_template_kwargs", {}), "enable_thinking": False}
         t0 = time.time()
         for attempt in range(3):
             body["seed"] = random.randint(0, 2**31 - 1)            # new seed on every attempt

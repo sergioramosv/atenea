@@ -457,7 +457,7 @@ function botEl(entry){const d=document.createElement('div');d.className='b';cons
     <div class="todo" hidden></div>
     <details class="steps"${ev.length?'':' hidden'}><summary>${CHEV}<span class="sum">${ev.length} step${ev.length===1?'':'s'}${m?` · ${m.secs}s`:''}</span></summary><ol>${ev.map(stepLine).join('')}</ol></details>
     <div class="ap"></div><div class="qa"></div><div class="md out">${entry?md(entry.a||'(no answer)'):''}</div>`;
-  if(m)d.querySelector('.st').textContent=`· ${m.secs}s`;if(entry){finishOut(d.querySelector('.out'),entry.artifacts);renderTodos(d,entry.todos);
+  if(m)d.querySelector('.st').textContent=`· ${m.secs}s${m.quick?' · ⚡ quick':''}`;if(entry){finishOut(d.querySelector('.out'),entry.artifacts);renderTodos(d,entry.todos);
     if(entry.files?.length)d.insertAdjacentHTML('beforeend',`<div class="fchg" title="${esc(entry.files.join('\n'))}">✎ ${entry.files.length} file${entry.files.length===1?'':'s'} changed · rewind from the message above</div>`);}return d;}
 function renderTodos(b,todos){const el=b.querySelector('.todo');if(!todos?.length){el.hidden=true;return;}el.hidden=false;
   const done=todos.filter(t=>t.status==='completed').length;
