@@ -1679,7 +1679,7 @@ def _speakable(t: str) -> str:
 def _tts_wav(text: str) -> bytes | None:
     import urllib.request
     cfg = C.load().get("voice") or {}
-    body = {"text": text[:1200], "voice": cfg.get("voice", "es_ES-sharvard-medium"), "speaker": cfg.get("speaker", 1)}
+    body = {"text": text[:1200], "voice": cfg.get("voice", ""), "speaker": cfg.get("speaker", 1)}
     try:
         req = urllib.request.Request(VOICE + "/tts", json.dumps(body).encode(), {"Content-Type": "application/json"})
         return urllib.request.urlopen(req, timeout=60).read()
@@ -1691,7 +1691,7 @@ def _tts_wav(text: str) -> bytes | None:
 def _live_stream(cid: str, jid: str, user_text: str, stt_secs: float):
     """NDJSON: the transcript, then each sentence of Atenea's answer as text + WAV, as soon as it is written."""
     yield json.dumps({"type": "user", "text": user_text, "chat": cid, "job": jid, "stt": stt_secs}) + "\n"
-    job, done_upto, last_turn, t0 = JOBS[jid], 0, None, time.time()
+    job, done_upto, last_turn, t0, spoken = JOBS[jid], 0, None, time.time(), False
 
     def say(sentence: str):
         s = _speakable(sentence)
@@ -1718,6 +1718,10 @@ def _live_stream(cid: str, jid: str, user_text: str, stt_secs: float):
             if len(m.group(0).strip()) < 12 and not finished:
                 break
             out.append(m.group(0))
+        if not out and not spoken and not finished:          # nothing said yet: start at the first comma
+            m = re.match(r"(.{18,}?,)(?=\s)", chunk, re.S)
+            if m:
+                out.append(m.group(1))
         if finished:
             rest = chunk[sum(len(x) for x in out):]
             if rest.strip():
@@ -1726,6 +1730,7 @@ def _live_stream(cid: str, jid: str, user_text: str, stt_secs: float):
             done_upto += len(sent)
             line = say(sent)
             if line:
+                spoken = True
                 yield line
             if job["cancel"]:
                 break
@@ -2129,11 +2134,21 @@ class TtsIn(BaseModel):
     voice: str | None = None
 
 
+@app.get("/api/voices", dependencies=[Depends(auth)])
+def voices():
+    import urllib.request
+    try:
+        j = json.load(urllib.request.urlopen(VOICE + "/", timeout=10))
+    except Exception as e:
+        raise HTTPException(503, f"Voice service unavailable: {e}")
+    return {"voices": j.get("voices", []), "default": j.get("default"), "current": (C.load().get("voice") or {}).get("voice") or j.get("default")}
+
+
 @app.post("/api/tts", dependencies=[Depends(auth)])
 def tts(t: TtsIn):
     import urllib.request
     cfg = C.load().get("voice") or {}
-    body = {"text": t.text[:3000], "voice": t.voice or cfg.get("voice", "es_ES-sharvard-medium"), "speaker": cfg.get("speaker", 1)}
+    body = {"text": t.text[:3000], "voice": t.voice or cfg.get("voice", ""), "speaker": cfg.get("speaker", 1)}
     try:
         req = urllib.request.Request(VOICE + "/tts", json.dumps(body).encode(), {"Content-Type": "application/json"})
         wav = urllib.request.urlopen(req, timeout=120).read()

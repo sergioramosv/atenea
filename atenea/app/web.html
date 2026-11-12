@@ -351,7 +351,8 @@ img.media,.uatt img{cursor:zoom-in}
         <div class="f"><label for="s_tok">Bot token</label><input id="s_tok" autocomplete="off"><label for="s_users">Allowed user ids</label><input id="s_users" placeholder="123456789, …"></div></div>
       <div class="card"><h2>Atenea voz</h2><p class="d">Tap <svg class="si" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3"/></svg> to dictate: the words appear as you speak, and the full text stays in the box for you to review and send.</p>
         <label style="display:flex;gap:10px;align-items:center;font-size:14px"><input type="checkbox" id="v_speak"> Read Atenea's answer aloud when I dictate</label>
-        <label style="display:flex;gap:10px;align-items:center;font-size:14px"><input type="checkbox" id="v_send"> Send automatically when I stop dictating</label></div>
+        <label style="display:flex;gap:10px;align-items:center;font-size:14px"><input type="checkbox" id="v_send"> Send automatically when I stop dictating</label>
+        <div class="row" style="margin-top:6px"><label for="v_voice" style="font-size:14px">Atenea's voice</label><select id="v_voice" class="btn" style="height:38px;min-width:190px"></select><button class="btn" id="v_try">Listen</button></div></div>
       <div class="card"><h2>Atenea documentos</h2><p class="d">Atenea searches these folders, the files you upload, the documents she creates and all your past conversations (by meaning and by words). The index updates every 15 minutes.</p>
         <div class="f"><label for="kb_folders">Folders on ZEUS</label><textarea id="kb_folders" style="min-height:70px;font:13px var(--mono)" placeholder="~/Documentos"></textarea></div>
         <div id="kbstat" style="font-size:13.5px;color:var(--ink2)"></div>
@@ -980,7 +981,7 @@ async function liveOpen(){$('#live').hidden=false;document.body.style.overflow='
     await loadScript(`https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@${VADV}/dist/bundle.min.js`);
     LV.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});
     LV.vad=await vad.MicVAD.new({stream:LV.stream,model:'v5',baseAssetPath:`https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@${VADV}/dist/`,onnxWASMBasePath:`https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORTV}/dist/`,
-      positiveSpeechThreshold:0.6,negativeSpeechThreshold:0.4,minSpeechFrames:8,redemptionFrames:22,preSpeechPadFrames:10,
+      positiveSpeechThreshold:0.6,negativeSpeechThreshold:0.4,minSpeechFrames:8,redemptionFrames:16,preSpeechPadFrames:10,
       onSpeechStart:()=>{if(LV.muted)return;if(LV.playing||LV.ctrl)lvBarge();lvState('Listening…','user');},
       onVADMisfire:()=>{if(!LV.ctrl&&!LV.playing)lvState(LV.muted?'Muted':'Listening','');},
       onSpeechEnd:a=>{if(!LV.muted)lvSend(a);}});
@@ -1131,7 +1132,12 @@ $('#bknow').onclick=async()=>{toast('Backing up…');try{await api('/api/backups
 function projRow(a='',p=''){const d=document.createElement('div');d.className='prow';d.innerHTML=`<input placeholder="alias" value="${esc(a)}" aria-label="Alias"><input placeholder="~/projects/my-app" value="${esc(p)}" aria-label="Folder"><button class="ib" title="Remove" aria-label="Remove">${ico('x')}</button>`;
   d.querySelector('button').onclick=()=>d.remove();$('#plist').append(d);}
 $('#padd').onclick=()=>projRow();
-function fillSettings(){const c=S.cfg;if(!c)return;$('#v_speak').checked=!!(c.voice||{}).speak_replies;$('#v_send').checked=!!(c.voice||{}).autosend;$('#s_name').value=c.assistant_name||'Atenea';$('#s_ins').value=c.instructions||'';$('#s_url').value=c.model.url;
+const VNAME=v=>v.startsWith('supertonic:')?`Supertonic ${v.slice(11).startsWith('F')?'mujer':'hombre'} ${v.slice(12)}`:v.startsWith('kokoro:')?`Kokoro ${({ef_dora:'Dora (mujer)',em_alex:'Alex (hombre)',em_santa:'Santa (hombre)'})[v.slice(7)]||v.slice(7)}`:`Piper ${v.replace(/^es_ES-|-medium$/g,'')} (old)`;
+async function loadVoices(){try{const r=await api('/api/voices');$('#v_voice').innerHTML=r.voices.map(v=>`<option value="${esc(v)}"${v===r.current?' selected':''}>${esc(VNAME(v))}</option>`).join('');}catch(_){$('#v_voice').innerHTML='<option value="">Voice service off</option>';}}
+$('#v_voice').onchange=async()=>{try{const v={...((S.cfg||{}).voice||{}),voice:$('#v_voice').value};await api('/api/config',{method:'PUT',body:JSON.stringify({voice:v})});if(S.cfg)S.cfg.voice=v;toast('Voice saved');$('#v_try').click();}catch(e){toast(e.message);}};
+$('#v_try').onclick=async()=>{const b=$('#v_try');b.disabled=true;try{const r=await fetch('/api/tts',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:'Hola Sergio, soy Atenea. Así sueno con esta voz. ¿Qué te parece?',voice:$('#v_voice').value})});
+  const u=URL.createObjectURL(await r.blob());const a=new Audio(u);a.onended=()=>URL.revokeObjectURL(u);await a.play();}catch(e){toast('Could not play: '+e.message);}b.disabled=false;};
+function fillSettings(){const c=S.cfg;if(!c)return;loadVoices();$('#v_speak').checked=!!(c.voice||{}).speak_replies;$('#v_send').checked=!!(c.voice||{}).autosend;$('#s_name').value=c.assistant_name||'Atenea';$('#s_ins').value=c.instructions||'';$('#s_url').value=c.model.url;
   $('#s_model').value=c.model.model;$('#s_temp').value=c.model.temperature??1;$('#s_ws').value=c.workspace;$('#plist').innerHTML='';
   Object.entries(c.projects||{}).forEach(([a,p])=>projRow(a,p));$('#s_tok').value=c.telegram.token||'';$('#s_users').value=(c.telegram.allowed_users||[]).join(', ');
   $('#s_mcp').value=JSON.stringify(c.mcp_servers||{},null,2);$('#s_conf').value=(c.confirm_tools||[]).join(', ');$('#mcperr').textContent='';}
@@ -1140,7 +1146,7 @@ $('#save').onclick=async()=>{let mcp;try{mcp=JSON.parse($('#s_mcp').value||'{}')
   const projects={};$$('#plist .prow').forEach(r=>{const [a,p]=r.querySelectorAll('input');if(a.value.trim()&&p.value.trim())projects[a.value.trim()]=p.value.trim();});
   const c=S.cfg,n={assistant_name:$('#s_name').value.trim()||'Atenea',instructions:$('#s_ins').value,model:{...c.model,url:$('#s_url').value.trim(),model:$('#s_model').value.trim(),temperature:parseFloat($('#s_temp').value)||1},
     workspace:$('#s_ws').value.trim(),projects,telegram:{token:$('#s_tok').value.trim(),allowed_users:$('#s_users').value.split(',').map(s=>s.trim()).filter(Boolean).map(Number)},
-    voice:{...(c.voice||{}),speak_replies:$('#v_speak').checked,autosend:$('#v_send').checked},
+    voice:{...(c.voice||{}),speak_replies:$('#v_speak').checked,autosend:$('#v_send').checked,...($('#v_voice').value?{voice:$('#v_voice').value}:{})},
     mcp_servers:mcp,confirm_tools:$('#s_conf').value.split(',').map(s=>s.trim()).filter(Boolean)};
   try{await api('/api/config',{method:'PUT',body:JSON.stringify(n)});toast('Settings saved');await loadCfg();}catch(e){toast('Could not save: '+e.message);}};
 async function loadMemory(){const r=await api('/api/memory');S.mem=r.facts;
