@@ -255,6 +255,12 @@ img.media,.uatt img{cursor:zoom-in}
 .orb.speak i:nth-child(2){animation:lvring .7s ease-out infinite}.orb.speak i:nth-child(3){animation:lvring 1.1s ease-out infinite .3s}
 .orb.muted i{filter:grayscale(1);opacity:.35}
 @keyframes lvpulse{50%{transform:scale(1.07)}}@keyframes lvring{from{transform:scale(1);opacity:.35}to{transform:scale(1.5);opacity:0}}@keyframes lvthink{to{transform:rotate(360deg)}}
+.lvtop{gap:10px}.lvtop #lvlat{margin-left:auto}.lvvoice{display:flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:16px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#ECEDEF;font-size:13px}
+.lvsheet{position:absolute;left:0;right:0;bottom:0;max-height:72vh;overflow:auto;background:#17191b;border-radius:18px 18px 0 0;padding:14px 16px max(18px,env(safe-area-inset-bottom));box-shadow:0 -10px 40px rgba(0,0,0,.5);z-index:3}
+.lvsheet[hidden]{display:none}.lvsh{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:15px}.lvb.sm{width:36px;height:36px}
+.vopt{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:11px 12px;border-radius:12px;border:1px solid transparent;background:none;color:#ECEDEF;font-size:15px}
+.vopt small{display:block;color:#9AA0A8;font-size:12.5px;margin-top:2px}.vopt.cur{border-color:#3E8E63;background:rgba(62,142,99,.15)}.vopt .vg{margin-left:auto;font-size:11px;color:#9AA0A8;border:1px solid rgba(255,255,255,.18);border-radius:8px;padding:2px 7px}
+.vgrp{font-size:11.5px;letter-spacing:.6px;color:#8E949B;margin:12px 4px 4px}
 .lvbar{display:flex;justify-content:center;gap:28px}.lvb{width:64px;height:64px;border-radius:50%;border:0;background:rgba(255,255,255,.12);color:#ECEDEF;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .lvb.on{background:#ECEDEF;color:#111}.lvb.end{background:#C0392B}
 .pv{align-items:stretch}.pv .lbbar{z-index:2;background:linear-gradient(rgba(0,0,0,.85),rgba(0,0,0,.55) 70%,transparent)}#pvname{flex:1;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#pvcount{font:12px var(--mono);color:#9AA0A8}
@@ -397,7 +403,8 @@ img.media,.uatt img{cursor:zoom-in}
   <button class="opt" data-h="json"><span class="tx"><b style="color:var(--ink)">Export as JSON</b></span></button>
   <button class="opt" data-h="del"><span class="tx"><b style="color:var(--bad)">Delete chat</b></span></button></div>
 <div class="live" id="live" hidden role="dialog" aria-label="Atenea live">
-  <div class="lvtop"><span class="lvtitle">Atenea en vivo</span><span id="lvlat"></span></div>
+  <div class="lvtop"><span class="lvtitle">Atenea en vivo</span><span id="lvlat"></span><button class="lvvoice" id="lvvoice" aria-label="Change voice"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 10v4M7 7v10M11 4v16M15 8v8M19 10v4"/></svg><span id="lvvname">Voice</span></button></div>
+  <div class="lvsheet" id="lvsheet" hidden><div class="lvsh"><b>Atenea's voice</b><button class="lvb sm" id="lvshx" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><div id="lvvlist"></div></div>
   <div class="lvmid"><div class="orb" id="orb"><i></i><i></i><i></i></div><div id="lvstate">Connecting…</div>
     <div class="lvtx"><div id="lvuser"></div><div id="lvbot"></div></div></div>
   <div class="lvbar"><button class="lvb" id="lvmute" aria-label="Mute microphone"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
@@ -985,7 +992,7 @@ async function liveOpen(){$('#live').hidden=false;document.body.style.overflow='
       onSpeechStart:()=>{if(LV.muted)return;if(LV.playing||LV.ctrl)lvBarge();lvState('Listening…','user');},
       onVADMisfire:()=>{if(!LV.ctrl&&!LV.playing)lvState(LV.muted?'Muted':'Listening','');},
       onSpeechEnd:a=>{if(!LV.muted)lvSend(a);}});
-    LV.vad.start();LV.on=true;lvState('Listening','');}
+    LV.vad.start();LV.on=true;lvState('Listening','');lvVoices().catch(()=>{});}
   catch(e){lvState('Could not start: '+e.message,'');}}
 function liveClose(){lvBarge();LV.on=false;try{LV.vad&&LV.vad.destroy();}catch(_){}LV.vad=null;if(LV.stream){LV.stream.getTracks().forEach(t=>t.stop());LV.stream=null;}
   $('#live').hidden=true;document.body.style.overflow='';if(S.chat?.id)openChat(S.chat.id,false);loadList();}
@@ -1132,7 +1139,18 @@ $('#bknow').onclick=async()=>{toast('Backing up…');try{await api('/api/backups
 function projRow(a='',p=''){const d=document.createElement('div');d.className='prow';d.innerHTML=`<input placeholder="alias" value="${esc(a)}" aria-label="Alias"><input placeholder="~/projects/my-app" value="${esc(p)}" aria-label="Folder"><button class="ib" title="Remove" aria-label="Remove">${ico('x')}</button>`;
   d.querySelector('button').onclick=()=>d.remove();$('#plist').append(d);}
 $('#padd').onclick=()=>projRow();
-const VNAME=v=>v.startsWith('supertonic:')?`Supertonic ${v.slice(11).startsWith('F')?'mujer':'hombre'} ${v.slice(12)}`:v.startsWith('kokoro:')?`Kokoro ${({ef_dora:'Dora (mujer)',em_alex:'Alex (hombre)',em_santa:'Santa (hombre)'})[v.slice(7)]||v.slice(7)}`:`Piper ${v.replace(/^es_ES-|-medium$/g,'')} (old)`;
+const VINFO=v=>v.startsWith('kokoro:')?{g:'Spain',n:({ef_dora:'Dora',em_alex:'Alex',em_santa:'Santa'})[v.slice(7)]||v.slice(7),d:({ef_dora:'Woman',em_alex:'Man',em_santa:'Man, deep'})[v.slice(7)]||'',e:'Kokoro'}
+  :v.startsWith('supertonic:')?{g:'Latin American',n:(v.slice(11).startsWith('F')?'Woman ':'Man ')+v.slice(12),d:'Smooth, Latin American accent',e:'Supertonic'}
+  :{g:'Spain',n:v.replace(/^es_ES-|-medium$/g,''),d:'Robotic (old voice)',e:'Piper'};
+const VNAME=v=>{const i=VINFO(v);return `${i.n} · ${i.g} (${i.e})`;};
+async function lvVoices(){const r=await api('/api/voices');$('#lvvname').textContent=VINFO(r.current).n;let h='';
+  for(const g of ['Spain','Latin American']){const vs=r.voices.filter(v=>VINFO(v).g===g);if(!vs.length)continue;h+=`<div class="vgrp">${g==='Spain'?'SPAIN':'LATIN AMERICA'}</div>`;
+    h+=vs.map(v=>{const i=VINFO(v);return `<button class="vopt${v===r.current?' cur':''}" data-v="${esc(v)}"><span><b>${esc(i.n)}</b><small>${esc(i.d)}</small></span><span class="vg">${i.e}</span></button>`;}).join('');}
+  $('#lvvlist').innerHTML=h;$$('#lvvlist .vopt').forEach(b=>b.onclick=async()=>{const v={...((S.cfg||{}).voice||{}),voice:b.dataset.v};
+    try{await api('/api/config',{method:'PUT',body:JSON.stringify({voice:v})});if(S.cfg)S.cfg.voice=v;await lvVoices();lvSample(b.dataset.v);}catch(e){toast(e.message);}});}
+async function lvSample(v){try{lvBarge();const r=await fetch('/api/tts',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:'Hola Sergio, soy Atenea. ¿Te gusta cómo sueno?',voice:v})});
+  const buf=await LV.ctx.decodeAudioData(await r.arrayBuffer());const src=LV.ctx.createBufferSource();src.buffer=buf;src.connect(LV.ctx.destination);LV.src=src;src.start();}catch(e){toast('Could not play: '+e.message);}}
+$('#lvvoice').onclick=()=>{$('#lvsheet').hidden=!$('#lvsheet').hidden;if(!$('#lvsheet').hidden)lvVoices();};$('#lvshx').onclick=()=>{$('#lvsheet').hidden=true;};
 async function loadVoices(){try{const r=await api('/api/voices');$('#v_voice').innerHTML=r.voices.map(v=>`<option value="${esc(v)}"${v===r.current?' selected':''}>${esc(VNAME(v))}</option>`).join('');}catch(_){$('#v_voice').innerHTML='<option value="">Voice service off</option>';}}
 $('#v_voice').onchange=async()=>{try{const v={...((S.cfg||{}).voice||{}),voice:$('#v_voice').value};await api('/api/config',{method:'PUT',body:JSON.stringify({voice:v})});if(S.cfg)S.cfg.voice=v;toast('Voice saved');$('#v_try').click();}catch(e){toast(e.message);}};
 $('#v_try').onclick=async()=>{const b=$('#v_try');b.disabled=true;try{const r=await fetch('/api/tts',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:'Hola Sergio, soy Atenea. Así sueno con esta voz. ¿Qué te parece?',voice:$('#v_voice').value})});

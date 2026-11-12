@@ -88,12 +88,16 @@ def transcribe(data: bytes, fast: bool = False) -> dict:
 
 
 MODELS = os.path.join(os.path.dirname(VOICES), "models")
-DEFAULT_VOICE = os.environ.get("ATENEA_VOICE", "supertonic:F1")
+DEFAULT_VOICE = os.environ.get("ATENEA_VOICE", "kokoro:ef_dora")      # Castilian pronunciation (espeak "es")
 _eng: dict = {}
 
 
 def _wav(audio, sr: int) -> bytes:
-    a = np.clip(np.asarray(audio, dtype=np.float32).squeeze(), -1, 1)
+    a = np.asarray(audio, dtype=np.float32).squeeze()
+    peak = float(np.abs(a).max()) if a.size else 0.0
+    if peak > 1e-4:
+        a = a * (0.89 / peak)                       # same loudness for every voice, without clipping
+    a = np.clip(a, -1, 1)
     buf = io.BytesIO()
     with wave.open(buf, "wb") as w:
         w.setnchannels(1)
