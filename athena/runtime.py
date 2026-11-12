@@ -7,6 +7,7 @@ import subprocess
 import time
 
 from . import config as C
+from . import memory as MEM
 from .agent import Agent
 from .llm import ModelProfile
 from .skills import SkillSet
@@ -92,11 +93,12 @@ def build_agent(cwd: str | None = None, on_event=None, approve=None, verify: str
     profile = ModelProfile(url=m["url"], model=m.get("model", "ornith"), temperature=m.get("temperature", 1.0))
     cwd = os.path.expanduser(cwd or cfg["workspace"])
     os.makedirs(cwd, exist_ok=True)
-    tools = mcp_tools(cfg)
+    tools = mcp_tools(cfg) + MEM.tools()
     for t in tools:
         if t.name in set(cfg.get("confirm_tools") or []):
             t.dangerous = True
     return Agent(cwd=cwd, profile=profile, name=cfg.get("assistant_name", "Atenea"), tools=tools,
                  skills=SkillSet(*cfg.get("skills_dirs", [])),
-                 extra_instructions=GOVERNOR_EXTRA + "\n- " + cfg.get("instructions", "") + environment(cfg),
+                 extra_instructions=GOVERNOR_EXTRA + "\n" + MEM.INSTRUCTIONS + "\n- " + cfg.get("instructions", "")
+                 + environment(cfg) + MEM.project_block(cwd) + MEM.block(),
                  verify=verify or cfg.get("verify_default") or None, on_event=on_event, approve=approve)

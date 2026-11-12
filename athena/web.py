@@ -9,6 +9,7 @@ Conversations: each one is a JSON file in ~/.config/athena/chats/<id>.json holdi
 from __future__ import annotations
 
 import base64
+import difflib
 import hashlib
 import hmac
 import json
@@ -27,6 +28,7 @@ from pydantic import BaseModel
 
 from . import artifacts as A
 from . import config as C
+from . import memory as MEM
 from .runtime import build_agent
 
 app = FastAPI(title="Atenea", docs_url=None, redoc_url=None)
@@ -37,6 +39,8 @@ COOKIE = "atenea_session"
 SESSION_DAYS = 30
 HERE = os.path.dirname(__file__)
 CHATS_DIR = os.path.join(os.path.dirname(C.PATH), "chats")
+CKPT_DIR = os.path.join(os.path.dirname(C.PATH), "checkpoints")
+EDIT_TOOLS = ("write_file", "edit_file")
 _lock = threading.Lock()
 
 
@@ -164,6 +168,9 @@ def _agent(chat: dict):
         if chat.get("messages"):
             ag.messages = [ag.messages[0]] + [m for m in chat["messages"] if m["role"] != "system"]
         ag.messages[0]["content"] += "\n" + A.INSTRUCTIONS
+        mb = MEM.block()
+        ag._sys_tmpl = ag.messages[0]["content"].replace(mb, "\n<<MEMORY>>\n") if mb else \
+            ag.messages[0]["content"] + "\n<<MEMORY>>\n"
         ag._tools["create_artifact"] = A.make_tool(lambda: ag.cwd, chat["id"],
                                                    on_create=lambda m: getattr(ag, "_on_artifact", lambda _: None)(m))
         AGENTS[chat["id"]] = ag
@@ -228,14 +235,22 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False):
             _save_progress(cid, holder["ag"], job)
 
     def approve(tool, args):
-        job["approval"] = {"tool": tool.name, "args": str(args)[:1500], "answer": None}
+        if _allowed_by_rule(tool.name, args):
+            job["events"].append({"t": round(time.time() - job["t0"], 1), "kind": "notice",
+                                  "data": {"text": f"{tool.name} allowed by an 'always allow' rule"}})
+            return True
+        ag = holder.get("ag")
+        job["approval"] = {"tool": tool.name, "args": str(args)[:1500], "answer": None,
+                           "diff": _diff_for(tool.name, args, ag.cwd if ag else "/"), **_rule_for(tool.name, args)}
         for _ in range(600):
             if job["cancel"]:
                 break
             if job["approval"]["answer"] is not None:
                 ok = job["approval"]["answer"]
+                if ok == "always":
+                    _add_rule(job["approval"], cid)
                 job["approval"] = None
-                return ok
+                return bool(ok)
             time.sleep(1)
         job["approval"] = None
         return False
@@ -246,10 +261,25 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False):
         ag = _agent(chat)
         holder["ag"] = ag
         ag.on_event, ag.approve = ev, approve
+
+        def before(t, a):
+            if t.name in EDIT_TOOLS and a.get("path"):
+                p = os.path.realpath(os.path.join(ag.cwd, os.path.expanduser(a["path"])))
+                if p not in job["ckpt"]:
+                    try:
+                        job["ckpt"][p] = open(p, encoding="utf-8").read() if os.path.getsize(p) < 5_000_000 else "\0skip"
+                    except FileNotFoundError:
+                        job["ckpt"][p] = None
+                    except (OSError, UnicodeDecodeError):
+                        job["ckpt"][p] = "\0skip"
+        ag.before_tool = before
+        job["msg_start"] = len(ag.messages)
         ag._on_artifact = lambda m: job["artifacts"].append({"id": m["id"], "title": m["title"], "version": m["version"]})
         s0, t0 = ag.stats.requests, time.time()
         job["mode"] = ag.mode
         job["base"] = (ag.stats.completion_tokens, ag.stats.secs_model)
+        if getattr(ag, "_sys_tmpl", None):              # always the latest memory, even if saved in another chat
+            ag.messages[0]["content"] = ag._sys_tmpl.replace("<<MEMORY>>", MEM.block())
         job["result"] = ag.run(RESUME_NOTE + text if resume else text)
         job["meta"] = {"steps": ag.stats.requests - s0, "secs": round(time.time() - t0), "mode": job.get("mode")}
     except KeyboardInterrupt:
@@ -265,7 +295,14 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False):
             if ag is not None:
                 chat["messages"] = ag.messages
                 chat["usage"] = _usage(ag, job)
+            idx = len(chat["log"])
+            files = [p for p, v in job["ckpt"].items() if v != "\0skip"]
+            if files:
+                os.makedirs(os.path.join(CKPT_DIR, cid), exist_ok=True)
+                json.dump({p: job["ckpt"][p] for p in files},
+                          open(os.path.join(CKPT_DIR, cid, f"{idx}.json"), "w", encoding="utf-8"), ensure_ascii=False)
             chat["log"].append({"q": text, "a": job["result"], "events": job["events"], "meta": job["meta"],
+                                "files": files, "msg_start": job.get("msg_start"),
                                 "t": job["t0"], "artifacts": job["artifacts"], "todos": job["todos"],
                                 **({"resumed": True} if resume else {})})
             chat["pending"] = None
@@ -291,7 +328,7 @@ def _start(cid: str, text: str, resume: bool = False, t0: float | None = None) -
     jid = uuid.uuid4().hex[:10]
     JOBS[jid] = {"t0": t0 or time.time(), "events": [], "done": False, "result": None, "approval": None, "meta": None,
                  "chat": cid, "cancel": False, "text": text, "next": None, "artifacts": [], "resumed": resume,
-                 "live": {"thinking": "", "text": ""}, "todos": []}
+                 "live": {"thinking": "", "text": ""}, "todos": [], "ckpt": {}}
     try:
         c = _read(cid)
         old = c.get("pending") or {}
@@ -449,7 +486,7 @@ def job(jid: str):
 def approve(jid: str, answer: str):
     a = JOBS.get(jid, {}).get("approval")
     if a:
-        a["answer"] = answer == "yes"
+        a["answer"] = "always" if answer == "always" else answer == "yes"
     return {"ok": bool(a)}
 
 
@@ -473,6 +510,172 @@ def unqueue(cid: str, qid: str):
         if not QUEUES[cid]:
             QUEUES.pop(cid, None)
         _save_queue(cid)
+    return {"ok": True}
+
+
+# ---------------- permissions: diffs and "always allow" rules ----------------
+def _diff_for(name: str, args: dict, cwd: str) -> str | None:
+    if name not in EDIT_TOOLS or not args.get("path"):
+        return None
+    p = os.path.join(cwd, os.path.expanduser(args["path"]))
+    try:
+        cur = open(p, encoding="utf-8").read()
+    except (OSError, UnicodeDecodeError):
+        cur = ""
+    new = args.get("content", "") if name == "write_file" else cur.replace(args.get("old", ""), args.get("new", ""), 1)
+    lines = list(difflib.unified_diff(cur.splitlines(), new.splitlines(), fromfile=args["path"], tofile=args["path"],
+                                      lineterm="", n=2))
+    return "\n".join(lines[:400]) + ("\n… (diff truncated)" if len(lines) > 400 else "") if lines else "(no changes)"
+
+
+def _bash_prefix(cmd: str) -> str:
+    words = cmd.strip().split()
+    if not words:
+        return ""
+    return " ".join(words[:2]) if len(words) > 1 and not words[1].startswith("-") else words[0]
+
+
+def _rule_for(name: str, args: dict) -> dict:
+    if name in EDIT_TOOLS:
+        return {"always": "Allow all edits in this chat (switches to Accept edits)"}
+    if name == "bash":
+        pre = _bash_prefix(str(args.get("command", "")))
+        return {"always": f"Always allow commands starting with “{pre}”", "rule": {"tool": "bash", "prefix": pre}} if pre else {}
+    return {"always": f"Always allow {name}", "rule": {"tool": name}}
+
+
+def _allowed_by_rule(name: str, args: dict) -> bool:
+    for r in C.load().get("allow_rules") or []:
+        if r.get("tool") != name:
+            continue
+        if name != "bash":
+            return True
+        cmd = str(args.get("command", "")).strip()
+        pre = r.get("prefix", "")
+        if pre and (cmd == pre or cmd.startswith(pre + " ")) and not any(x in cmd for x in (";", "&&", "||", "|", "`", "$(")):
+            return True
+    return False
+
+
+def _add_rule(approval: dict, cid: str):
+    if approval["tool"] in EDIT_TOOLS:
+        with _lock:
+            try:
+                c = _read(cid)
+                c["mode"] = "edits"
+                _write(c)
+            except HTTPException:
+                pass
+        if cid in AGENTS:
+            AGENTS[cid].mode = "edits"
+        return
+    rule = approval.get("rule")
+    if rule:
+        cfg = C.load()
+        rules = cfg.setdefault("allow_rules", [])
+        if rule not in rules:
+            rules.append(rule)
+            C.save(cfg)
+
+
+# ---------------- rewind (checkpoints) ----------------
+class RewindIn(BaseModel):
+    index: int
+    what: str = "both"              # both | code | conversation
+
+
+@app.post("/api/chats/{cid}/rewind", dependencies=[Depends(auth)])
+def rewind(cid: str, r: RewindIn):
+    """Go back to before message `index`: restore the files Atenea edited since then and/or cut the conversation."""
+    if _running(cid):
+        raise HTTPException(409, "Wait until Atenea finishes (or stop it) before rewinding")
+    with _lock:
+        c = _read(cid)
+        if not 0 <= r.index < len(c["log"]):
+            raise HTTPException(400, "No such message")
+        restored = []
+        if r.what in ("both", "code"):
+            for i in range(len(c["log"]) - 1, r.index - 1, -1):
+                f = os.path.join(CKPT_DIR, cid, f"{i}.json")
+                if not os.path.isfile(f):
+                    continue
+                for path, content in json.load(open(f, encoding="utf-8")).items():
+                    try:
+                        if content is None:
+                            if os.path.exists(path):
+                                os.remove(path)
+                        else:
+                            os.makedirs(os.path.dirname(path), exist_ok=True)
+                            open(path, "w", encoding="utf-8").write(content)
+                        restored.append(path)
+                    except OSError:
+                        pass
+        q = c["log"][r.index]["q"]
+        if r.what in ("both", "conversation"):
+            start = c["log"][r.index].get("msg_start")
+            if start is None:
+                raise HTTPException(400, "This message is older than checkpoints; only code can be restored")
+            c["messages"] = c["messages"][:start]
+            c["log"] = c["log"][:r.index]
+            for i in range(r.index, 10000):
+                f = os.path.join(CKPT_DIR, cid, f"{i}.json")
+                if not os.path.exists(f):
+                    break
+                os.remove(f)
+            c["usage"] = None
+            AGENTS.pop(cid, None)
+        c["updated"] = time.time()
+        _write(c)
+    return {"ok": True, "restored": sorted(set(restored)), "q": q}
+
+
+@app.post("/api/chats/{cid}/fork", dependencies=[Depends(auth)])
+def fork(cid: str, upto: int | None = None):
+    """Duplicate a conversation (optionally only up to message `upto`, exclusive) into a new one."""
+    with _lock:
+        c = _read(cid)
+        n = dict(c)
+        n["id"] = uuid.uuid4().hex[:12]
+        n["title"] = (c["title"] + " (copy)")[:120]
+        if upto is not None and 0 <= upto < len(c["log"]) and c["log"][upto].get("msg_start") is not None:
+            n["messages"] = c["messages"][:c["log"][upto]["msg_start"]]
+            n["log"] = c["log"][:upto]
+        n["pending"], n["queue"] = None, []
+        n["created"] = n["updated"] = time.time()
+        _write(n)
+    return {"id": n["id"]}
+
+
+@app.get("/api/chats/{cid}/export", dependencies=[Depends(auth)])
+def export(cid: str, fmt: str = "md"):
+    c = _read(cid)
+    if fmt == "json":
+        return Response(json.dumps(c, ensure_ascii=False, indent=1), media_type="application/json",
+                        headers={"Content-Disposition": f'attachment; filename="atenea-{cid}.json"'})
+    out = [f"# {c['title']}\n"]
+    for e in c["log"]:
+        out.append(f"## You\n\n{e['q']}\n\n## Atenea\n\n{e.get('a') or ''}\n")
+    safe = re.sub(r"[^\w\- ]+", "", c["title"])[:60].strip() or "chat"
+    return Response("\n".join(out), media_type="text/markdown; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{safe}.md"'})
+
+
+# ---------------- memory ----------------
+class MemoryIn(BaseModel):
+    facts: list[str]
+
+
+@app.get("/api/memory", dependencies=[Depends(auth)])
+def get_memory():
+    return {"facts": MEM.load()}
+
+
+@app.put("/api/memory", dependencies=[Depends(auth)])
+def put_memory(m: MemoryIn):
+    MEM.save([" ".join(f.split())[:500] for f in m.facts if f.strip()])
+    for cid in list(AGENTS):                               # new facts reach idle conversations on their next message
+        if not _running(cid):
+            AGENTS.pop(cid, None)
     return {"ok": True}
 
 

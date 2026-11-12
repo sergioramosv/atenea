@@ -107,6 +107,7 @@ class Agent:
     verbose: bool = False
     mode: str = "auto"                                      # ask | edits | auto | plan (see MODES)
     stream: bool = False                                    # emit "delta" events (reasoning/text as it is written)
+    before_tool: Callable[[Tool, dict], None] | None = None  # called right before a tool runs (checkpoints, hooks)
 
     def __post_init__(self):
         self.cwd = os.path.abspath(os.path.expanduser(self.cwd))
@@ -172,6 +173,13 @@ class Agent:
             return MSG_PLAN_BLOCK
         if need and self.approve and not self.approve(t, args):
             return MSG_DENIED
+        if self.before_tool:
+            try:
+                self.before_tool(t, args)
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                return f"Blocked before running {name}: {e}"
         try:
             out = t(**args)
         except TypeError as e:
