@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import fnmatch
+import json
 import os
 import subprocess
 
 MAX_OUT = 12000          # max characters of tool output returned to the model
 KEEP_RECENT = 12         # most recent messages that are never trimmed
-COMPACT_CHARS = 160000   # approximate history size (~45k tokens) above which old tool output is trimmed
+COMPACT_CHARS = 90000    # history size (~25k tokens) above which old tool output/arguments are trimmed (once)
 
 
 def _p(name, desc, props, req):
@@ -98,16 +99,40 @@ def run(name: str, a: dict, cwd: str) -> str:
         return f"Error: {type(e).__name__}: {e}"
 
 
+def _size(m: dict) -> int:
+    n = len(m.get("content") or "")
+    for c in m.get("tool_calls") or []:
+        n += len((c.get("function") or {}).get("arguments") or "")
+    return n
+
+
+def _slim_args(raw: str) -> str:
+    """Keep the shape of a big tool call (path, short fields) but drop bulky values (file contents, HTML…)."""
+    try:
+        a = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return raw[:300] + " …[trimmed]"
+    if not isinstance(a, dict):
+        return raw[:300]
+    return json.dumps({k: (v if not isinstance(v, str) or len(v) <= 200 else
+                           f"[{len(v):,} characters omitted to save context]") for k, v in a.items()}, ensure_ascii=False)
+
+
 def compact(messages: list[dict]):
-    """If the history is very large, replace old tool outputs with a short notice."""
-    size = sum(len(m.get("content") or "") for m in messages)
-    if size < COMPACT_CHARS:
-        return
+    """Context editing: when the history is large, trim OLD tool outputs and bulky tool-call arguments in one pass,
+    down to ~55% of the limit. Done rarely and all at once, so the cached prompt prefix stays stable afterwards."""
+    if sum(_size(m) for m in messages) < COMPACT_CHARS:
+        return False
     for m in messages[1:-KEEP_RECENT]:
         if m["role"] == "tool" and len(m.get("content") or "") > 300:
-            m["content"] = m["content"][:200] + "\n[... old output trimmed to save context ...]"
-            if sum(len(x.get("content") or "") for x in messages) < COMPACT_CHARS * 0.6:
-                break
+            m["content"] = m["content"][:200] + "\n[... old output trimmed to save context; run the tool again if needed ...]"
+        for c in m.get("tool_calls") or []:
+            f = c.get("function") or {}
+            if len(f.get("arguments") or "") > 600:
+                f["arguments"] = _slim_args(f["arguments"])
+        if sum(_size(x) for x in messages) < COMPACT_CHARS * 0.55:
+            break
+    return True
 
 
 def builtin_tools(cwd_fn):

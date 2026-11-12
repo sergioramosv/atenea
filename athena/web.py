@@ -155,6 +155,99 @@ def _mode(m: str | None) -> str:
     return m if m in MODES else (C.load().get("default_mode") or "auto")
 
 
+# ---------------- prompt-cache friendly context ----------------
+# The system prompt never changes during a chat (no date, memory frozen at the chat's start), so llama.cpp can reuse
+# the processed prefix. Things that change go at the END of each new message instead.
+def _turn_note(ag) -> str:
+    parts = [time.strftime("Now: %a %d %b %Y %H:%M")]
+    if ag.mode != "auto":
+        parts.append(MODE_TEXT.get(ag.mode, ag.mode))
+    now, snap = MEM.load(), getattr(ag, "_mem_snapshot", None)
+    if snap is not None:
+        added = [f for f in now if f not in snap]
+        gone = [f for f in snap if f not in now]
+        if added or gone:
+            parts.append("Memory updated since this chat started: " + "; ".join(
+                [f"+ {f}" for f in added[-20:]] + [f"- (forgotten) {f}" for f in gone[-20:]]))
+    return "\n\n[" + " · ".join(parts) + "]"
+
+
+# Each chat is pinned to one llama.cpp slot while it works, and its KV cache is saved to disk after every turn and
+# restored before the next one: coming back to a long chat costs ~0.1 s instead of re-reading it (minutes).
+SLOT_DIR = "/mnt/models/llamacpp/slots"          # must match ornith's --slot-save-path
+SLOT_CAP_BYTES = 40 * 1024**3
+_slots = {"n": None, "busy": set(), "owner": {}, "used": {}}
+_slot_lock = threading.Lock()
+
+
+def _llama(path: str, body: dict | None = None, timeout: int = 120) -> dict:
+    import urllib.request
+    base = C.load()["model"]["url"].split("/v1/")[0]
+    key = open(os.path.expanduser("~/.config/ornith/api_key")).read().strip() \
+        if os.path.exists(os.path.expanduser("~/.config/ornith/api_key")) else ""
+    req = urllib.request.Request(base + path, json.dumps(body).encode() if body is not None else None,
+                                 {"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})})
+    return json.load(urllib.request.urlopen(req, timeout=timeout))
+
+
+def _slot_file(cid: str) -> str:
+    return f"atenea-{cid}.bin"
+
+
+def _slot_acquire(cid: str, ag) -> int | None:
+    try:
+        with _slot_lock:
+            if _slots["n"] is None:
+                _slots["n"] = int(_llama("/props").get("total_slots") or 1)
+            free = [i for i in range(_slots["n"]) if i not in _slots["busy"]]
+            if not free:
+                return None
+            mine = [i for i in free if _slots["owner"].get(i) == cid]
+            slot = mine[0] if mine else min(free, key=lambda i: (_slots["owner"].get(i) is not None, _slots["used"].get(i, 0)))
+            _slots["busy"].add(slot)
+            restore = True                               # cheap (~0.1 s) and safe even if a subagent used the slot
+            _slots["owner"][slot] = cid
+        if restore and os.path.exists(os.path.join(SLOT_DIR, _slot_file(cid))):
+            r = _llama(f"/slots/{slot}?action=restore", {"filename": _slot_file(cid)})
+            print(f"[slots] restored {r.get('n_restored')} tokens of {cid} into slot {slot}", flush=True)
+        ag.profile.extra = {"id_slot": slot}
+        return slot
+    except Exception as e:
+        print(f"[slots] acquire failed ({e}); running unpinned", flush=True)
+        ag.profile.extra = None
+        return None
+
+
+def _slot_release(cid: str, ag, slot: int | None):
+    ag.profile.extra = None
+    if slot is None:
+        return
+    try:
+        if ag.stats.requests:
+            _llama(f"/slots/{slot}?action=save", {"filename": _slot_file(cid)})
+            _slot_gc()
+    except Exception as e:
+        print(f"[slots] save failed: {e}", flush=True)
+    finally:
+        with _slot_lock:
+            _slots["busy"].discard(slot)
+            _slots["used"][slot] = time.time()
+
+
+def _slot_gc():
+    """Keep saved KV caches under SLOT_CAP_BYTES, dropping the least recently used."""
+    try:
+        files = [os.path.join(SLOT_DIR, f) for f in os.listdir(SLOT_DIR) if f.startswith("atenea-")]
+        files.sort(key=os.path.getmtime, reverse=True)
+        total = 0
+        for f in files:
+            total += os.path.getsize(f)
+            if total > SLOT_CAP_BYTES:
+                os.remove(f)
+    except OSError:
+        pass
+
+
 MODE_TEXT = {"ask": "Ask first: the user gets an Allow/Deny popup before every command and file edit",
              "edits": "Accept edits: file edits run freely, commands show an Allow/Deny popup",
              "auto": "Auto: you act freely; only external actions (send, delete, publish…) show a popup",
@@ -200,16 +293,23 @@ def _agent(chat: dict):
     """The live agent for a conversation, rebuilt from disk when needed (after a restart, for example)."""
     ag = AGENTS.get(chat["id"])
     if ag is None:
-        ag = build_agent(_cwd(chat.get("project")))
+        snap = chat.get("mem_snapshot")
+        if snap is None:                                 # memory as it was when the chat started: keeps the prefix stable
+            snap = MEM.load()
+            with _lock:
+                try:
+                    c2 = _read(chat["id"])
+                    c2["mem_snapshot"] = snap
+                    _write(c2)
+                except HTTPException:
+                    pass
+        ag = build_agent(_cwd(chat.get("project")), mem_facts=snap)
+        ag._mem_snapshot = list(snap)
         if chat.get("messages"):
             ag.messages = [ag.messages[0]] + [m for m in chat["messages"] if m["role"] != "system"]
         # keep the context meter right before the first model call of this process (it reports 0 until then)
         ag.context_tokens = (chat.get("usage") or {}).get("ctx") or _est(ag.messages) + _est(ag.schemas())
-        ag.messages[0]["content"] += "\n" + A.INSTRUCTIONS
-        mb = MEM.block()
-        ag._sys_tmpl = ag.messages[0]["content"].replace(mb, "\n<<MEMORY>>\n") if mb else \
-            ag.messages[0]["content"] + "\n<<MEMORY>>\n"
-        ag.messages[0]["content"] += "\n" + ACTIVITY_INSTR
+        ag.messages[0]["content"] += "\n" + A.INSTRUCTIONS + "\n" + ACTIVITY_INSTR
         for t in BG.tools(lambda: ag.cwd, chat["id"]) + MON.tools(lambda: ag.cwd, chat["id"]):
             ag._tools[t.name] = t
         ag.spawn_bg = lambda sub, task, name, _cid=chat["id"]: _spawn_bg(_cid, sub, task, name)
@@ -349,9 +449,12 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False, origin: str | 
         job["mode"] = ag.mode
         job["base"] = (ag.stats.completion_tokens, ag.stats.secs_model)
         text_for_model = _expand_mentions(text, ag.cwd)
-        if getattr(ag, "_sys_tmpl", None):              # always the latest memory, even if saved in another chat
-            ag.messages[0]["content"] = ag._sys_tmpl.replace("<<MEMORY>>", MEM.block() + _mode_note(ag.mode))
-        job["result"] = ag.run(RESUME_NOTE + text_for_model if resume else text_for_model)
+        ag.note = _turn_note(ag)
+        slot = _slot_acquire(cid, ag)
+        try:
+            job["result"] = ag.run(RESUME_NOTE + text_for_model if resume else text_for_model)
+        finally:
+            _slot_release(cid, ag, slot)
         job["meta"] = {"steps": ag.stats.requests - s0, "secs": round(time.time() - t0), "mode": job.get("mode")}
     except KeyboardInterrupt:
         job["result"] = "_Stopped._"
@@ -508,8 +611,11 @@ def _usage(ag, job: dict | None = None) -> dict:
     out, secs = ag.stats.completion_tokens, ag.stats.secs_model
     if job and job.get("base"):
         out, secs = out - job["base"][0], secs - job["base"][1]
-    return {"ctx": ag.context_tokens, "max": _ctx_max(), "out": out,
-            "tps": round(out / secs, 1) if secs > 0.5 else None, "calls": ag.stats.requests}
+    tm = getattr(ag, "timings", {}) or {}
+    tps = tm.get("predicted_per_second") or (out / secs if secs > 0.5 else None)
+    return {"ctx": ag.context_tokens, "max": _ctx_max(), "out": out, "tps": round(tps, 1) if tps else None,
+            "read_tps": round(tm["prompt_per_second"], 0) if tm.get("prompt_per_second") else None,
+            "read_tokens": tm.get("prompt_n"), "calls": ag.stats.requests}
 
 
 class ChatIn(BaseModel):
@@ -579,6 +685,10 @@ def delete_chat(cid: str):
     if jid:
         JOBS[jid]["cancel"] = True
     AGENTS.pop(cid, None)
+    try:
+        os.remove(os.path.join(SLOT_DIR, _slot_file(cid)))
+    except OSError:
+        pass
     with _lock:
         try:
             os.remove(_path(cid))

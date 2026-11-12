@@ -49,8 +49,8 @@ def forget(text: str) -> str:
     return f"Forgot {n} fact(s)." if n else "Nothing in memory matched that."
 
 
-def block() -> str:
-    facts = load()
+def block(facts: list[str] | None = None) -> str:
+    facts = load() if facts is None else facts
     if not facts:
         return ""
     return ("\n# Memory: what you know about the user (from earlier conversations; use it naturally, don't recite it)\n"

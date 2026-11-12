@@ -16,7 +16,7 @@ import os
 import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Callable
 
 from . import hooks as H
@@ -145,6 +145,8 @@ class Agent:
             name=self.name, cwd=self.cwd, extra="\n".join(extra))}]
         self._invalid = self._nudges = self._cooldown = self._verify_fails = 0
         self.context_tokens = 0                              # size of the conversation in the last request
+        self.timings: dict = {}                              # llama.cpp timings of the last call (real speeds)
+        self.note = ""                                       # per-message note appended to the user's message (mode…)
 
     # ---------- helpers ----------
     def _emit(self, kind: str, **data):
@@ -249,7 +251,7 @@ class Agent:
         system = SYSTEM_SUB if not spec else (spec["prompt"] + "\n\nYou work in {cwd} as a subagent of {name}. "
                                               "Do exactly the given task, then finish with a short summary WITHOUT "
                                               "calling tools.{extra}")
-        sub = Agent(cwd=self.cwd, profile=self.sub_profile or self.profile,
+        sub = Agent(cwd=self.cwd, profile=replace(self.sub_profile or self.profile, extra=None),
                     name=f"{self.name}/{spec['name'] if spec else 'sub'}",
                     tools=self.tools, allow_delegate=False, max_turns=40, system=system, hooks=self.hooks,
                     on_event=self.on_event, approve=self.approve, verbose=self.verbose, mode=self.mode)
@@ -278,14 +280,15 @@ class Agent:
                 return self._finish(f"Blocked by a UserPromptSubmit hook ({cmd}): {(se or so).strip()[:800]}")
             if so.strip():
                 task += f"\n\n[context from hook `{cmd}`]\n{so.strip()[:3000]}"
-        self.messages.append({"role": "user", "content": task + (PLAN_NOTE if self.mode == "plan" else "")})
+        self.messages.append({"role": "user", "content": task + (PLAN_NOTE if self.mode == "plan" else "") + self.note})
         self._nudges = self._verify_fails = self._stop_hooks = 0
         for turn in range(self.max_turns):
             self._emit("turn", n=turn + 1)
             T.compact(self.messages)
             try:
                 r = self.llm.chat(self.messages, self.schemas(), temperature=0.6 if self._cooldown else None,
-                                  on_delta=self._delta if self.stream and self.on_event else None)
+                                  on_delta=self._delta if self.stream and self.on_event else None,
+                                  on_wait=lambda: self._emit("notice", text="waiting for the model: another chat is using it"))
             except InvalidToolCall:
                 self.stats.requests += 1
                 self._invalid += 1
@@ -302,6 +305,8 @@ class Agent:
             self.stats.completion_tokens += u.get("completion_tokens", 0)
             self.stats.secs_model += r["secs"]
             self.context_tokens = u.get("prompt_tokens", 0) + u.get("completion_tokens", 0)
+            if r.get("timings"):
+                self.timings = r["timings"]
             msg = r["message"]
             calls = msg.get("tool_calls") or []
             content = msg.get("content") or ""

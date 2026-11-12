@@ -67,7 +67,7 @@ def environment(cfg: dict) -> str:
 - Your own code is the "athena" agent SDK in {e['code']} (web panel athena/web.py, Telegram bot "Hermes" athena/hermes.py,
   agent loop athena/agent.py). Config: ~/.config/athena/config.json. Conversations: ~/.config/athena/chats/.
 - Other services on {e['host']}: athena-web (this panel, port 8787), athena-hermes (Telegram), ornith (the model).
-- Today is {time.strftime('%A %d %B %Y')} (run `date` for the exact time).
+- The current date and time are given in brackets at the end of each user message (or run `date`).
 - You have a real shell on this machine through the bash tool, with Sergio's user permissions: you can look at ANY file,
   process, service, log or hardware sensor, not only the project folder. When asked about yourself, the machine, the
   model, performance or anything you could check, CHECK it with tools (systemctl, journalctl, ps, sensors, free, df,
@@ -119,7 +119,8 @@ def mcp_status(cfg: dict, reconnect: str | None = None) -> list[dict]:
     return out
 
 
-def build_agent(cwd: str | None = None, on_event=None, approve=None, verify: str | None = None) -> Agent:
+def build_agent(cwd: str | None = None, on_event=None, approve=None, verify: str | None = None,
+                mem_facts: list[str] | None = None) -> Agent:
     cfg = C.load()
     m = cfg["model"]
     profile = ModelProfile(url=m["url"], model=m.get("model", "ornith"), temperature=m.get("temperature", 1.0))
@@ -133,7 +134,7 @@ def build_agent(cwd: str | None = None, on_event=None, approve=None, verify: str
     ag = Agent(cwd=cwd, profile=profile, hooks=cfg.get("hooks") or {}, agents=agents, name=cfg.get("assistant_name", "Atenea"), tools=tools,
                  skills=SkillSet(*cfg.get("skills_dirs", [])),
                  extra_instructions=GOVERNOR_EXTRA + "\n" + MEM.INSTRUCTIONS + "\n- " + cfg.get("instructions", "")
-                 + "\n" + SUB.catalog(agents) + environment(cfg) + MEM.project_block(cwd) + MEM.block(),
+                 + "\n" + SUB.catalog(agents) + environment(cfg) + MEM.project_block(cwd) + MEM.block(mem_facts),
                  verify=verify or cfg.get("verify_default") or None, on_event=on_event, approve=approve)
     for t in BG.tools(lambda: ag.cwd):
         ag._tools[t.name] = t
