@@ -19,6 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Callable
 
+from . import hooks as H
 from . import tools as T
 from .llm import LLM, InvalidToolCall, ModelProfile
 from .registry import Tool
@@ -108,6 +109,8 @@ class Agent:
     mode: str = "auto"                                      # ask | edits | auto | plan (see MODES)
     stream: bool = False                                    # emit "delta" events (reasoning/text as it is written)
     before_tool: Callable[[Tool, dict], None] | None = None  # called right before a tool runs (checkpoints, hooks)
+    hooks: dict | None = None                               # shell hooks per event (see athena/hooks.py)
+    agents: dict | None = None                              # named subagents for `delegate` (see athena/subagents.py)
 
     def __post_init__(self):
         self.cwd = os.path.abspath(os.path.expanduser(self.cwd))
@@ -180,13 +183,22 @@ class Agent:
                 raise
             except Exception as e:
                 return f"Blocked before running {name}: {e}"
+        for code, so, se, cmd in H.run(self.hooks, "PreToolUse", self.cwd, name, {"args": args}):
+            if code == 2:
+                self._emit("notice", text=f"hook blocked {name}: {cmd}")
+                return f"Blocked by a PreToolUse hook ({cmd}): {(se or so).strip()[:1500]}"
         try:
             out = t(**args)
         except TypeError as e:
             return f"Error in the arguments of {name}: {e}"
         except Exception as e:
             return f"Error: {type(e).__name__}: {e}"
-        return T.clip(out if isinstance(out, str) else json.dumps(out, ensure_ascii=False, default=str))
+        out = out if isinstance(out, str) else json.dumps(out, ensure_ascii=False, default=str)
+        for code, so, se, cmd in H.run(self.hooks, "PostToolUse", self.cwd, name, {"args": args, "output": out[:4000]}):
+            if code != 0 or so.strip():
+                self._emit("notice", text=f"hook after {name}: {cmd} (exit {code})")
+                out += f"\n\n[PostToolUse hook `{cmd}` exit {code}]\n{(so + se).strip()[:2000]}"
+        return T.clip(out)
 
     def _todo_write(self, todos: list) -> str:
         clean = []
@@ -228,10 +240,20 @@ class Agent:
 
     def _delegate(self, args: dict) -> str:
         task = args.get("task", "")
-        self._emit("subagent", task=task[:300])
-        sub = Agent(cwd=self.cwd, profile=self.sub_profile or self.profile, name=f"{self.name}/sub",
-                    tools=self.tools, allow_delegate=False, max_turns=40, system=SYSTEM_SUB,
+        spec = (self.agents or {}).get(args.get("agent") or "")
+        if args.get("agent") and not spec:
+            return f"Error: no subagent named {args['agent']!r}. Available: {', '.join(self.agents or {}) or 'none'}."
+        self._emit("subagent", task=task[:300], agent=spec["name"] if spec else "general")
+        system = SYSTEM_SUB if not spec else (spec["prompt"] + "\n\nYou work in {cwd} as a subagent of {name}. "
+                                              "Do exactly the given task, then finish with a short summary WITHOUT "
+                                              "calling tools.{extra}")
+        sub = Agent(cwd=self.cwd, profile=self.sub_profile or self.profile,
+                    name=f"{self.name}/{spec['name'] if spec else 'sub'}",
+                    tools=self.tools, allow_delegate=False, max_turns=40, system=system, hooks=self.hooks,
                     on_event=self.on_event, approve=self.approve, verbose=self.verbose, mode=self.mode)
+        if spec and spec.get("tools"):
+            allowed = set(spec["tools"]) | {"todo_write"}
+            sub._tools = {k: v for k, v in sub._tools.items() if k in allowed}
         res = sub.run(task)
         self.stats.add(sub.stats)
         self.transcripts.append({"task": task, "messages": sub.messages, "subs": sub.transcripts})
@@ -245,8 +267,13 @@ class Agent:
     # ---------- loop ----------
     def run(self, task: str) -> str:
         """Run a task (or a new message in the same conversation) and return the final answer."""
+        for code, so, se, cmd in H.run(self.hooks, "UserPromptSubmit", self.cwd, "", {"prompt": task}):
+            if code == 2:
+                return self._finish(f"Blocked by a UserPromptSubmit hook ({cmd}): {(se or so).strip()[:800]}")
+            if so.strip():
+                task += f"\n\n[context from hook `{cmd}`]\n{so.strip()[:3000]}"
         self.messages.append({"role": "user", "content": task + (PLAN_NOTE if self.mode == "plan" else "")})
-        self._nudges = self._verify_fails = 0
+        self._nudges = self._verify_fails = self._stop_hooks = 0
         for turn in range(self.max_turns):
             self._emit("turn", n=turn + 1)
             T.compact(self.messages)
@@ -295,6 +322,13 @@ class Agent:
                         self._emit("notice", text=f"verification fails (attempt {self._verify_fails}); continuing")
                         self.messages.append({"role": "user", "content": MSG_VERIFY.format(cmd=self.verify, out=out)})
                         continue
+                blocked = [x for x in H.run(self.hooks, "Stop", self.cwd, "", {"answer": content[:4000]}) if x[0] == 2]
+                if blocked and self._stop_hooks < 3:
+                    self._stop_hooks += 1
+                    self._emit("notice", text=f"Stop hook says not finished ({blocked[0][3]}); continuing")
+                    self.messages.append({"role": "user", "content": "A Stop hook reports the task is not finished:\n"
+                                          + (blocked[0][2] or blocked[0][1]).strip()[:3000] + "\nFix it and finish."})
+                    continue
                 return self._finish(content)
 
             parsed = []

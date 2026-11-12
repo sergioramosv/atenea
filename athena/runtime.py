@@ -10,6 +10,7 @@ from . import config as C
 from . import background as BG
 from . import memory as MEM
 from . import scheduler as SCH
+from . import subagents as SUB
 from . import web_tools as WEB
 from .agent import Agent
 from .llm import ModelProfile
@@ -92,6 +93,32 @@ def mcp_tools(cfg: dict):
     return tools
 
 
+def mcp_status(cfg: dict, reconnect: str | None = None) -> list[dict]:
+    """Connection state and tools of every configured MCP server (for /mcp)."""
+    from .mcp_client import MCPServer
+    out = []
+    for name, sv in (cfg.get("mcp_servers") or {}).items():
+        key = (name, sv.get("command"), tuple(sv.get("args") or []), sv.get("url"))
+        row = {"name": name, "enabled": sv.get("enabled", True), "target": sv.get("url") or
+               " ".join([sv.get("command") or ""] + list(sv.get("args") or [])), "tools": [], "error": None}
+        if reconnect == name and key in _mcp_cache:
+            try:
+                _mcp_cache.pop(key).close()
+            except Exception:
+                pass
+        if row["enabled"]:
+            try:
+                if key not in _mcp_cache:
+                    _mcp_cache[key] = MCPServer(name, command=sv.get("command"), args=sv.get("args"),
+                                                env={**os.environ, **(sv.get("env") or {})} if sv.get("command") else None,
+                                                url=sv.get("url"), headers=sv.get("headers"))
+                row["tools"] = [t.name for t in _mcp_cache[key].tools()]
+            except Exception as e:
+                row["error"] = f"{type(e).__name__}: {e}"[:300]
+        out.append(row)
+    return out
+
+
 def build_agent(cwd: str | None = None, on_event=None, approve=None, verify: str | None = None) -> Agent:
     cfg = C.load()
     m = cfg["model"]
@@ -102,10 +129,11 @@ def build_agent(cwd: str | None = None, on_event=None, approve=None, verify: str
     for t in tools:
         if t.name in set(cfg.get("confirm_tools") or []):
             t.dangerous = True
-    ag = Agent(cwd=cwd, profile=profile, name=cfg.get("assistant_name", "Atenea"), tools=tools,
+    agents = SUB.load(cwd)
+    ag = Agent(cwd=cwd, profile=profile, hooks=cfg.get("hooks") or {}, agents=agents, name=cfg.get("assistant_name", "Atenea"), tools=tools,
                  skills=SkillSet(*cfg.get("skills_dirs", [])),
                  extra_instructions=GOVERNOR_EXTRA + "\n" + MEM.INSTRUCTIONS + "\n- " + cfg.get("instructions", "")
-                 + environment(cfg) + MEM.project_block(cwd) + MEM.block(),
+                 + "\n" + SUB.catalog(agents) + environment(cfg) + MEM.project_block(cwd) + MEM.block(),
                  verify=verify or cfg.get("verify_default") or None, on_event=on_event, approve=approve)
     for t in BG.tools(lambda: ag.cwd):
         ag._tools[t.name] = t

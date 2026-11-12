@@ -779,6 +779,112 @@ def compact(cid: str):
     return {"ok": True, "summary": summary}
 
 
+# ---------------- introspection: /context /mcp /skills /tools /agents /hooks /doctor ----------------
+def _est(x) -> int:
+    return max(0, round(len(x if isinstance(x, str) else json.dumps(x, ensure_ascii=False, default=str)) / 3.6))
+
+
+@app.get("/api/context", dependencies=[Depends(auth)])
+def context(chat: str | None = None, project: str | None = None):
+    """What fills the context window, by category (like /context in Claude Code)."""
+    if chat:
+        c = _read(chat)
+        ag = _agent(c)
+        msgs, real = c.get("messages") or [], (c.get("usage") or {}).get("ctx")
+    else:
+        ag, msgs, real = build_agent(_cwd(project)), [], None
+    sysmsg = ag.messages[0]["content"]
+    mem, proj = MEM.block(), MEM.project_block(ag.cwd)
+    cats = [["System instructions", _est(sysmsg) - _est(mem) - _est(proj)], ["Tools", _est(ag.schemas())],
+            ["Memory", _est(mem)], ["Project (ATENEA.md)", _est(proj)]]
+    by = {"user": 0, "assistant": 0, "tool": 0, "reasoning": 0}
+    for m in msgs:
+        if m.get("role") == "system":
+            continue
+        by[m["role"] if m["role"] in by else "user"] += _est(m.get("content") or "") + (_est(m["tool_calls"]) if m.get("tool_calls") else 0)
+        by["reasoning"] += _est(m.get("reasoning_content") or "")
+    cats += [["Your messages", by["user"]], ["Atenea's answers", by["assistant"]], ["Tool results", by["tool"]],
+             ["Reasoning", by["reasoning"]]]
+    est_total = sum(v for _, v in cats)
+    if real and est_total:                                   # scale estimates to the real count from the model
+        k = real / est_total
+        cats = [[n, round(v * k)] for n, v in cats]
+    total = sum(v for _, v in cats)
+    return {"categories": [{"name": n, "tokens": v} for n, v in cats], "total": total, "max": _ctx_max(),
+            "exact": bool(real), "messages": len([m for m in msgs if m.get("role") != "system"])}
+
+
+@app.get("/api/mcp", dependencies=[Depends(auth)])
+def mcp(reconnect: str | None = None):
+    from .runtime import mcp_status
+    return {"servers": mcp_status(C.load(), reconnect)}
+
+
+@app.get("/api/skills", dependencies=[Depends(auth)])
+def skills():
+    from .skills import SkillSet
+    cfg = C.load()
+    ss = SkillSet(*cfg.get("skills_dirs", []))
+    return {"dirs": cfg.get("skills_dirs", []), "skills": [{"name": n, "description": v["description"], "path": v["path"]}
+                                                           for n, v in ss.skills.items()]}
+
+
+@app.get("/api/tools", dependencies=[Depends(auth)])
+def tools_list(chat: str | None = None):
+    ag = _agent(_read(chat)) if chat else build_agent(_cwd(None))
+    out = []
+    for t in ag._tools.values():
+        need = ag._needs_approval(t)
+        out.append({"name": t.name, "description": (t.description or "")[:200],
+                    "approval": "blocked in plan" if need == "block" else "asks" if need else "free"})
+    out.append({"name": "delegate", "description": "Hand a subtask to a subagent", "approval": "free"})
+    return {"mode": ag.mode, "tools": out}
+
+
+@app.get("/api/agents", dependencies=[Depends(auth)])
+def agents_list(chat: str | None = None):
+    from . import subagents as SUB
+    cwd = _cwd(_read(chat).get("project")) if chat else _cwd(None)
+    return {"agents": [{k: v for k, v in a.items() if k != "prompt"} for a in SUB.load(cwd).values()]}
+
+
+@app.get("/api/hooks", dependencies=[Depends(auth)])
+def hooks_list():
+    return {"hooks": C.load().get("hooks") or {}}
+
+
+@app.get("/api/doctor", dependencies=[Depends(auth)])
+def doctor():
+    import urllib.request
+    checks = []
+    def add(name, ok, detail):
+        checks.append({"name": name, "ok": ok, "detail": detail})
+    try:
+        t0 = time.time()
+        urllib.request.urlopen("http://127.0.0.1:8080/health", timeout=5).read()
+        add("Model server (ornith)", True, f"healthy · {round((time.time() - t0) * 1000)} ms")
+    except Exception as e:
+        add("Model server (ornith)", False, str(e)[:120])
+    from .runtime import mcp_status
+    for m in mcp_status(C.load()):
+        add(f"MCP · {m['name']}", not m["error"] and m["enabled"], m["error"] or (f"{len(m['tools'])} tools" if m["enabled"] else "disabled"))
+    try:
+        from .web_tools import web_search
+        r = web_search("test", 1)
+        add("Web search", "Error" not in r[:20] and "No results" not in r, "DuckDuckGo reachable" if "1." in r else r[:100])
+    except Exception as e:
+        add("Web search", False, str(e)[:120])
+    tg = C.load().get("telegram") or {}
+    add("Telegram (Hermes)", bool(tg.get("token") and tg.get("allowed_users")),
+        "configured" if tg.get("token") else "not configured: add the bot token in Settings")
+    st = os.statvfs(os.path.expanduser("~"))
+    free = st.f_bavail * st.f_frsize / 1e9
+    add("Disk space", free > 10, f"{free:.0f} GB free in home")
+    add("Memory", True, f"{len(MEM.load())} facts remembered")
+    add("Conversations", True, f"{len([f for f in os.listdir(CHATS_DIR) if f.endswith('.json')]) if os.path.isdir(CHATS_DIR) else 0} saved")
+    return {"checks": checks}
+
+
 # ---------------- background processes ----------------
 @app.get("/api/bg", dependencies=[Depends(auth)])
 def bg_list():
