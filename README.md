@@ -1,4 +1,4 @@
-# Athena 🦉
+# Athena · Atenea
 
 A lightweight agent SDK for **local models** — and the personal assistant built on top of it.
 
@@ -28,16 +28,34 @@ step-by-step style. On a modest local GPU every token and every step costs secon
 
 ## Features
 
-- **Agent loop** with built-in tools: `bash`, `read_file`, `write_file`, `edit_file`, `list_files`, `grep`.
-- **Subagents** (`delegate`), several in parallel.
-- **Custom tools** with a decorator (`@tool`), schema inferred from type hints.
-- **MCP client**: use any MCP server (stdio or HTTP) as tools.
-- **Skills**: `SKILL.md` files loaded on demand (Claude Code-compatible format).
-- **Events** (`on_event`) for live progress, **permissions** (`approve`) for dangerous tools.
-- **Verification guard** (`verify="python3 -m unittest"`): the agent cannot finish while it fails.
-- **Sessions**: save/load conversations.
-- Robustness learned the hard way: keeps the model's reasoning in the history, recovers from corrupted
-  tool calls, empty and truncated replies.
+**Engine (SDK)**
+- Agent loop with built-in tools: `bash`, `read_file`, `write_file`, `edit_file`, `list_files`, `grep`, `todo_write`.
+- **Streaming** of text and reasoning (`stream=True` → `delta` events).
+- **Permission modes** like Claude Code: `ask`, `edits`, `auto`, `plan` (read-only, proposes a plan).
+- **Subagents** (`delegate`), in parallel, and **named subagents** from Markdown (`explorer`, `reviewer`,
+  `tester`, `researcher`, plus your own in `~/.config/athena/agents` or `.atenea/agents`).
+- **Hooks**: `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `Stop` shell commands (exit 2 blocks / continues).
+- **Custom tools** with `@tool`, **MCP client** (stdio or HTTP), **skills** (`SKILL.md`).
+- **Web**: `web_search` (DuckDuckGo, no key) and `web_fetch`. **Background processes**: `bg_start/logs/stop/list`.
+- **Memory**: `remember`/`forget` facts about the user, shared by every conversation; `ATENEA.md` /
+  `AGENTS.md` / `CLAUDE.md` project instructions.
+- **Scheduled tasks** (`schedule_task`): daily, weekdays, weekly, monthly, every N minutes, once.
+- **Artifacts** (`create_artifact`): self-contained HTML pages shown in a side panel.
+- Verification guard, sessions, and robustness for local models (keeps reasoning, recovers from broken tool
+  calls, empty and truncated replies).
+
+**Web panel (Atenea)**
+- Many conversations with search, rename, delete, duplicate (fork) and export (Markdown/JSON).
+- Live answer, collapsible thinking, task list, steps, approvals with **diff** and **Always allow** rules.
+- **Rewind**: restore files and/or conversation to before any message (checkpoints of every edit).
+- Floating bar: permission mode (Shift+Tab), context used, tokens/s, model status.
+- Message **queue** while Atenea works; tasks survive server restarts and resume automatically.
+- `/` commands with autocomplete (`/context /mcp /skills /tools /agents /hooks /doctor /compact /fork
+  /export /remember /memory /init /review /schedule /bg /usage /rewind /help`…) and custom commands
+  (`~/.config/athena/commands/*.md`, `$ARGUMENTS`); `@file` mentions attach project files.
+- Images, videos and files from ZEUS in the chat; artifacts in a sandboxed side panel.
+- Settings: model, projects, MCP connections, Telegram, permissions, memory, scheduled tasks, background
+  processes, system status. Telegram notifications when long tasks finish or need approval.
 
 ## Quick start
 
