@@ -1,5 +1,5 @@
 [project]
-name = "athena-agent"
+name = "atenea-sdk"
 version = "0.3.0"
 description = "Lightweight agent SDK for local models, with a Telegram bot (Hermes) and a web panel"
 readme = "README.md"
@@ -15,7 +15,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["athena"]
+packages = ["atenea"]
 
 [tool.setuptools.package-data]
-athena = ["web.html", "login.html", "brand/*.svg", "brand/*.png", "agents/*.md", "sw.js"]
+atenea = ["web.html", "login.html", "brand/*.svg", "brand/*.png", "agents/*.md", "sw.js"]

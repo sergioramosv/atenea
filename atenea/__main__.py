@@ -1,4 +1,4 @@
-"""CLI: python -m athena "task" --cwd DIR [--verify "python3 -m unittest"] [--no-delegate] [--json out.json]"""
+"""CLI: python -m atenea "task" --cwd DIR [--verify "python3 -m unittest"] [--no-delegate] [--json out.json]"""
 import argparse
 import json
 import os
@@ -9,7 +9,7 @@ from .agent import Agent
 from .llm import ModelProfile
 from .skills import SkillSet
 
-ap = argparse.ArgumentParser(prog="athena", description="Run an Athena agent on a task.")
+ap = argparse.ArgumentParser(prog="atenea", description="Run an Atenea agent on a task.")
 ap.add_argument("task", help="the task, or @file to read it from a file")
 ap.add_argument("--cwd", default=".", help="working directory")
 ap.add_argument("--url", default="http://127.0.0.1:8080/v1/chat/completions", help="OpenAI-compatible endpoint")

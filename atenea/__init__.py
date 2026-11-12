@@ -1,4 +1,4 @@
-"""Athena: a lightweight agent SDK for local models."""
+"""Atenea: a lightweight agent SDK for local models."""
 from .agent import Agent, Stats
 from .llm import LLM, ModelProfile
 from .registry import Tool, tool

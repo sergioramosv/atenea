@@ -1,6 +1,6 @@
-"""MCP client: connects MCP servers (stdio or HTTP) and exposes their tools as Athena Tools.
+"""MCP client: connects MCP servers (stdio or HTTP) and exposes their tools as Atenea Tools.
 
-    from athena.mcp_client import MCPServer
+    from atenea.mcp_client import MCPServer
     gmail = MCPServer("gmail", command="npx", args=["-y", "some-gmail-mcp"], env={...})
     agent = Agent(tools=gmail.tools(dangerous={"send_email"}))
 

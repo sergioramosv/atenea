@@ -71,7 +71,7 @@ def webpush(title: str, body: str, url: str = "/", tag: str | None = None, force
     for s in subs():
         try:
             wp(subscription_info=s["sub"], data=json.dumps({"title": title, "body": body[:400], "url": url, "tag": tag}),
-               vapid_private_key=key, vapid_claims={"sub": "https://github.com/sergioramosv/athena"}, ttl=3600)
+               vapid_private_key=key, vapid_claims={"sub": "https://github.com/sergioramosv/atenea"}, ttl=3600)
             sent += 1
         except WebPushException as e:
             if e.response is not None and e.response.status_code in (404, 410):

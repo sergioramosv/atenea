@@ -1,23 +1,29 @@
-# Athena · Atenea
+# Atenea
 
-A lightweight agent SDK for **local models** — and the personal assistant built on top of it.
+**Atenea** is a personal AI assistant that runs 100% on your own machine, built on **atenea-sdk**, a lightweight agent SDK for **local models**.
 
-Athena runs an agent loop against any OpenAI-compatible endpoint (llama.cpp's `llama-server`, vLLM, Ollama…).
+| Product | What it is |
+|---|---|
+| **atenea-sdk** (`import atenea`) | The engine: agent loop, tools, permission modes, hooks, subagents, MCP, memory, prompt-cache friendly context |
+| **Atenea** | The assistant: web app / iPhone app + Telegram (Hermes). Email, calendar, research, artifacts, reminders |
+| **Atenea Code** | *(next)* the coding agent: terminal CLI + code mode, repo-aware, with Hephaestus pipelines |
+
+Atenea runs an agent loop against any OpenAI-compatible endpoint (llama.cpp's `llama-server`, vLLM, Ollama…).
 It was designed on a small AMD mini PC (**ZEUS**: Ryzen AI 9 HX 370, Radeon 890M, 64 GB) where every token
 counts, so it keeps prompts short and recovers from the quirks of local models.
 
 | Part | What it is |
 |---|---|
-| **Athena** | The SDK / agent engine (`athena/agent.py`) and the governor that orchestrates tools, MCP servers and skills |
-| **Hermes** | Telegram bot to talk to Athena from your phone (`athena/hermes.py`) |
-| **Web panel** | Chat, settings and status in the browser (`athena/web.py`) |
+| **Atenea** | The SDK / agent engine (`atenea/agent.py`) and the governor that orchestrates tools, MCP servers and skills |
+| **Hermes** | Telegram bot to talk to Atenea from your phone (`atenea/hermes.py`) |
+| **Web panel** | Chat, settings and status in the browser (`atenea/web.py`) |
 | **Hephaestus** | *(planned)* coding pipeline: plan → code → review → test |
 
 ## Why not Claude Code / the Claude Agent SDK?
 
 Measured on ZEUS with the same model (Ornith-1.5-35B-A3B, Q4_K_M, llama.cpp Vulkan):
 
-| Task | Athena | Claude Code |
+| Task | Atenea | Claude Code |
 |---|---|---|
 | Inventory project (fix 3 bugs + CSV export, 10 tests) | **10/10 in 2–3 min** | 10/10 in 4–7 min |
 | 10 small functions (11 tests) | **11/11 in 2.5 min** | 11/11 in 4–5 min |
@@ -33,7 +39,7 @@ step-by-step style. On a modest local GPU every token and every step costs secon
 - **Streaming** of text and reasoning (`stream=True` → `delta` events).
 - **Permission modes** like Claude Code: `ask`, `edits`, `auto`, `plan` (read-only, proposes a plan).
 - **Subagents** (`delegate`), in parallel, and **named subagents** from Markdown (`explorer`, `reviewer`,
-  `tester`, `researcher`, plus your own in `~/.config/athena/agents` or `.atenea/agents`).
+  `tester`, `researcher`, plus your own in `~/.config/atenea/agents` or `.atenea/agents`).
 - **Hooks**: `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `Stop` shell commands (exit 2 blocks / continues).
 - **Custom tools** with `@tool`, **MCP client** (stdio or HTTP), **skills** (`SKILL.md`).
 - **Web**: `web_search` (DuckDuckGo, no key) and `web_fetch`. **Background processes**: `bg_start/logs/stop/list`.
@@ -52,7 +58,7 @@ step-by-step style. On a modest local GPU every token and every step costs secon
 - Message **queue** while Atenea works; tasks survive server restarts and resume automatically.
 - `/` commands with autocomplete (`/context /mcp /skills /tools /agents /hooks /doctor /compact /fork
   /export /remember /memory /init /review /schedule /bg /usage /rewind /help`…) and custom commands
-  (`~/.config/athena/commands/*.md`, `$ARGUMENTS`); `@file` mentions attach project files.
+  (`~/.config/atenea/commands/*.md`, `$ARGUMENTS`); `@file` mentions attach project files.
 - Images, videos and files from ZEUS in the chat; artifacts in a sandboxed side panel.
 - **Activity tray** above the box: background shells, background subagents (`delegate(background=true)`) and
   **monitors** (`monitor_start`: watch a command, process or log and wake Atenea up in the chat when it fires).
@@ -66,17 +72,17 @@ step-by-step style. On a modest local GPU every token and every step costs secon
 python3 -m venv .venv && .venv/bin/pip install 'mcp<2' fastapi 'uvicorn[standard]'
 
 # one-off task
-.venv/bin/python -m athena "Fix the failing tests" --cwd ~/projects/my-app --verify "python3 -m unittest"
+.venv/bin/python -m atenea "Fix the failing tests" --cwd ~/projects/my-app --verify "python3 -m unittest"
 
 # web panel (user: sergio, password generated on first run)
-.venv/bin/python -m athena.web
+.venv/bin/python -m atenea.web
 
 # Telegram bot (set telegram.token and telegram.allowed_users first)
-.venv/bin/python -m athena.hermes
+.venv/bin/python -m atenea.hermes
 ```
 
 ```python
-from athena import Agent, ModelProfile, tool
+from atenea import Agent, ModelProfile, tool
 
 @tool
 def weather(city: str) -> str:
@@ -88,12 +94,12 @@ agent = Agent(cwd="~/projects/app", profile=ModelProfile(url="http://zeus:8080/v
 print(agent.run("Add input validation to the signup form"))
 ```
 
-Configuration lives in `~/.config/athena/config.json` (model, Telegram, projects, MCP servers,
+Configuration lives in `~/.config/atenea/config.json` (model, Telegram, projects, MCP servers,
 tools that need confirmation, instructions) and can be edited from the web panel.
 
 ## Security
 
-Athena reads email, calendars and web pages, so it treats their content as **data, never as instructions**.
+Atenea reads email, calendars and web pages, so it treats their content as **data, never as instructions**.
 Tools with external effects (send, delete, publish…) are marked `dangerous` and require explicit
 confirmation (Telegram buttons or the web panel). Only allow-listed Telegram users can talk to Hermes.
 

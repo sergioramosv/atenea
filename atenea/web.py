@@ -1,9 +1,9 @@
-"""Atenea web panel: login page, conversations, settings and status.  Run: python -m athena.web
+"""Atenea web panel: login page, conversations, settings and status.  Run: python -m atenea.web
 
 Auth: a full-page login (password in config["web"]["password"], generated on first run). On success the
 server sets a signed, HttpOnly session cookie valid for 30 days, so you log in once per device.
 
-Conversations: each one is a JSON file in ~/.config/athena/chats/<id>.json holding
+Conversations: each one is a JSON file in ~/.config/atenea/chats/<id>.json holding
   {id, title, project, created, updated, log: [{q, a, events, meta, t}], messages: [agent messages]}
 `log` is what the UI shows; `messages` is the model context, used to resume the conversation after a restart."""
 from __future__ import annotations
@@ -991,7 +991,7 @@ def _command_dirs(cwd: str) -> list[str]:
 
 @app.get("/api/commands", dependencies=[Depends(auth)])
 def commands(chat: str | None = None):
-    """Custom slash commands: markdown files in ~/.config/athena/commands or <project>/.atenea/commands.
+    """Custom slash commands: markdown files in ~/.config/atenea/commands or <project>/.atenea/commands.
     $ARGUMENTS in the file is replaced by whatever follows the command."""
     cwd = _cwd(_read(chat).get("project") if chat else None)
     out = {}
@@ -1319,7 +1319,7 @@ UPLOADS_DIR = os.path.join(os.path.dirname(C.PATH), "uploads")
 
 @app.post("/api/upload", dependencies=[Depends(auth)])
 async def upload(request: Request, name: str):
-    """Raw body upload (no multipart): saved under ~/.config/athena/uploads/YYYY-MM/."""
+    """Raw body upload (no multipart): saved under ~/.config/atenea/uploads/YYYY-MM/."""
     safe = re.sub(r"[^\w.\- ]+", "_", os.path.basename(name)).strip() or "file"
     d = os.path.join(UPLOADS_DIR, time.strftime("%Y-%m"))
     os.makedirs(d, exist_ok=True)
@@ -1373,7 +1373,7 @@ def local_file(path: str):
     real = os.path.realpath(os.path.expanduser(path))
     if not any(real == r or real.startswith(r.rstrip("/") + "/") for r in MEDIA_ROOTS):
         raise HTTPException(403, "Outside the allowed folders")
-    if os.path.basename(real).startswith(".") or "/.ssh/" in real or "/.config/athena/config.json" in real:
+    if os.path.basename(real).startswith(".") or "/.ssh/" in real or "/.config/atenea/config.json" in real:
         raise HTTPException(403, "Private file")
     if not os.path.isfile(real):
         raise HTTPException(404, "File not found")
@@ -1418,7 +1418,7 @@ def _sh(c):
 def status():
     cfg = C.load()
     return {"name": cfg.get("assistant_name", "Atenea"), "model": cfg["model"].get("model"),
-            "ornith": _sh("systemctl is-active ornith"), "hermes": _sh("systemctl is-active athena-hermes"),
+            "ornith": _sh("systemctl is-active ornith"), "hermes": _sh("systemctl is-active atenea-hermes"),
             "ram_used": _sh("free -m | awk '/Mem/{print $3}'"), "ram_total": _sh("free -m | awk '/Mem/{print $2}'"),
             "gpu_temp": _sh("sensors | awk '/edge/{gsub(/[+°C]/,\"\",$2); print $2}'"),
             "gpu_power": _sh("sensors | awk '/PPT/{print $2}'"),

@@ -1,4 +1,4 @@
-"""Athena: lightweight agent engine for local models.
+"""Atenea: lightweight agent engine for local models.
 
 Loop: the model reasons and requests tools -> tools run -> results go back into the history -> repeat,
 until it answers without tools (and, if `verify` is set, until verification passes).
@@ -93,7 +93,7 @@ ApproveFn = Callable[[Tool, dict], bool]
 class Agent:
     cwd: str = "."
     profile: ModelProfile = field(default_factory=ModelProfile)
-    name: str = "Athena"
+    name: str = "Atenea"
     tools: list[Tool] = field(default_factory=list)        # custom (@tool) and MCP tools
     builtin: bool = True                                    # bash, read_file, write_file, edit_file, list_files, grep
     allow_delegate: bool = True
@@ -109,8 +109,8 @@ class Agent:
     mode: str = "auto"                                      # ask | edits | auto | plan (see MODES)
     stream: bool = False                                    # emit "delta" events (reasoning/text as it is written)
     before_tool: Callable[[Tool, dict], None] | None = None  # called right before a tool runs (checkpoints, hooks)
-    hooks: dict | None = None                               # shell hooks per event (see athena/hooks.py)
-    agents: dict | None = None                              # named subagents for `delegate` (see athena/subagents.py)
+    hooks: dict | None = None                               # shell hooks per event (see atenea/hooks.py)
+    agents: dict | None = None                              # named subagents for `delegate` (see atenea/subagents.py)
     spawn_bg: Callable | None = None                        # host runs background subagents: spawn_bg(sub, task, name) -> id
 
     def __post_init__(self):

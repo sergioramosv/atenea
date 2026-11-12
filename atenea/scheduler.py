@@ -1,4 +1,4 @@
-"""Scheduled tasks: "every weekday at 8:00 summarise my email". Stored in ~/.config/athena/schedules.json.
+"""Scheduled tasks: "every weekday at 8:00 summarise my email". Stored in ~/.config/atenea/schedules.json.
 
 `when` formats (local time):  "daily 08:00" · "weekdays 08:30" · "weekly mon 09:00" · "monthly 1 09:00" ·
 "every 30m" · "every 2h" · "once 2026-11-20 18:00"."""

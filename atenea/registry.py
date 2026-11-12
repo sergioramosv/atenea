@@ -1,6 +1,6 @@
-"""Tool registry: the @tool decorator turns a function into an Athena tool in a few lines.
+"""Tool registry: the @tool decorator turns a function into an Atenea tool in a few lines.
 
-    from athena import tool
+    from atenea import tool
 
     @tool
     def weather(city: str) -> str:
@@ -48,7 +48,7 @@ def _json_type(ann) -> dict:
 
 
 def tool(fn: Callable | None = None, *, name: str | None = None, dangerous: bool = False, tags=()):
-    """Turn a function into an Athena tool."""
+    """Turn a function into an Atenea tool."""
     def wrap(f):
         sig = inspect.signature(f)
         hints = typing.get_type_hints(f)

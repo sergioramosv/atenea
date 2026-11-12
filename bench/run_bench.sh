@@ -1,12 +1,12 @@
 #!/bin/bash
-# End-to-end benchmark of Athena on the same tasks used for Claude Code. Uses the ornith service (:8080).
+# End-to-end benchmark of Atenea on the same tasks used for Claude Code. Uses the ornith service (:8080).
 # Usage: bash run_bench.sh <label> <template> <task|@file> <hidden_tests> [--no-delegate]
 LABEL=$1; TPL=$2; TASK=$3; HID=$4; shift 4; EXTRA="$*"
-B=/mnt/models/athena/bench; R=$B/results; mkdir -p $R
+B=/mnt/models/atenea/bench; R=$B/results; mkdir -p $R
 W=$B/work/$LABEL; rm -rf $W; mkdir -p $W; cp -r $TPL/. $W/; find $W -name __pycache__ -exec rm -rf {} + 2>/dev/null
 ( cd $W && git init -q && git add -A && git -c user.email=t@t -c user.name=t commit -qm init )
-cd /mnt/models/athena
-/mnt/models/athena/.venv/bin/python -m athena "$TASK" --cwd $W --json $R/$LABEL.json --quiet $EXTRA ${VERIFY:+--verify "$VERIFY"} > $R/$LABEL.out 2>&1
+cd /mnt/models/atenea
+/mnt/models/atenea/.venv/bin/python -m atenea "$TASK" --cwd $W --json $R/$LABEL.json --quiet $EXTRA ${VERIFY:+--verify "$VERIFY"} > $R/$LABEL.out 2>&1
 git -C $W diff --quiet HEAD -- tests/ && UNT=1 || UNT=0
 git -C $W checkout -q HEAD -- tests/; cp $HID $W/tests/
 OUT=$(cd $W && timeout 120 python3 -m unittest 2>&1 | tail -4)

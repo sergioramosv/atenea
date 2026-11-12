@@ -1,10 +1,10 @@
-"""Hermes: Telegram bot to talk to Athena from your phone.
+"""Hermes: Telegram bot to talk to Atenea from your phone.
 
 - Only answers the users in config["telegram"]["allowed_users"] (numeric IDs).
-- One agent session per chat (saved in ~/.config/athena/sessions/<chat>.json).
+- One agent session per chat (saved in ~/.config/atenea/sessions/<chat>.json).
 - Shows progress by editing a message; dangerous actions ask for confirmation with buttons.
 Commands: /new  /project <alias|path>  /status  /cancel  /help
-Run:  python -m athena.hermes
+Run:  python -m atenea.hermes
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ import urllib.request
 from . import config as C
 from .runtime import build_agent
 
-SESS = os.path.expanduser("~/.config/athena/sessions")
+SESS = os.path.expanduser("~/.config/atenea/sessions")
 
 
 class Telegram:
@@ -138,7 +138,7 @@ class Hermes:
         cfg = C.load()
         tok = cfg["telegram"].get("token")
         if not tok:
-            raise SystemExit("telegram.token is missing in ~/.config/athena/config.json")
+            raise SystemExit("telegram.token is missing in ~/.config/atenea/config.json")
         self.tg = Telegram(tok)
         self.allowed = {int(x) for x in cfg["telegram"].get("allowed_users") or []}
         self.sessions: dict[int, ChatSession] = {}

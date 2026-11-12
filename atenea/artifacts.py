@@ -1,6 +1,6 @@
 """Artifacts: self-contained HTML pages Atenea creates (reports, dashboards, charts, mini apps, documents).
 
-Stored in ~/.config/athena/artifacts/<id>/: index.html (current), v<N>.html (previous versions) and meta.json.
+Stored in ~/.config/atenea/artifacts/<id>/: index.html (current), v<N>.html (previous versions) and meta.json.
 The web panel shows them in a side panel inside a sandboxed iframe, and serves them at /a/<id>."""
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 # Benchmarks
 
-End-to-end tasks used to compare Athena with Claude Code (both driving Ornith-1.5-35B-A3B on ZEUS).
+End-to-end tasks used to compare Atenea with Claude Code (both driving Ornith-1.5-35B-A3B on ZEUS).
 The fixtures and task prompts are kept exactly as they were run (in Spanish) so results stay comparable.
 
 | Fixture | Task prompt | Hidden tests |

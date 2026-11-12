@@ -6,7 +6,7 @@ import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from athena import Agent, ModelProfile, SkillSet, tool
+from atenea import Agent, ModelProfile, SkillSet, tool
 
 
 class FakeModel:
@@ -58,7 +58,7 @@ def say(text, **kw):
 class AgentTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()
-        os.environ["ATHENA_API_KEY"] = "test"
+        os.environ["ATENEA_API_KEY"] = "test"
 
     def agent(self, fake, **kw):
         return Agent(cwd=self.dir, profile=ModelProfile(url=fake.url), allow_delegate=False, **kw)

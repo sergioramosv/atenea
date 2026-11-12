@@ -7,7 +7,7 @@
   ---
   You are a meticulous code reviewer...
 
-Loaded from athena/agents (built in), ~/.config/athena/agents and <project>/.atenea/agents (later ones win)."""
+Loaded from atenea/agents (built in), ~/.config/atenea/agents and <project>/.atenea/agents (later ones win)."""
 from __future__ import annotations
 
 import os

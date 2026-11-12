@@ -28,15 +28,16 @@ class ModelProfile:
     def key(self) -> str | None:
         if self.api_key:
             return self.api_key
-        if os.environ.get("ATHENA_API_KEY"):
-            return os.environ["ATHENA_API_KEY"]
+        for var in ("ATENEA_API_KEY", "ATHENA_API_KEY"):
+            if os.environ.get(var):
+                return os.environ[var]
         p = os.path.expanduser("~/.config/ornith/api_key")
         return open(p).read().strip() if os.path.exists(p) else None
 
 
 # At most N generations at once against the model server. On a single (i)GPU, a third request makes every request
-# crawl (a long prompt being read starves the others), so extra calls wait their turn. ATHENA_MAX_PARALLEL to change.
-GATE = threading.BoundedSemaphore(max(1, int(os.environ.get("ATHENA_MAX_PARALLEL", "2"))))
+# crawl (a long prompt being read starves the others), so extra calls wait their turn. ATENEA_MAX_PARALLEL to change.
+GATE = threading.BoundedSemaphore(max(1, int(os.environ.get("ATENEA_MAX_PARALLEL") or os.environ.get("ATHENA_MAX_PARALLEL", "2"))))
 
 
 class InvalidToolCall(Exception):
