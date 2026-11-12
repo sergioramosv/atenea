@@ -66,6 +66,19 @@ step-by-step style. On a modest local GPU every token and every step costs secon
 - Settings: model, projects, MCP connections, Telegram, permissions, memory, scheduled tasks, background
   processes, system status. Telegram notifications when long tasks finish or need approval.
 
+## Atenea Code (terminal)
+
+```bash
+atenea                       # interactive session in the current folder (like Claude Code)
+atenea "fix the failing tests"
+atenea -p "summarise this repo"     # print mode for scripts; also: cat log.txt | atenea -p "what failed?"
+atenea -c                    # continue the last conversation of this folder · atenea -r to pick one
+```
+
+Shift+Tab switches the permission mode, Ctrl+C stops the task, `/help` lists commands, `@file` attaches a file.
+The conversation lives in the Atenea server, so it also shows up in the web / iPhone app (marked `>_`):
+follow it, approve actions or write from the phone and the terminal shows it live. `/remote` prints the link and a QR.
+
 ## Quick start
 
 ```bash

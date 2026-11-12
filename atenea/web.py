@@ -94,9 +94,22 @@ def _valid(token: str | None) -> bool:
     return hmac.compare_digest(sig, good) and int(exp) > time.time()
 
 
+def cli_token() -> str:
+    """Token for the terminal CLI on this machine (stored in the config, readable only by the user)."""
+    cfg = C.load()
+    if not cfg["web"].get("cli_token"):
+        cfg["web"]["cli_token"] = secrets.token_hex(24)
+        C.save(cfg)
+    return cfg["web"]["cli_token"]
+
+
 def auth(request: Request):
-    if not _valid(request.cookies.get(COOKIE)):
-        raise HTTPException(401, "Not signed in")
+    if _valid(request.cookies.get(COOKIE)):
+        return
+    h = request.headers.get("authorization", "")
+    if h.startswith("Bearer ") and secrets.compare_digest(h[7:].strip(), cli_token()):
+        return
+    raise HTTPException(401, "Not signed in")
 
 
 class LoginIn(BaseModel):
@@ -630,6 +643,7 @@ class ChatIn(BaseModel):
     chat: str | None = None
     project: str | None = None
     mode: str | None = None
+    client: str | None = None                # "cli" when the chat was started from the terminal
 
 
 class ChatPatch(BaseModel):
@@ -655,17 +669,34 @@ def list_chats(q: str = ""):
             if q and q not in c["title"].lower() and not any(
                     q in (e.get("q", "") + " " + (e.get("a") or "")).lower() for e in c["log"]):
                 continue
-            out.append({"id": c["id"], "title": c["title"], "project": c.get("project", ""),
+            out.append({"id": c["id"], "title": c["title"], "project": c.get("project", ""), "client": c.get("client"),
                         "updated": c["updated"], "running": running, "turns": len(c["log"])})
     out.sort(key=lambda c: c["updated"], reverse=True)
     return {"chats": out}
+
+
+class NewChatIn(BaseModel):
+    project: str | None = None
+    mode: str | None = None
+    client: str | None = None
+
+
+@app.post("/api/chats", dependencies=[Depends(auth)])
+def create_chat(n: NewChatIn):
+    """Create an empty conversation (the terminal CLI does this at start so it can show the app link)."""
+    with _lock:
+        c = _new_chat(n.project, n.mode)
+        if n.client:
+            c["client"] = n.client
+            _write(c)
+    return {"id": c["id"], "url": f"{_panel_url()}/c/{c['id']}"}
 
 
 @app.get("/api/chats/{cid}", dependencies=[Depends(auth)])
 def get_chat(cid: str):
     c = _read(cid)
     jid = _running(cid)
-    return {"id": c["id"], "title": c["title"], "project": c.get("project", ""), "log": c["log"],
+    return {"id": c["id"], "title": c["title"], "project": c.get("project", ""), "log": c["log"], "client": c.get("client"),
             "job": jid, "pending": JOBS[jid]["text"] if jid else (c.get("pending") or {}).get("q"),
             "pending_origin": (c.get("pending") or {}).get("origin"), "pending_label": (c.get("pending") or {}).get("label"), "queue": QUEUES.get(cid, []), "mode": c.get("mode") or _mode(None),
             "usage": c.get("usage") or {"ctx": 0, "max": _ctx_max(), "tps": None, "out": 0}}
@@ -710,6 +741,8 @@ def chat(inp: ChatIn):
         raise HTTPException(400, "Empty message")
     with _lock:
         c = _read(inp.chat) if inp.chat else _new_chat(inp.project, inp.mode)
+        if inp.client and not c.get("client"):
+            c["client"] = inp.client
         running = _running(c["id"])
         if running:                                        # busy: queue it, it runs when the current task ends
             item = {"id": uuid.uuid4().hex[:8], "text": inp.text}
@@ -1425,7 +1458,7 @@ def status():
             "disk_used": _sh("df -BG /mnt/models | awk 'NR==2{print $3}'"),
             "disk_total": _sh("df -BG /mnt/models | awk 'NR==2{print $2}'"),
             "uptime": _sh("uptime -p"), "projects": list(cfg.get("projects", {}).keys()),
-            "busy": sum(1 for j in JOBS.values() if not j["done"])}
+            "busy": sum(1 for j in JOBS.values() if not j["done"]), "panel_url": _panel_url()}
 
 
 # ---------------- pages & assets ----------------
