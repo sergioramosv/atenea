@@ -33,6 +33,8 @@ from . import knowledge as KB
 from . import media as MEDIA
 from .. import monitors as MON
 from . import notify as NOTIFY
+from . import flows as FLOWS
+from .. import vault as VAULT
 from .. import scheduler as SCH
 from .. import config as C
 from .. import memory as MEM
@@ -1583,7 +1585,11 @@ def _notify_chat(cid: str, text: str):
 
 def run_schedule(item: dict) -> str | None:
     """A reminder is just a phone notification; a task is a run of Atenea in its own conversation (kind 'task',
-    kept out of the Chat and Code lists and shown in the task's history)."""
+    kept out of the Chat and Code lists and shown in the task's history); a flow first collects data with its
+    connector and only starts Atenea when something is new."""
+    if item.get("kind") == "flow":
+        threading.Thread(target=_run_flow, args=(item,), daemon=True).start()
+        return None
     if item.get("kind") == "reminder":
         threading.Thread(target=NOTIFY.webpush, args=("Reminder: " + (item.get("name") or "Atenea"), item["prompt"], "/"),
                          kwargs={"force": True}, daemon=True).start()
@@ -1601,6 +1607,52 @@ def run_schedule(item: dict) -> str | None:
     return c["id"]
 
 
+FLOW_RUNNING: dict[str, float] = {}
+
+
+def _flow_push(item: dict):
+    def push(msg: str):
+        threading.Thread(target=NOTIFY.webpush, args=(item.get("name") or "Atenea", msg, "/"),
+                         kwargs={"force": True, "tag": "flow-" + item["id"]}, daemon=True).start()
+        NOTIFY.send_telegram(msg)
+    return push
+
+
+def _run_flow(item: dict):
+    sid = item["id"]
+    if sid in FLOW_RUNNING:
+        return
+    FLOW_RUNNING[sid] = time.time()
+    t0 = time.time()
+    try:
+        try:
+            r = FLOWS.run(item, _flow_push(item))
+        except FLOWS.FlowError as e:
+            ctx = getattr(e, "ctx", None)
+            SCH.record(sid, {"t": t0, "kind": "flow", "error": str(e), "secs": round(time.time() - t0),
+                             "log": (ctx.log if ctx else [])[-40:], "shots": (ctx.shots if ctx else [])[-3:]})
+            _flow_push(item)(f"{item['name']}: no he podido terminar. {str(e)[:200]}")
+            return
+        base = {"t": t0, "kind": "flow", "secs": round(time.time() - t0), "count": len(r["items"]),
+                "new": len(r["new"]), "log": r["log"][-40:]}
+        if not r["new"]:
+            pend = sum(1 for i in r["items"] if not i.get("entregada"))
+            SCH.record(sid, {**base, "text": f"Sin novedades · {pend} pendientes"})
+            return
+        data = json.dumps([{k: v for k, v in i.items() if k != "id"} for i in r["new"]], ensure_ascii=False, indent=1)
+        with _lock:
+            c = _new_chat(None, item.get("mode") or "auto", "task")
+            c["title"] = f"{item['name']} · {time.strftime('%d %b %H:%M')}"
+            c["task"] = sid
+            _write(c)
+            jid = _start(c["id"], f"{item['prompt']}\n\n```json\n{data}\n```", label=f"{len(r['new'])} nuevas")
+            JOBS[jid]["scheduled"] = True
+        SCH.record(sid, {**base, "chat": c["id"], "text": f"{len(r['new'])} nuevas"})
+    finally:
+        FLOW_RUNNING.pop(sid, None)
+        FLOWS.WAIT.pop(sid, None)
+
+
 def _scheduler_loop():
     while True:
         try:
@@ -1613,6 +1665,7 @@ def _scheduler_loop():
 
 
 class ScheduleIn(BaseModel):
+    flow: dict | None = None
     name: str | None = None
     prompt: str | None = None
     when: str | None = None
@@ -1661,7 +1714,59 @@ def schedule_get(sid: str):
             except HTTPException:
                 r.update(gone=True)
         runs.append(r)
-    return {**it, "runs": runs}
+    w = FLOWS.WAIT.get(sid)
+    return {**it, "runs": runs, "running": sid in FLOW_RUNNING,
+            "waiting": {"msg": w["msg"], "need": w["need"]} if w else None,
+            **({"account": next((v for v in VAULT.listing() if v["name"] == (it.get("flow") or {}).get("vault")), None)}
+               if it.get("kind") == "flow" else {})}
+
+
+class FlowInput(BaseModel):
+    code: str = ""
+
+
+@app.post("/api/schedules/{sid}/input", dependencies=[Depends(auth)])
+def schedule_input(sid: str, f: FlowInput):
+    w = FLOWS.WAIT.get(sid)
+    if not w:
+        raise HTTPException(409, "Not waiting for anything")
+    w["code"] = f.code.strip()
+    return {"ok": True}
+
+
+@app.post("/api/schedules/{sid}/reset", dependencies=[Depends(auth)])
+def schedule_reset(sid: str):
+    FLOWS.forget(sid)
+    return {"ok": True}
+
+
+@app.get("/api/flows/templates", dependencies=[Depends(auth)])
+def flow_templates():
+    return {"items": [{"id": k, **v} for k, v in FLOWS.TEMPLATES.items()]}
+
+
+class VaultIn(BaseModel):
+    fields: dict[str, str] = {}
+    domains: list[str] | None = None
+    label: str = ""
+
+
+@app.get("/api/vault", dependencies=[Depends(auth)])
+def vault_list():
+    return {"items": VAULT.listing()}
+
+
+@app.put("/api/vault/{name}", dependencies=[Depends(auth)])
+def vault_put(name: str, v: VaultIn):
+    if not re.fullmatch(r"[a-z0-9_.-]{1,40}", name):
+        raise HTTPException(400, "Bad name")
+    VAULT.put(name, {k: x for k, x in v.fields.items() if k in ("user", "password", "token", "secret")}, v.domains, v.label)
+    return {"ok": True}
+
+
+@app.delete("/api/vault/{name}", dependencies=[Depends(auth)])
+def vault_del(name: str):
+    return {"ok": VAULT.delete(name)}
 
 
 @app.get("/api/schedules", dependencies=[Depends(auth)])
@@ -1673,7 +1778,7 @@ def schedules():
 def schedule_add(s_: ScheduleIn):
     try:
         return SCH.add(s_.name or ("Reminder" if s_.kind == "reminder" else "Task"), s_.prompt or "", s_.when or "",
-                       _mode(s_.mode), kind=s_.kind or "task")
+                       _mode(s_.mode), kind=s_.kind or "task", flow=s_.flow)
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -1691,7 +1796,16 @@ def schedule_patch(sid: str, s_: ScheduleIn):
 
 @app.delete("/api/schedules/{sid}", dependencies=[Depends(auth)])
 def schedule_del(sid: str):
+    FLOWS.forget(sid)
     return {"ok": SCH.remove(sid)}
+
+
+@app.get("/api/flowshot/{name}", dependencies=[Depends(auth)])
+def flow_shot(name: str):
+    p = os.path.join(FLOWS.SHOTS, os.path.basename(name))
+    if not name.endswith(".png") or not os.path.isfile(p):
+        raise HTTPException(404)
+    return FileResponse(p, media_type="image/png")
 
 
 @app.post("/api/schedules/{sid}/run", dependencies=[Depends(auth)])

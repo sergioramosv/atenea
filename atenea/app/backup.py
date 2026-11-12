@@ -11,7 +11,7 @@ from .. import config as C
 
 DEST = os.environ.get("ATENEA_BACKUP_DIR", "/mnt/models/backups/atenea")
 KEEP = 30
-SKIP = ("background", "vision.log", "cli_history")
+SKIP = ("background", "vision.log", "cli_history", "vault.key", "flows/browser", "flows/shots")
 
 
 def make() -> dict:

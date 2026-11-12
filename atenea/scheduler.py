@@ -84,11 +84,13 @@ def next_run(when: str, after: float) -> float | None:
                      "monthly 1 HH:MM · every 30m · every 2h · once YYYY-MM-DD HH:MM")
 
 
-def add(name: str, prompt: str, when: str, mode: str = "auto", chat: str | None = None, kind: str = "task") -> dict:
-    """kind: "task" (Atenea runs `prompt`) or "reminder" (just a notification with `prompt` as text)."""
+def add(name: str, prompt: str, when: str, mode: str = "auto", chat: str | None = None, kind: str = "task",
+        flow: dict | None = None) -> dict:
+    """kind: "task" (Atenea runs `prompt`), "reminder" (just a notification with `prompt` as text) or "flow"
+    (a connector collects data first; Atenea only runs `prompt` on what is new; see atenea/app/flows.py)."""
     nr = next_run(when, time.time())
     item = {"id": uuid.uuid4().hex[:8], "name": name[:80], "prompt": prompt, "when": when, "mode": mode,
-            "kind": "reminder" if kind == "reminder" else "task", "chat": chat, "enabled": True, "next": nr,
+            "kind": kind if kind in ("reminder", "flow") else "task", "chat": chat, **({"flow": flow} if flow else {}), "enabled": True, "next": nr,
             "last": None, "last_chat": None, "history": [], "created": time.time()}
     with _lock:
         items = load()
