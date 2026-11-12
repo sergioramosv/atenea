@@ -2,6 +2,11 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Atenea</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Atenea"><meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#F6F4EF" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#111315" media="(prefers-color-scheme: dark)">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -76,6 +81,17 @@ header{height:56px;flex:none;border-bottom:1px solid var(--line);display:flex;al
 .acti .st{font-size:11.5px;padding:2px 7px;border-radius:6px;background:var(--hover);font-family:var(--mono)}.acti .st.run{background:var(--acc-bg);color:var(--acc)}
 .askq{border:1px solid color-mix(in srgb,#3B6FB6 45%,var(--line));background:color-mix(in srgb,#3B6FB6 7%,var(--card));border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;max-width:720px}
 .askq h4{margin:0;font-size:15px}.askq input{flex:1;min-width:180px;border:1px solid var(--line);border-radius:9px;padding:8px 12px;background:var(--card);outline:none;font-size:14px}
+.plus{width:32px;height:32px;border:1px solid var(--line);border-radius:9px;color:var(--ink2)}
+#projsel.dflt{display:none}
+.atts{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 8px}
+.att{position:relative;display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:4px 8px 4px 4px;background:var(--bg);font-size:12.5px;max-width:240px}
+.att img,.att video{width:44px;height:44px;object-fit:cover;border-radius:7px;background:var(--code)}.att .ico{width:44px;height:44px;border-radius:7px;background:var(--code);display:flex;align-items:center;justify-content:center;font-size:18px}
+.att .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px}.att .sz{color:var(--muted);font-size:11px}.att .x{position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:10px;border:1px solid var(--line);background:var(--card);font-size:11px;line-height:1;padding:0}
+.att .bar{position:absolute;left:4px;right:4px;bottom:2px;height:3px;border-radius:2px;background:var(--line);overflow:hidden}.att .bar i{display:block;height:3px;background:var(--acc);width:0}
+.cbox.drag{border-color:var(--acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 25%,transparent)}
+.uatt{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.uatt img,.uatt video{max-width:220px;max-height:180px;border-radius:10px;border:1px solid var(--line);display:block}
+.uatt a.filechip{font-size:12.5px}
+.ctxrow{display:grid;grid-template-columns:12px 1fr auto auto;gap:8px;align-items:center;font-size:13px;padding:2px 0}.ctxrow .sw{width:10px;height:10px;border-radius:3px}.ctxrow .n{font-family:var(--mono);text-align:right}.ctxrow .pc{color:var(--muted);text-align:right;min-width:44px}
 .u.q{opacity:.75;border-style:dashed}.qtag{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--muted);white-space:normal}
 .qtag button{border:0;background:transparent;color:var(--muted);text-decoration:underline;padding:0;font-size:12px}.qtag button:hover{color:var(--ink)}
 .u{align-self:flex-end;max-width:min(560px,85%);background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 15px;white-space:pre-wrap;word-wrap:break-word}
@@ -136,6 +152,7 @@ header{height:56px;flex:none;border-bottom:1px solid var(--line);display:flex;al
 #send:disabled{opacity:.35;cursor:default}#send.stop{background:transparent;border:1px solid var(--line);color:var(--ink)}
 .fbar{max-width:820px;margin:0 auto 8px;display:flex;gap:6px;position:relative;flex-wrap:wrap}
 .pill{height:30px;border-radius:15px;border:1px solid var(--line);background:var(--card);box-shadow:0 2px 10px rgba(17,19,21,.06);padding:0 11px;font-size:12.5px;display:flex;align-items:center;gap:6px;color:var(--ink2);white-space:nowrap}
+.pill[hidden],.ib[hidden],.btn[hidden]{display:none!important}
 .pill:hover{border-color:color-mix(in srgb,var(--ink) 25%,var(--line));color:var(--ink)}.pill.on{border-color:var(--ink);color:var(--ink)}
 .pill .k{font-family:var(--mono);font-size:12px}.pill svg{flex:none}
 .m-ask{--mc:var(--muted)}.m-edits{--mc:#2F8A5B}.m-auto{--mc:#C27D12}.m-plan{--mc:#3B6FB6}
@@ -237,12 +254,16 @@ body.art-on #artpane{display:flex}
         <div class="pop" id="popctx" hidden></div>
         <div class="pop" id="popspeed" hidden></div>
         <div class="pop" id="popmodel" hidden></div>
+        <div class="pop" id="popplus" hidden style="left:0;min-width:260px"></div>
         <div class="pop" id="popact" hidden style="min-width:340px;max-width:min(460px,94vw);max-height:420px;overflow:auto"></div>
       </div>
       <div class="cbox" style="position:relative">
         <div class="pop" id="ac" hidden style="bottom:calc(100% + 8px);left:0;right:0;max-width:none;max-height:300px;overflow:auto"></div>
         <textarea id="in" rows="1" placeholder="Ask Atenea anything…" aria-label="Message"></textarea>
+        <div class="atts" id="atts" hidden></div>
         <div class="cbar">
+          <button class="ib plus" id="plus" title="Add photos, videos or files" aria-label="Add"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+          <input type="file" id="filein" multiple hidden><input type="file" id="camin" accept="image/*,video/*" capture="environment" hidden>
           <label class="sel" id="projsel" title="Folder Atenea works in"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span id="projname">Default folder</span><select id="proj" aria-label="Project folder"></select></label>
           <button id="send" aria-label="Send" disabled><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
         </div>
@@ -372,9 +393,14 @@ function empty(){const nm=S.cfg?.assistant_name||'Atenea';$('#msgs').innerHTML=`
   $$('.sugg button').forEach(b=>b.onclick=()=>{$('#in').value=b.textContent;grow();send();});}
 function headerProj(){const p=S.chat?.project||'';$('#hproj').hidden=!p;$('#hproj').textContent=p;
   const locked=!!(S.chat&&(S.chat.log?.length||S.job));$('#projsel').classList.toggle('locked',locked);$('#proj').value=locked?p:$('#proj').value;projLabel();}
-function projLabel(){const v=$('#proj').value;$('#projname').textContent=v||'Default folder';}
+function projLabel(){const v=$('#proj').value;$('#projname').textContent=v||'Default folder';$('#projsel').classList.toggle('dflt',!v);}
 function userEl(t){const d=document.createElement('div');d.className='u';d.innerHTML='<span class="ut"></span><span class="uacts"><button class="ib" data-u="rewind" title="Rewind to here" aria-label="Rewind to here"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button><button class="ib" data-u="fork" title="Fork from here" aria-label="Fork from here"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="5" r="2"/><circle cx="18" cy="5" r="2"/><circle cx="12" cy="19" r="2"/><path d="M6 7v2a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V7M12 12v5"/></svg></button><button class="ib" data-u="copy" title="Copy" aria-label="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></span>';
-  d.querySelector('.ut').textContent=t;return d;}
+  const at=[];t=String(t).replace(/\n?\[attachment: ([^\]\n]+?)(?: \(([^)]*)\))?\]/g,(_,p,meta)=>{at.push([p,meta||'']);return '';}).trim();
+  d.querySelector('.ut').textContent=t;
+  if(at.length){const box=document.createElement('div');box.className='uatt';box.innerHTML=at.map(([p,meta])=>{const u='/api/file?path='+encodeURIComponent(p),nm=p.split('/').pop().replace(/^[0-9a-f]{6}-/,'');
+    return /^image\//.test(meta)||/\.(png|jpe?g|gif|webp|heic|avif)$/i.test(p)?`<a href="${u}" target="_blank"><img src="${u}" alt="${esc(nm)}" loading="lazy"></a>`:/^video\//.test(meta)||/\.(mp4|mov|webm|m4v)$/i.test(p)?`<video src="${u}" controls preload="metadata"></video>`:`<a class="filechip" href="${u}" target="_blank">📎 ${esc(nm)}</a>`;}).join('');
+    d.querySelector('.ut').after(box);}
+  return d;}
 function diffHtml(t){return `<pre class="diff">${t.split('\n').map(l=>`<span class="${l.startsWith('+')&&!l.startsWith('+++')?'da':l.startsWith('-')&&!l.startsWith('---')?'dd':l.startsWith('@@')?'dh':''}">${esc(l)||' '}</span>`).join('')}</pre>`;}
 function msgIndex(u){return [...$$('#msgs .u:not(.q), #msgs .sysm:not(.q)')].indexOf(u);}
 function sysEl(text,origin,label,queued){const d=document.createElement('div');d.className='sysm'+(queued?' q':'');
@@ -445,12 +471,13 @@ function queuedEl(t,qid){const d=document.createElement('div');d.className='u q'
   d.innerHTML='<span class="qt"></span><span class="qtag"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Queued · sends when Atenea finishes · <button type="button">Remove</button></span>';
   d.querySelector('.qt').textContent=t;
   d.querySelector('button').onclick=async()=>{if(d.dataset.q&&S.chat)await api(`/api/chats/${S.chat.id}/queue/${d.dataset.q}`,{method:'DELETE'}).catch(()=>{});d.remove();};return d;}
-function btnState(){const s=$('#send'),busy=!!S.job,has=!!$('#in').value.trim(),stop=busy&&!has;s.classList.toggle('stop',stop);
+function btnState(){const s=$('#send'),busy=!!S.job,has=!!$('#in').value.trim()||!!(S.atts||[]).length,stop=busy&&!has;s.classList.toggle('stop',stop);
   s.setAttribute('aria-label',stop?'Stop':busy?'Queue message':'Send');s.title=stop?'Stop':busy?'Queue message (sent when Atenea finishes)':'Send';
   s.innerHTML=stop?'<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>':'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
   s.disabled=!busy&&!has;const nm=S.cfg?.assistant_name||'Atenea';$('#in').placeholder=busy?'Queue another message…':`Ask ${nm} anything…`;}
 function setBusy(b){btnState();}
-async function send(){const t=$('#in').value.trim();if(!t)return;
+async function send(){if(S.atts.some(a=>!a.done&&!a.err))return toast('Wait for the upload to finish');
+  let t=$('#in').value.trim();const at=attText();if(!t&&!at)return;if(at){t=(t||'Here are some files.')+at;S.atts=[];renderAtts();}
   if(t.startsWith('/')&&/^\/[\w-]+(\s|$)/.test(t)){$('#in').value='';grow();if(await slash(t))return;$('#in').value=t;grow();}
   $('#in').value='';grow();
   if(S.job&&S.chat){const el=queuedEl(t);$('#msgs').append(el);scrollEnd(true);
@@ -530,10 +557,10 @@ async function setMode(m){S.mode=m;renderMode();try{localStorage.setItem('mode',
 function renderUsage(u){if(u&&!u.ctx&&S.usage?.ctx&&S.job)u={...u,ctx:S.usage.ctx};if(u&&!u.tps&&S.usage?.tps&&S.job)u={...u,tps:S.usage.tps};
   S.usage=u||{ctx:0,max:S.cfg?.model?.context||204800,tps:null,out:0};u=S.usage;const pct=u.max?Math.min(100,Math.round(100*u.ctx/u.max)):0;
   $('#pctxv').textContent=pct+'%';$('#ring').setAttribute('stroke-dashoffset',String(88-88*pct/100));$('#ring').setAttribute('stroke',pct>85?'var(--bad)':pct>60?'#C27D12':'var(--acc)');
-  $('#popctx').innerHTML=`<div class="hd"><span>Context</span><span>${pct}%</span></div><div class="bd"><div class="big">${fmtK(u.ctx)} <span style="font-size:14px;font-weight:400;color:var(--muted)">of ${fmtK(u.max)} tokens</span></div>
+  if($('#popctx').hidden)$('#popctx').innerHTML=`<div class="hd"><span>Context</span><span>${pct}%</span></div><div class="bd"><div class="big">${fmtK(u.ctx)} <span style="font-size:14px;font-weight:400;color:var(--muted)">of ${fmtK(u.max)} tokens</span></div>
     <div class="bar"><i style="width:${pct}%"></i></div><div style="font-size:12.5px;color:var(--muted)">Everything Atenea is keeping in mind for this chat: your messages, its answers and tool results. When it fills up, old tool output is summarised automatically.</div>
     <div class="row"><button class="btn" id="ctxnew">Start a fresh chat</button></div></div>`;
-  $('#ctxnew').onclick=()=>{closePops();newChat();};
+  if($('#ctxnew'))$('#ctxnew').onclick=()=>{closePops();newChat();};
   $('#pspeed').hidden=!u.tps;$('#pspeedv').textContent=u.tps?Math.round(u.tps):'—';
   $('#popspeed').innerHTML=`<div class="hd"><span>Last answer</span></div><div class="bd"><div class="big">${u.tps??'—'} <span style="font-size:14px;font-weight:400;color:var(--muted)">tokens / s</span></div>
     <div class="rowk"><span>Tokens generated</span><span>${(u.out||0).toLocaleString()}</span></div><div class="rowk"><span>Model calls (this chat)</span><span>${u.calls??'—'}</span></div>
@@ -651,6 +678,45 @@ const BASE_TITLE=()=>S.cfg?.assistant_name||'Atenea';
 function notice(t){if(!document.hidden)return;document.title=t+' · '+BASE_TITLE();try{const a=new (window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator(),g=a.createGain();
   o.frequency.value=880;g.gain.setValueAtTime(.06,a.currentTime);g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+.4);o.connect(g).connect(a.destination);o.start();o.stop(a.currentTime+.4);}catch(_){}}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)document.title=BASE_TITLE();});
+
+// ---------- attachments: + button, drag & drop, paste ----------
+S.atts=[];
+const fsize=n=>n>1e9?(n/1e9).toFixed(1)+' GB':n>1e6?(n/1e6).toFixed(1)+' MB':Math.max(1,Math.round(n/1e3))+' KB';
+function renderAtts(){const box=$('#atts');box.hidden=!S.atts.length;box.innerHTML=S.atts.map((a,i)=>`<div class="att">${a.preview&&a.kind==='image'?`<img src="${a.preview}" alt="">`:a.preview&&a.kind==='video'?`<video src="${a.preview}" muted></video>`:`<span class="ico">📄</span>`}
+  <span><div class="nm">${esc(a.name)}</div><div class="sz">${a.done?fsize(a.size):a.err?'failed':'uploading…'}</div></span><button class="x" data-i="${i}" aria-label="Remove">✕</button>${a.done||a.err?'':`<span class="bar"><i style="width:${a.pct||0}%"></i></span>`}</div>`).join('');
+  box.querySelectorAll('.x').forEach(b=>b.onclick=()=>{S.atts.splice(+b.dataset.i,1);renderAtts();btnState();});btnState();}
+function uploadFile(file){const a={name:file.name||'pasted.png',size:file.size,kind:(file.type||'').split('/')[0],pct:0,done:false};
+  if(['image','video'].includes(a.kind))a.preview=URL.createObjectURL(file);S.atts.push(a);renderAtts();
+  const x=new XMLHttpRequest();x.open('POST','/api/upload?name='+encodeURIComponent(a.name));x.withCredentials=true;
+  x.upload.onprogress=e=>{if(e.lengthComputable){a.pct=Math.round(100*e.loaded/e.total);const el=$$('#atts .att')[S.atts.indexOf(a)]?.querySelector('.bar i');if(el)el.style.width=a.pct+'%';}};
+  x.onload=()=>{if(x.status===200){Object.assign(a,JSON.parse(x.responseText),{done:true});}else{a.err=true;toast('Upload failed: '+x.status);}renderAtts();};
+  x.onerror=()=>{a.err=true;renderAtts();toast('Upload failed');};x.send(file);}
+function attText(){return S.atts.filter(a=>a.done).map(a=>`\n[attachment: ${a.path} (${a.type}, ${fsize(a.size)})]`).join('');}
+$('#filein').onchange=e=>{[...e.target.files].forEach(uploadFile);e.target.value='';};
+$('#camin').onchange=e=>{[...e.target.files].forEach(uploadFile);e.target.value='';};
+function renderPlus(){const projs=Object.keys(S.cfg?.projects||{}),cur=$('#proj').value,locked=$('#projsel').classList.contains('locked');
+  $('#popplus').innerHTML=`<button class="opt" data-p="files"><span class="ic">📎</span><span class="tx"><b style="color:var(--ink)">Photos, videos or files</b><span>Or drag them here, or paste an image</span></span></button>
+    <button class="opt" data-p="cam"><span class="ic">📷</span><span class="tx"><b style="color:var(--ink)">Take a photo or video</b></span></button>
+    <div class="hd" style="padding-top:8px"><span>Work in folder</span>${locked?'<span style="font-weight:400">fixed for this chat</span>':''}</div>
+    ${['',...projs].map(p=>`<button class="opt${p===cur?' cur':''}" data-f="${esc(p)}"${locked?' disabled':''}><span class="ic">📁</span><span class="tx"><b style="color:var(--ink)">${p?esc(p):'Default folder'}</b><span>${esc(p?S.cfg.projects[p]:S.cfg?.workspace||'')}</span></span><span class="ck">✓</span></button>`).join('')}`;
+  $$('#popplus [data-p]').forEach(b=>b.onclick=e=>{e.stopPropagation();closePops();$(b.dataset.p==='files'?'#filein':'#camin').click();});
+  $$('#popplus [data-f]').forEach(b=>b.onclick=e=>{e.stopPropagation();if(b.disabled)return;$('#proj').value=b.dataset.f;$('#proj').onchange();closePops();});}
+$('#plus').onclick=e=>{e.stopPropagation();const p=$('#popplus'),open=p.hidden;closePops();if(open){renderPlus();p.hidden=false;}};
+const cb=$('.cbox');['dragenter','dragover'].forEach(t=>cb.addEventListener(t,e=>{if([...(e.dataTransfer?.types||[])].includes('Files')){e.preventDefault();cb.classList.add('drag');}}));
+['dragleave','drop'].forEach(t=>cb.addEventListener(t,e=>{cb.classList.remove('drag');}));
+cb.addEventListener('drop',e=>{if(e.dataTransfer?.files?.length){e.preventDefault();[...e.dataTransfer.files].forEach(uploadFile);}});
+$('#in').addEventListener('paste',e=>{const fs=[...(e.clipboardData?.files||[])];if(fs.length){e.preventDefault();fs.forEach(uploadFile);}});
+// ---------- context capsule: full breakdown on click ----------
+async function loadCtxPop(){const pop=$('#popctx');let r;try{r=await api('/api/context'+(S.chat?.id?'?chat='+S.chat.id:''));}catch(_){return;}
+  const COL=['#5B616B','#3B6FB6','#2F8A5B','#7B5EA7','#C27D12','#8A9099','#B23A2E','#C9A227'];const pct=v=>100*v/r.max,free=Math.max(0,r.max-r.total);
+  pop.innerHTML=`<div class="hd"><span>Context</span><span>${Math.round(pct(r.total))}%${r.exact?'':' · est.'}</span></div><div class="bd">
+    <div class="big">${fmtK(r.total)} <span style="font-size:14px;font-weight:400;color:var(--muted)">of ${fmtK(r.max)} tokens</span></div>
+    <div style="display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--line)">${r.categories.map((c,i)=>`<span style="width:${pct(c.tokens)}%;background:${COL[i%COL.length]}"></span>`).join('')}</div>
+    <div>${r.categories.filter(c=>c.tokens>0).map((c,i)=>`<div class="ctxrow"><span class="sw" style="background:${COL[r.categories.indexOf(c)%COL.length]}"></span><span>${esc(c.name)}</span><span class="n">${fmtK(c.tokens)}</span><span class="pc">${pct(c.tokens).toFixed(1)}%</span></div>`).join('')}
+      <div class="ctxrow"><span class="sw" style="background:var(--line)"></span><span>Free</span><span class="n">${fmtK(free)}</span><span class="pc">${pct(free).toFixed(1)}%</span></div></div>
+    <div class="row"><button class="btn" id="ctxcompact"${S.chat?.id?'':' disabled'}>Compact</button><button class="btn" id="ctxnew">New chat</button></div></div>`;
+  $('#ctxnew').onclick=()=>{closePops();newChat();};$('#ctxcompact').onclick=()=>{closePops();slash('/compact');};}
+$('#pctx').addEventListener('click',()=>{if(!$('#popctx').hidden){$('#popctx').innerHTML='<div class="hd"><span>Context</span><span>…</span></div>';loadCtxPop();}});
 
 // ---------- activity tray: background shells, subagents and monitors ----------
 const ago=t=>{const s=Math.round(Date.now()/1000-t);return s<60?s+'s':s<3600?Math.round(s/60)+'m':Math.round(s/3600)+'h';};

@@ -46,6 +46,10 @@ ACTIVITY_INSTR = """- BACKGROUND WORK: you can keep the user unblocked. bg_start
   delegate(..., background=true) runs a subagent in the background and its result arrives later as a message.
   Messages that start with [Monitor …] or [Background subagent …] come from those, not from the user: act on them
   and tell the user briefly what happened.
+- ATTACHMENTS: lines like [attachment: /path/file (type, size)] are files the user uploaded. Your model cannot see
+  images directly, but you can work with any file using tools: python (Pillow) for image size/colors/crops, `tesseract`
+  for text in images (OCR), `ffmpeg`/`ffprobe` for video and audio (extract frames, convert, trim), and read text,
+  PDFs (pdftotext) or spreadsheets. Show results with ![…](/path). Say honestly when you cannot tell what an image shows.
 - ASKING THE USER: when you need a decision or a missing detail, call ask_user with a short question and 2-4 clear
   options (the user can also type their own answer). Don't use it for trivial things you can decide yourself.
 - ABOUT THIS PANEL (so you can explain it): the user talks to you in the Atenea web panel. Permission modes (pill above
@@ -1142,6 +1146,29 @@ def schedule_run(sid: str):
     return {"chat": run_schedule(it)}
 
 
+# ---------------- uploads (photos, videos, any file) ----------------
+UPLOADS_DIR = os.path.join(os.path.dirname(C.PATH), "uploads")
+
+
+@app.post("/api/upload", dependencies=[Depends(auth)])
+async def upload(request: Request, name: str):
+    """Raw body upload (no multipart): saved under ~/.config/athena/uploads/YYYY-MM/."""
+    safe = re.sub(r"[^\w.\- ]+", "_", os.path.basename(name)).strip() or "file"
+    d = os.path.join(UPLOADS_DIR, time.strftime("%Y-%m"))
+    os.makedirs(d, exist_ok=True)
+    path = os.path.join(d, f"{uuid.uuid4().hex[:6]}-{safe}")
+    size = 0
+    with open(path, "wb") as f:
+        async for chunk in request.stream():
+            size += len(chunk)
+            if size > 4 * 1024**3:
+                f.close()
+                os.remove(path)
+                raise HTTPException(413, "File too large (max 4 GB)")
+            f.write(chunk)
+    return {"path": path, "name": safe, "size": size, "type": mimetypes.guess_type(path)[0] or "application/octet-stream"}
+
+
 # ---------------- artifacts & media ----------------
 SANDBOX = {"Content-Security-Policy": "sandbox allow-scripts allow-popups allow-forms allow-modals allow-downloads",
            "Cache-Control": "no-store"}
@@ -1255,7 +1282,25 @@ def brand(name: str):
     f = os.path.join(HERE, "brand", os.path.basename(name))
     if not os.path.isfile(f):
         raise HTTPException(404)
-    return FileResponse(f, media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=86400"})
+    return FileResponse(f, media_type=mimetypes.guess_type(f)[0] or "application/octet-stream",
+                        headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/apple-touch-icon.png")
+@app.get("/apple-touch-icon-precomposed.png")
+def apple_icon():
+    return FileResponse(os.path.join(HERE, "brand", "icon-180.png"), media_type="image/png")
+
+
+@app.get("/manifest.webmanifest")
+def manifest():
+    name = C.load().get("assistant_name", "Atenea")
+    return Response(json.dumps({
+        "name": name, "short_name": name, "start_url": "/", "scope": "/", "display": "standalone",
+        "background_color": "#111315", "theme_color": "#111315",
+        "icons": [{"src": "/brand/icon-192.png", "sizes": "192x192", "type": "image/png"},
+                  {"src": "/brand/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}]}),
+        media_type="application/manifest+json")
 
 
 @app.get("/favicon.ico")

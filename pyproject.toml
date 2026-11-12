@@ -18,4 +18,4 @@ build-backend = "setuptools.build_meta"
 packages = ["athena"]
 
 [tool.setuptools.package-data]
-athena = ["web.html", "login.html", "brand/*.svg", "agents/*.md"]
+athena = ["web.html", "login.html", "brand/*.svg", "brand/*.png", "agents/*.md", "sw.js"]
