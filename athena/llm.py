@@ -40,23 +40,32 @@ class LLM:
     def __init__(self, profile: ModelProfile | None = None):
         self.p = profile or ModelProfile()
 
-    def chat(self, messages: list[dict], tools: list[dict] | None = None, temperature: float | None = None) -> dict:
-        """Return {"message", "finish", "usage", "secs"}. Raises InvalidToolCall."""
+    def _req(self, body: dict) -> urllib.request.Request:
+        hdr = {"Content-Type": "application/json"}
+        if self.p.key():
+            hdr["Authorization"] = f"Bearer {self.p.key()}"
+        return urllib.request.Request(self.p.url, json.dumps(body).encode(), hdr)
+
+    def chat(self, messages: list[dict], tools: list[dict] | None = None, temperature: float | None = None,
+             on_delta=None) -> dict:
+        """Return {"message", "finish", "usage", "secs"}. Raises InvalidToolCall.
+        With on_delta(kind, text) the reply is streamed: kind is "reasoning" or "content"."""
         body = {"model": self.p.model, "messages": messages,
                 "temperature": self.p.temperature if temperature is None else temperature,
                 "top_p": self.p.top_p, "top_k": self.p.top_k, "max_tokens": self.p.max_tokens, "cache_prompt": True}
         if tools:
             body["tools"] = tools
-        hdr = {"Content-Type": "application/json"}
-        if self.p.key():
-            hdr["Authorization"] = f"Bearer {self.p.key()}"
         t0 = time.time()
         for attempt in range(3):
             body["seed"] = random.randint(0, 2**31 - 1)            # new seed on every attempt
-            req = urllib.request.Request(self.p.url, json.dumps(body).encode(), hdr)
             try:
-                d = json.load(urllib.request.urlopen(req, timeout=self.p.timeout))
-                break
+                if on_delta:
+                    msg, finish, usage = self._stream(body, on_delta)
+                else:
+                    d = json.load(urllib.request.urlopen(self._req(body), timeout=self.p.timeout))
+                    ch = d["choices"][0]
+                    msg, finish, usage = ch["message"], ch.get("finish_reason"), d.get("usage", {})
+                return {"message": msg, "finish": finish, "usage": usage, "secs": time.time() - t0}
             except urllib.error.HTTPError as e:
                 txt = e.read().decode(errors="replace")[:400]
                 if "parse tool call" in txt or "Failed to parse" in txt:
@@ -67,6 +76,51 @@ class LLM:
                 if attempt == 2:
                     raise RuntimeError(f"Model unavailable: {e}") from e
             time.sleep(3 * (attempt + 1))
-        ch = d["choices"][0]
-        return {"message": ch["message"], "finish": ch.get("finish_reason"), "usage": d.get("usage", {}),
-                "secs": time.time() - t0}
+        raise RuntimeError("unreachable")
+
+    def _stream(self, body: dict, on_delta) -> tuple[dict, str | None, dict]:
+        """Server-sent events from an OpenAI-compatible server, reassembled into one message."""
+        body = dict(body, stream=True, stream_options={"include_usage": True})
+        content, reasoning, calls, finish, usage = [], [], {}, None, {}
+        with urllib.request.urlopen(self._req(body), timeout=self.p.timeout) as r:
+            for raw in r:
+                line = raw.decode("utf-8", errors="replace").strip()
+                if not line.startswith("data:"):
+                    continue
+                data = line[5:].strip()
+                if data == "[DONE]":
+                    break
+                try:
+                    ev = json.loads(data)
+                except json.JSONDecodeError:
+                    continue
+                if "error" in ev:
+                    txt = json.dumps(ev["error"])[:400]
+                    if "parse tool call" in txt or "Failed to parse" in txt:
+                        raise InvalidToolCall(txt)
+                    raise RuntimeError(f"Model error: {txt}")
+                if ev.get("usage"):
+                    usage = ev["usage"]
+                for ch in ev.get("choices") or []:
+                    d = ch.get("delta") or {}
+                    if d.get("reasoning_content"):
+                        reasoning.append(d["reasoning_content"])
+                        on_delta("reasoning", d["reasoning_content"])
+                    if d.get("content"):
+                        content.append(d["content"])
+                        on_delta("content", d["content"])
+                    for tc in d.get("tool_calls") or []:
+                        c = calls.setdefault(tc.get("index", 0), {"id": "", "type": "function",
+                                                                  "function": {"name": "", "arguments": ""}})
+                        c["id"] = tc.get("id") or c["id"]
+                        f = tc.get("function") or {}
+                        c["function"]["name"] += f.get("name") or ""
+                        c["function"]["arguments"] += f.get("arguments") or ""
+                    if ch.get("finish_reason"):
+                        finish = ch["finish_reason"]
+        msg = {"role": "assistant", "content": "".join(content)}
+        if reasoning:
+            msg["reasoning_content"] = "".join(reasoning)
+        if calls:
+            msg["tool_calls"] = [dict(c, id=c["id"] or f"call_{i}") for i, c in sorted(calls.items())]
+        return msg, finish, usage

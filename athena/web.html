@@ -73,6 +73,19 @@ header{height:56px;flex:none;border-bottom:1px solid var(--line);display:flex;al
 .steps ol{list-style:none;margin:0;padding:0 8px 8px;max-height:260px;overflow:auto;font-family:var(--mono);font-size:12px}
 .steps li{display:flex;gap:10px;padding:4px 6px;border-radius:6px;color:var(--ink2)}.steps li .t{color:var(--muted);flex:none;width:42px;text-align:right}
 .steps li .ok{color:var(--acc)}.steps li span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.think{border-left:2px solid var(--line);padding:2px 0 2px 12px;font-size:13px;color:var(--muted);max-width:720px}
+.think summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;font-weight:500}.think summary::-webkit-details-marker{display:none}
+.think[open] .chev{transform:rotate(90deg)}.think .chev{transition:transform .15s}
+.think .tt{white-space:pre-wrap;max-height:180px;overflow:auto;margin-top:6px;line-height:1.5;font-size:12.5px}
+.todo{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:10px 14px;max-width:720px;font-size:13.5px}
+.todo .th{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px;display:flex;justify-content:space-between}
+.todo ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px}
+.todo li{display:flex;gap:9px;align-items:flex-start;line-height:1.4}.todo li .bx{flex:none;width:16px;height:16px;margin-top:1px;border-radius:5px;border:1.5px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:11px}
+.todo li.completed{color:var(--muted);text-decoration:line-through}.todo li.completed .bx{background:var(--acc);border-color:var(--acc);color:var(--card)}
+.todo li.in_progress{font-weight:600}.todo li.in_progress .bx{border-color:var(--acc);border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.planbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;border:1px solid color-mix(in srgb,#3B6FB6 40%,var(--line));background:color-mix(in srgb,#3B6FB6 7%,var(--card));border-radius:12px;padding:10px 12px;max-width:720px;font-size:14px}
+.planbar b{margin-right:auto}
 .working{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px}
 .pulse{display:inline-flex;gap:4px}.pulse i{width:6px;height:6px;border-radius:3px;background:var(--acc);animation:blink 1.2s infinite}.pulse i:nth-child(2){animation-delay:.2s}.pulse i:nth-child(3){animation-delay:.4s}
 .appr{border:1px solid var(--warn-line);background:var(--warn-bg);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;max-width:720px}
@@ -319,9 +332,18 @@ function stepLine(e){const d=e.data;const txt=e.kind==='tool_call'?`${d.name}  $
   return `<li><span class="t">${e.t}s</span><span class="ok">${e.kind==='notice'?'!':'✓'}</span><span>${esc(txt.slice(0,200))}</span></li>`;}
 function botEl(entry){const d=document.createElement('div');d.className='b';const ev=entry?.events||[];const m=entry?.meta;
   d.innerHTML=`<div class="bh">${MARK()}<b>${esc(S.cfg?.assistant_name||'Atenea')}</b><span class="st"></span></div>
+    <details class="think" hidden><summary>${CHEV}<span class="tl">Thinking</span></summary><div class="tt"></div></details>
+    <div class="todo" hidden></div>
     <details class="steps"${ev.length?'':' hidden'}><summary>${CHEV}<span class="sum">${ev.length} step${ev.length===1?'':'s'}${m?` · ${m.secs}s`:''}</span></summary><ol>${ev.map(stepLine).join('')}</ol></details>
     <div class="ap"></div><div class="md out">${entry?md(entry.a||'(no answer)'):''}</div>`;
-  if(m)d.querySelector('.st').textContent=`· ${m.secs}s`;if(entry)finishOut(d.querySelector('.out'),entry.artifacts);return d;}
+  if(m)d.querySelector('.st').textContent=`· ${m.secs}s`;if(entry){finishOut(d.querySelector('.out'),entry.artifacts);renderTodos(d,entry.todos);}return d;}
+function renderTodos(b,todos){const el=b.querySelector('.todo');if(!todos?.length){el.hidden=true;return;}el.hidden=false;
+  const done=todos.filter(t=>t.status==='completed').length;
+  el.innerHTML=`<div class="th"><span>Tasks</span><span>${done}/${todos.length}</span></div><ul>${todos.map(t=>`<li class="${t.status}"><span class="bx">${t.status==='completed'?'✓':''}</span><span>${esc(t.content)}</span></li>`).join('')}</ul>`;}
+function planBar(b){if(b.querySelector('.planbar'))return;b.insertAdjacentHTML('beforeend',`<div class="planbar"><b>Approve this plan?</b>
+  <button class="btn pri" data-m="edits">Approve · Accept edits</button><button class="btn" data-m="auto">Approve · Auto</button><button class="btn ghost" data-m="">Keep planning</button></div>`);
+  b.querySelectorAll('.planbar button').forEach(x=>x.onclick=async()=>{const m=x.dataset.m;b.querySelector('.planbar').remove();
+    if(!m){$('#in').focus();return;}await setMode(m);$('#in').value='Plan approved. Carry it out now, step by step.';grow();send();});}
 // ---------- artifacts ----------
 const ART={};
 async function artMeta(id){if(!ART[id])ART[id]=api('/api/artifacts/'+id).catch(()=>null);return ART[id];}
@@ -342,11 +364,12 @@ function newChat(){stopPoll();S.chat=null;S.job=null;S.mode=defMode();renderMode
 async function openChat(id,push=true){stopPoll();let c;try{c=await api('/api/chats/'+id);}catch(e){toast('Conversation not found');return newChat();}
   S.chat=c;S.job=c.job;S.mode=c.mode||defMode();renderMode();renderUsage(c.usage);if(push)history.pushState({}, '', '/c/'+id);show('chat');$('#title').textContent=c.title;
   const M=$('#msgs');M.innerHTML='';for(const e of c.log){M.append(userEl(e.q));M.append(botEl(e));}
+  const le=c.log[c.log.length-1];if(le?.meta?.mode==='plan'&&!c.job&&!c.pending)planBar(M.lastElementChild);
   if(c.job){if(c.pending)M.append(userEl(c.pending));M.append(liveEl());for(const q of c.queue||[])M.append(queuedEl(q.text,q.id));S.lastEv=0;poll();}
   else if(c.pending){M.append(userEl(c.pending));const d=botEl(null);d.querySelector('.out').innerHTML=`<p style="color:var(--muted)">This task was interrupted.</p><button class="btn">Retry</button>`;
     d.querySelector('button').onclick=()=>{d.remove();M.lastElementChild?.remove();$('#in').value=c.pending;grow();send();};M.append(d);}
   if(!c.log.length&&!c.job)empty();headerProj();setBusy(!!c.job);renderList();scrollEnd(true);}
-function liveEl(){const d=botEl(null);d.classList.add('live');d.querySelector('.out').innerHTML=`<div class="working"><span class="pulse"><i></i><i></i><i></i></span><span class="wt">Thinking…</span></div>`;return d;}
+function liveEl(){const d=botEl(null);d.classList.add('live');d.querySelector('.think').open=true;d.querySelector('.out').insertAdjacentHTML('beforebegin',`<div class="working wk"><span class="pulse"><i></i><i></i><i></i></span><span class="wt">Thinking…</span></div>`);return d;}
 function queuedEl(t,qid){const d=document.createElement('div');d.className='u q';if(qid)d.dataset.q=qid;
   d.innerHTML='<span class="qt"></span><span class="qtag"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Queued · sends when Atenea finishes · <button type="button">Remove</button></span>';
   d.querySelector('.qt').textContent=t;
@@ -372,20 +395,24 @@ async function poll(){const jid=S.job;if(!jid)return;let j;try{j=await api('/api
   const st=b.querySelector('.steps'),ol=st.querySelector('ol');
   if(j.events.length>S.lastEv){st.hidden=false;j.events.slice(S.lastEv).forEach(e=>ol.insertAdjacentHTML('beforeend',stepLine(e)));S.lastEv=j.events.length;ol.scrollTop=ol.scrollHeight;}
   st.querySelector('.sum').textContent=`${j.events.length} step${j.events.length===1?'':'s'} · ${j.secs}s`;
-  const w=b.querySelector('.wt');if(w)w.textContent=(j.events.length?'Working':'Thinking')+` · ${j.secs}s`;
+  const w=b.querySelector('.wt');if(w)w.textContent=(j.live?.text?'Writing':j.live?.thinking?'Thinking':j.events.length?'Working':'Thinking')+` · ${j.secs}s`;
+  const th=b.querySelector('.think');if(j.live?.thinking){th.hidden=false;const tt=th.querySelector('.tt');if(tt.textContent!==j.live.thinking){tt.textContent=j.live.thinking;tt.scrollTop=tt.scrollHeight;}}
+  if(!j.done&&j.live)b.querySelector('.out').innerHTML=j.live.text?md(j.live.text):'';
+  renderTodos(b,j.todos);
   const ap=b.querySelector('.ap');const key=j.approval?j.approval.tool+j.approval.args:'';
   if(ap.dataset.k!==key){ap.dataset.k=key;ap.innerHTML=j.approval?`<div class="appr"><h4><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>Allow this action?<small>${esc(j.approval.tool)}</small></h4><pre>${esc(j.approval.args)}</pre>
       <div class="row"><button class="btn pri" data-a="yes">Allow</button><button class="btn ghost" data-a="no">Deny</button></div></div>`:'';
     ap.querySelectorAll('button').forEach(x=>x.onclick=()=>{api(`/api/jobs/${jid}/approve/${x.dataset.a}`,{method:'POST'});ap.innerHTML='';});}
   $('#hstate').hidden=!j.approval;
   const na=(j.artifacts||[]).length;if(na>(S.lastArt||0)){const a=j.artifacts[na-1];S.lastArt=na;delete ART[a.id];openArt(a.id);}
-  if(j.done){S.lastArt=0;b.classList.remove('live');b.querySelector('.out').innerHTML=md(j.result||'(no answer)');finishOut(b.querySelector('.out'),j.artifacts);st.open=false;if(!j.events.length)st.hidden=true;
+  if(j.done){S.lastArt=0;b.querySelector('.wk')?.remove();const th2=b.querySelector('.think');if(th2&&!th2.hidden){th2.open=false;th2.querySelector('.tl').textContent='Thought process';}
+    if(j.meta?.mode==='plan'&&!j.next)planBar(b);b.classList.remove('live');b.querySelector('.out').innerHTML=md(j.result||'(no answer)');finishOut(b.querySelector('.out'),j.artifacts);st.open=false;if(!j.events.length)st.hidden=true;
     if(j.meta)b.querySelector('.st').textContent=`· ${j.meta.secs}s`;$('#hstate').hidden=true;
     if(j.next){const q=$('.u.q');const live=liveEl();if(q){q.classList.remove('q');q.querySelector('.qtag')?.remove();q.after(live);}else $('#msgs').append(live);
       S.job=j.next;S.lastEv=0;btnState();loadList();scrollEnd();S.timer=setTimeout(poll,800);return;}
     S.job=null;setBusy(false);
     if(S.chat){S.chat.log=S.chat.log||[];S.chat.log.push({});}headerProj();loadList();scrollEnd();return;}
-  scrollEnd();S.timer=setTimeout(poll,1200);}
+  scrollEnd();S.timer=setTimeout(poll,j.live?.text||j.live?.thinking?600:1000);}
 function grow(){const t=$('#in');t.style.height='auto';t.style.height=Math.min(t.scrollHeight,240)+'px';btnState();}
 $('#in').addEventListener('input',grow);
 $('#in').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&!matchMedia('(max-width:820px)').matches){e.preventDefault();send();}});

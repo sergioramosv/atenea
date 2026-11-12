@@ -168,6 +168,7 @@ def _agent(chat: dict):
                                                    on_create=lambda m: getattr(ag, "_on_artifact", lambda _: None)(m))
         AGENTS[chat["id"]] = ag
     ag.mode = chat.get("mode") or _mode(None)
+    ag.stream = True
     return ag
 
 
@@ -211,6 +212,15 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False):
     def ev(kind, data):
         if job["cancel"]:
             raise KeyboardInterrupt("cancelled")
+        if kind == "delta":
+            lv = job["live"]
+            key = "thinking" if data["kind"] == "reasoning" else "text"
+            lv[key] = (lv[key] + data["text"])[-8000:]
+            return
+        if kind == "turn":
+            job["live"] = {"thinking": "", "text": ""}
+        if kind == "todos":
+            job["todos"] = data["todos"]
         if kind in ("tool_call", "notice", "subagent"):
             job["events"].append({"t": round(time.time() - job["t0"], 1), "kind": kind,
                                   "data": {k: str(v)[:400] for k, v in data.items()}})
@@ -238,9 +248,10 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False):
         ag.on_event, ag.approve = ev, approve
         ag._on_artifact = lambda m: job["artifacts"].append({"id": m["id"], "title": m["title"], "version": m["version"]})
         s0, t0 = ag.stats.requests, time.time()
+        job["mode"] = ag.mode
         job["base"] = (ag.stats.completion_tokens, ag.stats.secs_model)
         job["result"] = ag.run(RESUME_NOTE + text if resume else text)
-        job["meta"] = {"steps": ag.stats.requests - s0, "secs": round(time.time() - t0)}
+        job["meta"] = {"steps": ag.stats.requests - s0, "secs": round(time.time() - t0), "mode": job.get("mode")}
     except KeyboardInterrupt:
         job["result"] = "_Stopped._"
         job["meta"] = {"steps": 0, "secs": round(time.time() - job["t0"]), "stopped": True}
@@ -255,7 +266,8 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False):
                 chat["messages"] = ag.messages
                 chat["usage"] = _usage(ag, job)
             chat["log"].append({"q": text, "a": job["result"], "events": job["events"], "meta": job["meta"],
-                                "t": job["t0"], "artifacts": job["artifacts"], **({"resumed": True} if resume else {})})
+                                "t": job["t0"], "artifacts": job["artifacts"], "todos": job["todos"],
+                                **({"resumed": True} if resume else {})})
             chat["pending"] = None
             chat["updated"] = time.time()
             _write(chat)
@@ -278,7 +290,8 @@ def _start(cid: str, text: str, resume: bool = False, t0: float | None = None) -
     """Start a task for a conversation. Caller holds _lock. The message is saved as `pending` right away."""
     jid = uuid.uuid4().hex[:10]
     JOBS[jid] = {"t0": t0 or time.time(), "events": [], "done": False, "result": None, "approval": None, "meta": None,
-                 "chat": cid, "cancel": False, "text": text, "next": None, "artifacts": [], "resumed": resume}
+                 "chat": cid, "cancel": False, "text": text, "next": None, "artifacts": [], "resumed": resume,
+                 "live": {"thinking": "", "text": ""}, "todos": []}
     try:
         c = _read(cid)
         old = c.get("pending") or {}
@@ -428,7 +441,7 @@ def job(jid: str):
         raise HTTPException(404)
     j = JOBS[jid]
     ag = AGENTS.get(j["chat"])
-    return {k: j.get(k) for k in ("events", "done", "result", "approval", "meta", "chat", "next", "artifacts")} | \
+    return {k: j.get(k) for k in ("events", "done", "result", "approval", "meta", "chat", "next", "artifacts", "live", "todos")} | \
         {"secs": round(time.time() - j["t0"]), "usage": _usage(ag, j) if ag is not None else None}
 
 

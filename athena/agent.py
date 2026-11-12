@@ -34,6 +34,8 @@ How to work:
 - Do not modify existing tests unless asked. Do not invent files or APIs: check them.
 - Be concise: do not repeat whole files in your messages.
 - Reply to the user in the language they write in.
+- For tasks with 3 or more steps, keep a todo list with todo_write: write it at the start, mark one item
+  in_progress while you work on it and completed as soon as it is done. Skip it for quick questions.
 {extra}
 When the task is done and verified, reply with a short summary WITHOUT calling tools."""
 
@@ -62,7 +64,7 @@ PLAN_NOTE = ("\n\n[Plan mode: investigate using read-only tools only, then reply
 #   ask   -> edits, commands and external actions        edits -> commands and external actions
 #   auto  -> only external actions (tools marked dangerous) plan -> nothing runs except read-only tools
 MODES = ("ask", "edits", "auto", "plan")
-READ_ONLY = {"read_file", "list_files", "grep", "load_skill"}
+READ_ONLY = {"read_file", "list_files", "grep", "load_skill", "todo_write"}
 EDIT_TOOLS = {"write_file", "edit_file"}
 
 
@@ -104,6 +106,7 @@ class Agent:
     system: str | None = None
     verbose: bool = False
     mode: str = "auto"                                      # ask | edits | auto | plan (see MODES)
+    stream: bool = False                                    # emit "delta" events (reasoning/text as it is written)
 
     def __post_init__(self):
         self.cwd = os.path.abspath(os.path.expanduser(self.cwd))
@@ -118,6 +121,13 @@ class Agent:
             self._tools[t.name] = t
         if self.skills:
             self._tools["load_skill"] = self.skills.tool()
+        self.todos: list[dict] = []
+        self._tools["todo_write"] = Tool(
+            "todo_write", "Create or update your todo list for the current task. Pass the FULL list each time. "
+            "status: pending | in_progress | completed. Only one item in_progress at a time.",
+            {"type": "object", "properties": {"todos": {"type": "array", "items": {"type": "object", "properties": {
+                "content": {"type": "string"}, "status": {"type": "string", "enum": ["pending", "in_progress", "completed"]}},
+                "required": ["content", "status"]}}}, "required": ["todos"]}, self._todo_write)
         extra = []
         if self.allow_delegate:
             extra.append(DELEGATE_HINT)
@@ -170,6 +180,26 @@ class Agent:
             return f"Error: {type(e).__name__}: {e}"
         return T.clip(out if isinstance(out, str) else json.dumps(out, ensure_ascii=False, default=str))
 
+    def _todo_write(self, todos: list) -> str:
+        clean = []
+        for t in todos or []:
+            if isinstance(t, dict) and str(t.get("content", "")).strip():
+                st = t.get("status") if t.get("status") in ("pending", "in_progress", "completed") else "pending"
+                clean.append({"content": str(t["content"])[:200], "status": st})
+        self.todos = clean
+        self._emit("todos", todos=clean)
+        done = sum(t["status"] == "completed" for t in clean)
+        return f"Todo list updated ({done}/{len(clean)} completed). Keep going."
+
+    def _delta(self, kind: str, text: str):
+        if self.on_event:
+            try:
+                self.on_event("delta", {"kind": kind, "text": text})
+            except KeyboardInterrupt:
+                raise
+            except Exception:
+                pass
+
     def _needs_approval(self, t: Tool) -> bool | str:
         """Decide from the permission mode whether a tool call needs approval (True), runs freely (False)
         or is refused because plan mode only allows reading ("block")."""
@@ -212,7 +242,8 @@ class Agent:
             self._emit("turn", n=turn + 1)
             T.compact(self.messages)
             try:
-                r = self.llm.chat(self.messages, self.schemas(), temperature=0.6 if self._cooldown else None)
+                r = self.llm.chat(self.messages, self.schemas(), temperature=0.6 if self._cooldown else None,
+                                  on_delta=self._delta if self.stream and self.on_event else None)
             except InvalidToolCall:
                 self.stats.requests += 1
                 self._invalid += 1
