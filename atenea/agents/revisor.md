@@ -1,5 +1,5 @@
 ---
-name: reviewer
+name: revisor
 description: Reviews code or a diff for bugs, security issues and risky patterns. Reports findings, does not edit.
 tools: read_file, list_files, grep, bash
 ---

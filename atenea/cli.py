@@ -443,6 +443,7 @@ HELP = [("/help", "this list"), ("/mode", "ask · edits · auto · plan (or Shif
         ("/remote", "link + QR to continue on the phone / web"), ("/context", "what fills the context"),
         ("/compact", "summarise the conversation"), ("/memory", "what Atenea remembers"), ("/remember <x>", "remember something"),
         ("/tasks", "background shells, subagents, monitors"), ("/doctor", "check everything works"),
+        ("/equipo <tarea>", "Atenea Equipo: plan → programa → revisa → prueba"),
         ("/allow /always /deny", "answer an approval asked from the app"), ("/answer <text>", "answer a question"),
         ("/exit", "quit (the conversation stays in the app)")]
 
@@ -637,6 +638,10 @@ def handle_command(s: Session, text: str):
                 answer = {"/allow": "yes", "/always": "always", "/deny": "no"}[cmd]
                 api.post(f"/api/jobs/{jid}/approve/{answer}")
                 print(GRAY("  sent"))
+        elif cmd == "/equipo" and arg:
+            jid = s.send("Usa Atenea Equipo (la herramienta equipo) para esta tarea: " + arg)
+            if jid:
+                s.stream(jid)
         elif cmd == "/answer":
             jid = getattr(s, "pending_question", None) or (api.get(f"/api/chats/{s.chat}").get("job"))
             if jid:

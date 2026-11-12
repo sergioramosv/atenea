@@ -1,7 +1,7 @@
 """Named subagents (like Claude Code's agents): Markdown files with a small header and a system prompt.
 
   ---
-  name: reviewer
+  name: revisor
   description: Reviews code changes for bugs and risky patterns
   tools: read_file, list_files, grep, bash        (optional: limit the tools)
   ---

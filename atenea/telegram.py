@@ -1,10 +1,10 @@
-"""Hermes: Telegram bot to talk to Atenea from your phone.
+"""Atenea Telegram: talk to Atenea from your phone.
 
 - Only answers the users in config["telegram"]["allowed_users"] (numeric IDs).
 - One agent session per chat (saved in ~/.config/atenea/sessions/<chat>.json).
 - Shows progress by editing a message; dangerous actions ask for confirmation with buttons.
 Commands: /new  /project <alias|path>  /status  /cancel  /help
-Run:  python -m atenea.hermes
+Run:  python -m atenea.telegram
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ class Telegram:
         try:
             return json.load(urllib.request.urlopen(self.base + method, data, timeout=http_timeout)).get("result")
         except Exception as e:
-            print(f"[hermes] {method}: {e}", flush=True)
+            print(f"[telegram] {method}: {e}", flush=True)
             return None
 
     def send(self, chat, text, **kw):
@@ -46,7 +46,7 @@ class Telegram:
 
 
 class ChatSession:
-    def __init__(self, bot: "Hermes", chat: int):
+    def __init__(self, bot: "Atenea Telegram", chat: int):
         self.bot, self.chat = bot, chat
         self.cwd = C.load()["workspace"]
         self.agent = None
@@ -133,7 +133,7 @@ def zeus_status() -> str:
     return f"🖥️ ZEUS\nModel: {sh('systemctl is-active ornith')} (ornith)\nRAM: {ram}\nGPU: {temp}  {watts}"
 
 
-class Hermes:
+class Atenea Telegram:
     def __init__(self):
         cfg = C.load()
         tok = cfg["telegram"].get("token")
@@ -178,7 +178,7 @@ class Hermes:
 
     def loop(self):
         offset = None
-        print("[hermes] listening on Telegram…", flush=True)
+        print("[telegram] listening on Telegram…", flush=True)
         while True:
             for u in self.tg.call("getUpdates", http_timeout=75, offset=offset, timeout=60) or []:
                 offset = u["update_id"] + 1
@@ -198,7 +198,7 @@ class Hermes:
                 frm = (msg.get("from") or {}).get("id")
                 text = msg.get("text") or ""
                 if frm and frm not in self.allowed:
-                    print(f"[hermes] ignored unauthorised user {frm}", flush=True)
+                    print(f"[telegram] ignored unauthorised user {frm}", flush=True)
                     continue
                 if not text:
                     continue
@@ -212,4 +212,4 @@ class Hermes:
 
 
 if __name__ == "__main__":
-    Hermes().loop()
+    Atenea Telegram().loop()

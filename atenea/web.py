@@ -1374,7 +1374,7 @@ def doctor():
     except Exception as e:
         add("Web search", False, str(e)[:120])
     tg = C.load().get("telegram") or {}
-    add("Telegram (Hermes)", bool(tg.get("token") and tg.get("allowed_users")),
+    add("Atenea Telegram", bool(tg.get("token") and tg.get("allowed_users")),
         "configured" if tg.get("token") else "not configured: add the bot token in Settings")
     st = os.statvfs(os.path.expanduser("~"))
     free = st.f_bavail * st.f_frsize / 1e9
@@ -1894,7 +1894,7 @@ def _sh(c):
 def status():
     cfg = C.load()
     return {"name": cfg.get("assistant_name", "Atenea"), "model": cfg["model"].get("model"),
-            "ornith": _sh("systemctl is-active ornith"), "hermes": _sh("systemctl is-active atenea-hermes"),
+            "ornith": _sh("systemctl is-active ornith"), "telegram": _sh("systemctl is-active atenea-telegram"),
             "ram_used": _sh("free -m | awk '/Mem/{print $3}'"), "ram_total": _sh("free -m | awk '/Mem/{print $2}'"),
             "gpu_temp": _sh("sensors | awk '/edge/{gsub(/[+°C]/,\"\",$2); print $2}'"),
             "gpu_power": _sh("sensors | awk '/PPT/{print $2}'"),

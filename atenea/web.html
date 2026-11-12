@@ -301,7 +301,7 @@ img.media,.uatt img{cursor:zoom-in}
         <div id="plist"></div><div><button class="btn" id="padd">Add project</button></div></div>
       <div class="card"><h2>Connections</h2><p class="d">MCP servers give Atenea tools: Gmail, Calendar, GitHub, Notion… JSON object: name → {command, args, env} or {url}.</p>
         <div class="f"><label for="s_mcp">MCP servers</label><div><textarea class="code" id="s_mcp" spellcheck="false"></textarea><div class="err" id="mcperr"></div></div></div></div>
-      <div class="card"><h2>Telegram · Hermes</h2><p class="d">Talk to Atenea from your phone. Create a bot with @BotFather and get your user id from @userinfobot.</p>
+      <div class="card"><h2>Atenea Telegram</h2><p class="d">Talk to Atenea from your phone. Create a bot with @BotFather and get your user id from @userinfobot.</p>
         <div class="f"><label for="s_tok">Bot token</label><input id="s_tok" autocomplete="off"><label for="s_users">Allowed user ids</label><input id="s_users" placeholder="123456789, …"></div></div>
       <div class="card"><h2>Atenea documentos</h2><p class="d">Atenea searches these folders, the files you upload, the documents she creates and all your past conversations (by meaning and by words). The index updates every 15 minutes.</p>
         <div class="f"><label for="kb_folders">Folders on ZEUS</label><textarea id="kb_folders" style="min-height:70px;font:13px var(--mono)" placeholder="~/Documentos"></textarea></div>
@@ -627,9 +627,9 @@ const BUILTIN=[['/new','Start a new chat'],['/clear','Start a new chat'],['/plan
   ['/compact','Summarise the chat to free context'],['/fork','Duplicate this chat'],['/export','Download this chat as Markdown'],['/remember','Remember something: /remember my client is Tribbu'],
   ['/memory','See what Atenea remembers'],['/init','Create ATENEA.md for this project'],['/schedule','Scheduled tasks'],['/bg','Background processes'],['/status','Model and ZEUS status'],
   ['/context','What fills the context window'],['/mcp','MCP servers: status and tools'],['/skills','Installed skills'],['/tools','Tools and which ones ask permission'],['/agents','Specialised subagents'],
-  ['/hooks','Configured hooks'],['/notifications','Push notifications on this device'],['/tasks','Background shells, subagents and monitors'],['/doctor','Check that everything works'],['/model','Model information'],['/usage','Tokens and speed of this chat'],['/permissions','Permission mode and always-allow rules'],
+  ['/equipo','Atenea Equipo: plan → code → review → test for a big task'],['/hooks','Configured hooks'],['/notifications','Push notifications on this device'],['/tasks','Background shells, subagents and monitors'],['/doctor','Check that everything works'],['/model','Model information'],['/usage','Tokens and speed of this chat'],['/permissions','Permission mode and always-allow rules'],
   ['/config','Open settings'],['/rename','Rename this chat: /rename new title'],['/resume','Find an earlier chat'],['/todos','Current task list'],['/rewind','Rewind the last message'],
-  ['/review','Review recent code changes with the reviewer subagent'],['/security-review','Security review of recent changes'],['/theme','Switch light / dark'],['/logout','Sign out'],['/help','All commands']];
+  ['/review','Review recent code changes with the revisor subagent'],['/security-review','Security review of recent changes'],['/theme','Switch light / dark'],['/logout','Sign out'],['/help','All commands']];
 let CUSTOM=[],AC={items:[],i:0,kind:null,start:0};
 async function loadCommands(){try{CUSTOM=(await api('/api/commands'+(S.chat?.id?'?chat='+S.chat.id:''))).commands;}catch(_){CUSTOM=[];}}
 function acClose(){$('#ac').hidden=true;AC.items=[];AC.kind=null;}
@@ -691,8 +691,9 @@ async function slash(text){const [cmd,...rest]=text.trim().split(/\s+/);const ar
     case '/resume':side(true);$('#q').focus();return true;
     case '/todos':{const t=[...$$('.b')].reverse().find(b=>!b.querySelector('.todo').hidden);if(t)t.querySelector('.todo').scrollIntoView({block:'center'});else localNote('No task list in this chat yet.');}return true;
     case '/rewind':{const us=[...$$('#msgs .u:not(.q)')];if(!us.length){toast('Nothing to rewind');return true;}if(S.job){toast('Wait until Atenea finishes');return true;}const last=us[us.length-1];rewindMenu(last.querySelector('[data-u=rewind]'),msgIndex(last));}return true;
-    case '/review':$('#in').value='Use the reviewer subagent to review the recent changes in this project (git diff, or the files we touched in this chat'+(arg?': '+arg:'')+'). Then summarise the findings for me, most severe first.';grow();send();return true;
-    case '/security-review':$('#in').value='Do a security review of the recent changes in this project (git diff'+(arg?', focus: '+arg:'')+'): injection, secrets, auth, unsafe input, dangerous commands. Use the reviewer subagent and report only real, concrete issues.';grow();send();return true;
+    case '/equipo':if(!arg){toast('Usage: /equipo what to build or fix');return true;}$('#in').value='Usa Atenea Equipo (la herramienta equipo) para esta tarea: '+arg;grow();send();return true;
+    case '/review':$('#in').value='Use the revisor subagent to review the recent changes in this project (git diff, or the files we touched in this chat'+(arg?': '+arg:'')+'). Then summarise the findings for me, most severe first.';grow();send();return true;
+    case '/security-review':$('#in').value='Do a security review of the recent changes in this project (git diff'+(arg?', focus: '+arg:'')+'): injection, secrets, auth, unsafe input, dangerous commands. Use the revisor subagent and report only real, concrete issues.';grow();send();return true;
     case '/theme':$('#theme').click();return true;
     case '/logout':$('#logout').click();return true;
     case '/help':localNote('<b>Commands</b><ul>'+[...BUILTIN,...CUSTOM.map(x=>['/'+x.name,x.description+' (custom)'])].map(x=>`<li><code>${esc(x[0])}</code> — ${esc(x[1])}</li>`).join('')+'</ul>Type <code>@</code> to attach a file from the project. Add your own commands as <code>.md</code> files in <code>~/.config/atenea/commands/</code> or <code>.atenea/commands/</code> in a project (use <code>$ARGUMENTS</code>).');return true;}
@@ -898,7 +899,7 @@ async function loadStatus(){const s=await api('/api/status');const pct=(a,b)=>b?
   const ru=+s.ram_used,rt=+s.ram_total,du=parseInt(s.disk_used),dt=parseInt(s.disk_total);$('#uptime').textContent='ZEUS · '+(s.uptime||'');
   const card=(k,v,sub,bar)=>`<div class="stat"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub||''}</div>${bar!=null?`<div class="bar"><i style="width:${bar}%"></i></div>`:''}</div>`;
   $('#stats').innerHTML=card('Model',`<span class="dot ${s.ornith==='active'?'ok':'bad'}"></span>${s.ornith==='active'?'Online':'Offline'}`,esc(s.model||''))+
-    card('Telegram bot',`<span class="dot ${s.hermes==='active'?'ok':''}"></span>${s.hermes==='active'?'Running':'Stopped'}`,'Hermes')+
+    card('Telegram bot',`<span class="dot ${s.telegram==='active'?'ok':''}"></span>${s.telegram==='active'?'Running':'Stopped'}`,'Atenea Telegram')+
     card('Working on',`${s.busy}`,s.busy===1?'task':'tasks')+card('GPU',(s.gpu_temp||'—')+' °C',(s.gpu_power||'—')+' W')+
     card('Memory',`${(ru/1024).toFixed(1)} GB`,`of ${(rt/1024).toFixed(0)} GB`,pct(ru,rt))+card('Models disk',`${du} GB`,`of ${dt} GB`,pct(du,dt));}
 async function mini(){try{const s=await api('/api/status');const ok=s.ornith==='active';$('#mdot').className='dot '+(ok?'ok':'bad');renderModel(s);

@@ -1,5 +1,5 @@
 ---
-name: researcher
+name: investigador
 description: Researches a question on the internet (search + reading pages) and returns a sourced summary.
 tools: web_search, web_fetch, read_file, write_file
 ---

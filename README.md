@@ -5,7 +5,7 @@
 | Product | What it is |
 |---|---|
 | **atenea-sdk** (`import atenea`) | The engine: agent loop, tools, permission modes, hooks, subagents, MCP, memory, prompt-cache friendly context |
-| **Atenea** | The assistant: web app / iPhone app + Telegram (Hermes). Email, calendar, research, artifacts, reminders |
+| **Atenea** | The assistant: web app / iPhone app + Atenea Telegram. Email, calendar, research, artifacts, reminders |
 | **Atenea Code** | *(next)* the coding agent: terminal CLI + code mode, repo-aware, with Hephaestus pipelines |
 
 Atenea runs an agent loop against any OpenAI-compatible endpoint (llama.cpp's `llama-server`, vLLM, Ollama…).
@@ -15,7 +15,7 @@ counts, so it keeps prompts short and recovers from the quirks of local models.
 | Part | What it is |
 |---|---|
 | **Atenea** | The SDK / agent engine (`atenea/agent.py`) and the governor that orchestrates tools, MCP servers and skills |
-| **Hermes** | Telegram bot to talk to Atenea from your phone (`atenea/hermes.py`) |
+| **Atenea Telegram** | Telegram bot to talk to Atenea from your phone (`atenea/telegram.py`) |
 | **Web panel** | Chat, settings and status in the browser (`atenea/web.py`) |
 | **Hephaestus** | *(planned)* coding pipeline: plan → code → review → test |
 
@@ -38,8 +38,8 @@ step-by-step style. On a modest local GPU every token and every step costs secon
 - Agent loop with built-in tools: `bash`, `read_file`, `write_file`, `edit_file`, `list_files`, `grep`, `todo_write`.
 - **Streaming** of text and reasoning (`stream=True` → `delta` events).
 - **Permission modes** like Claude Code: `ask`, `edits`, `auto`, `plan` (read-only, proposes a plan).
-- **Subagents** (`delegate`), in parallel, and **named subagents** from Markdown (`explorer`, `reviewer`,
-  `tester`, `researcher`, plus your own in `~/.config/atenea/agents` or `.atenea/agents`).
+- **Subagents** (`delegate`), in parallel, and **named subagents** from Markdown (`explorador`, `revisor`,
+  `probador`, `investigador`, `planificador`, `programador`, plus your own in `~/.config/atenea/agents` or `.atenea/agents`).
 - **Hooks**: `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `Stop` shell commands (exit 2 blocks / continues).
 - **Custom tools** with `@tool`, **MCP client** (stdio or HTTP), **skills** (`SKILL.md`).
 - **Web**: `web_search` (DuckDuckGo, no key) and `web_fetch`. **Background processes**: `bg_start/logs/stop/list`.
@@ -105,7 +105,7 @@ python3 -m venv .venv && .venv/bin/pip install 'mcp<2' fastapi 'uvicorn[standard
 .venv/bin/python -m atenea.web
 
 # Telegram bot (set telegram.token and telegram.allowed_users first)
-.venv/bin/python -m atenea.hermes
+.venv/bin/python -m atenea.telegram
 ```
 
 ```python
@@ -128,7 +128,7 @@ tools that need confirmation, instructions) and can be edited from the web panel
 
 Atenea reads email, calendars and web pages, so it treats their content as **data, never as instructions**.
 Tools with external effects (send, delete, publish…) are marked `dangerous` and require explicit
-confirmation (Telegram buttons or the web panel). Only allow-listed Telegram users can talk to Hermes.
+confirmation (Telegram buttons or the web panel). Only allow-listed Telegram users can talk to Atenea Telegram.
 
 ## Tests
 

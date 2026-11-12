@@ -1,5 +1,5 @@
 [Unit]
-Description=Atenea hermes
+Description=Atenea Telegram
 After=network-online.target ornith.service
 Wants=network-online.target
 
@@ -7,7 +7,7 @@ Wants=network-online.target
 User=sergio
 Group=sergio
 WorkingDirectory=/mnt/models/atenea
-ExecStart=/mnt/models/atenea/.venv/bin/python -m atenea.hermes
+ExecStart=/mnt/models/atenea/.venv/bin/python -m atenea.telegram
 Restart=on-failure
 RestartSec=15
 

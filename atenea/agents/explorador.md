@@ -1,5 +1,5 @@
 ---
-name: explorer
+name: explorador
 description: Read-only investigator. Finds where things are in a codebase and explains how they work. Never edits.
 tools: read_file, list_files, grep, bash
 ---

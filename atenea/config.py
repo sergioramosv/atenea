@@ -1,4 +1,4 @@
-"""Atenea/Hermes configuration in ~/.config/atenea/config.json (editable from the web panel)."""
+"""Atenea configuration in ~/.config/atenea/config.json (editable from the web panel)."""
 from __future__ import annotations
 
 import json
