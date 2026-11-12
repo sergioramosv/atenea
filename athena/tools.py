@@ -33,7 +33,8 @@ SCHEMAS = [
 DELEGATE = _p("delegate", "Hand an independent, well-scoped subtask to a subagent (same tools, same directory). "
               "Several calls in the same turn run IN PARALLEL. Returns the subagent's summary.",
               {"task": {"type": "string", "description": "what to do, which files/functions it may touch, how to verify"},
-               "agent": {"type": "string", "description": "optional: name of a specialised subagent (see the list in your instructions)"}},
+               "agent": {"type": "string", "description": "optional: name of a specialised subagent (see the list in your instructions)"},
+               "background": {"type": "boolean", "description": "true = run it in the background and keep going; its result arrives later as a message"}},
               ["task"])
 
 

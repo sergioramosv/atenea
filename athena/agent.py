@@ -65,7 +65,7 @@ PLAN_NOTE = ("\n\n[Plan mode: investigate using read-only tools only, then reply
 #   ask   -> edits, commands and external actions        edits -> commands and external actions
 #   auto  -> only external actions (tools marked dangerous) plan -> nothing runs except read-only tools
 MODES = ("ask", "edits", "auto", "plan")
-READ_ONLY = {"read_file", "list_files", "grep", "load_skill", "todo_write"}
+READ_ONLY = {"read_file", "list_files", "grep", "load_skill", "todo_write", "ask_user"}
 EDIT_TOOLS = {"write_file", "edit_file"}
 
 
@@ -111,6 +111,7 @@ class Agent:
     before_tool: Callable[[Tool, dict], None] | None = None  # called right before a tool runs (checkpoints, hooks)
     hooks: dict | None = None                               # shell hooks per event (see athena/hooks.py)
     agents: dict | None = None                              # named subagents for `delegate` (see athena/subagents.py)
+    spawn_bg: Callable | None = None                        # host runs background subagents: spawn_bg(sub, task, name) -> id
 
     def __post_init__(self):
         self.cwd = os.path.abspath(os.path.expanduser(self.cwd))
@@ -243,7 +244,8 @@ class Agent:
         spec = (self.agents or {}).get(args.get("agent") or "")
         if args.get("agent") and not spec:
             return f"Error: no subagent named {args['agent']!r}. Available: {', '.join(self.agents or {}) or 'none'}."
-        self._emit("subagent", task=task[:300], agent=spec["name"] if spec else "general")
+        background = bool(args.get("background")) and self.spawn_bg is not None
+        self._emit("subagent", task=task[:300], agent=spec["name"] if spec else "general", background=background)
         system = SYSTEM_SUB if not spec else (spec["prompt"] + "\n\nYou work in {cwd} as a subagent of {name}. "
                                               "Do exactly the given task, then finish with a short summary WITHOUT "
                                               "calling tools.{extra}")
@@ -254,6 +256,10 @@ class Agent:
         if spec and spec.get("tools"):
             allowed = set(spec["tools"]) | {"todo_write"}
             sub._tools = {k: v for k, v in sub._tools.items() if k in allowed}
+        if background:
+            sid = self.spawn_bg(sub, task, spec["name"] if spec else "general")
+            return (f"Background subagent {sid} started. Its result will arrive later as a new message in this "
+                    "conversation; do not wait for it. Continue with other work or finish your reply.")
         res = sub.run(task)
         self.stats.add(sub.stats)
         self.transcripts.append({"task": task, "messages": sub.messages, "subs": sub.transcripts})

@@ -28,6 +28,7 @@ from pydantic import BaseModel
 
 from . import artifacts as A
 from . import background as BG
+from . import monitors as MON
 from . import notify as NOTIFY
 from . import scheduler as SCH
 from . import config as C
@@ -38,6 +39,22 @@ app = FastAPI(title="Atenea", docs_url=None, redoc_url=None)
 JOBS: dict[str, dict] = {}
 AGENTS: dict[str, object] = {}          # live agents, one per conversation id
 QUEUES: dict[str, list[dict]] = {}      # messages sent while a conversation is busy: run in order afterwards
+BGAGENTS: dict[str, dict] = {}          # subagents running in the background
+ACTIVITY_INSTR = """- BACKGROUND WORK: you can keep the user unblocked. bg_start runs commands in the background;
+  monitor_start watches a command, process or log and wakes you up in this chat when something happens
+  ("tell me when the build ends", "watch the log for errors", "check every 5 minutes if the site is up");
+  delegate(..., background=true) runs a subagent in the background and its result arrives later as a message.
+  Messages that start with [Monitor …] or [Background subagent …] come from those, not from the user: act on them
+  and tell the user briefly what happened.
+- ASKING THE USER: when you need a decision or a missing detail, call ask_user with a short question and 2-4 clear
+  options (the user can also type their own answer). Don't use it for trivial things you can decide yourself.
+- ABOUT THIS PANEL (so you can explain it): the user talks to you in the Atenea web panel. Permission modes (pill above
+  the message box or Shift+Tab): "Ask first" = a popup with Allow / Deny before every command or file edit; "Accept
+  edits" = edits freely, asks before commands; "Auto" = only asks before external actions; "Plan" = read-only, you
+  propose a plan with Approve buttons. Approvals show a diff and an "Always allow" button. Each user message has
+  Rewind (undo your file edits / cut the chat) and Fork. Slash commands: /help /context /mcp /skills /tools /agents
+  /hooks /tasks /doctor /compact /memory /remember /init /review /schedule /usage. The tray above the box shows
+  background shells, subagents and monitors. If the user wants you to ask before acting, tell them to pick "Ask first"."""
 COOKIE = "atenea_session"
 SESSION_DAYS = 30
 HERE = os.path.dirname(__file__)
@@ -172,10 +189,29 @@ def _agent(chat: dict):
         ag = build_agent(_cwd(chat.get("project")))
         if chat.get("messages"):
             ag.messages = [ag.messages[0]] + [m for m in chat["messages"] if m["role"] != "system"]
+        # keep the context meter right before the first model call of this process (it reports 0 until then)
+        ag.context_tokens = (chat.get("usage") or {}).get("ctx") or _est(ag.messages) + _est(ag.schemas())
         ag.messages[0]["content"] += "\n" + A.INSTRUCTIONS
         mb = MEM.block()
         ag._sys_tmpl = ag.messages[0]["content"].replace(mb, "\n<<MEMORY>>\n") if mb else \
             ag.messages[0]["content"] + "\n<<MEMORY>>\n"
+        ag.messages[0]["content"] += "\n" + ACTIVITY_INSTR
+        for t in BG.tools(lambda: ag.cwd, chat["id"]) + MON.tools(lambda: ag.cwd, chat["id"]):
+            ag._tools[t.name] = t
+        ag.spawn_bg = lambda sub, task, name, _cid=chat["id"]: _spawn_bg(_cid, sub, task, name)
+        def ask_user(question: str, options: list | None = None) -> str:
+            opts = [str(o)[:120] for o in (options or []) if str(o).strip()][:6]
+            fn = getattr(ag, "_ask", None)
+            if not fn:
+                return "Cannot ask right now; continue with your best judgement and mention the assumption."
+            a = fn(question[:500], opts)
+            return f"The user answered: {a}" if a is not None else "The user did not answer in 30 minutes; continue with your best judgement and say what you assumed."
+        from .registry import Tool as _Tool
+        ag._tools["ask_user"] = _Tool("ask_user", "Ask the user a question and wait for the answer. Give 2-4 short "
+                                      "`options` they can click (they can also type something else).",
+                                      {"type": "object", "properties": {"question": {"type": "string"},
+                                       "options": {"type": "array", "items": {"type": "string"}}},
+                                       "required": ["question"]}, ask_user)
         ag._tools["create_artifact"] = A.make_tool(lambda: ag.cwd, chat["id"],
                                                    on_create=lambda m: getattr(ag, "_on_artifact", lambda _: None)(m))
         AGENTS[chat["id"]] = ag
@@ -217,7 +253,7 @@ def _save_queue(cid: str):
     _write(c)
 
 
-def _run_job(jid: str, cid: str, text: str, resume: bool = False):
+def _run_job(jid: str, cid: str, text: str, resume: bool = False, origin: str | None = None, label: str = ""):
     job = JOBS[jid]
     holder: dict = {}
 
@@ -280,6 +316,20 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False):
                         job["ckpt"][p] = "\0skip"
         ag.before_tool = before
         job["msg_start"] = len(ag.messages)
+        def ask(question, options):
+            job["question"] = {"question": question, "options": options, "answer": None}
+            _notify_chat(cid, f"❓ {question}")
+            for _ in range(1800):
+                if job["cancel"]:
+                    raise KeyboardInterrupt("cancelled")
+                if job["question"]["answer"] is not None:
+                    a = job["question"]["answer"]
+                    job["question"] = None
+                    return a
+                time.sleep(1)
+            job["question"] = None
+            return None
+        ag._ask = ask
         ag._on_artifact = lambda m: job["artifacts"].append({"id": m["id"], "title": m["title"], "version": m["version"]})
         s0, t0 = ag.stats.requests, time.time()
         job["mode"] = ag.mode
@@ -311,6 +361,7 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False):
             chat["log"].append({"q": text, "a": job["result"], "events": job["events"], "meta": job["meta"],
                                 "files": files, "msg_start": job.get("msg_start"),
                                 "t": job["t0"], "artifacts": job["artifacts"], "todos": job["todos"],
+                                **({"origin": origin, "label": label} if origin else {}),
                                 **({"resumed": True} if resume else {})})
             chat["pending"] = None
             chat["updated"] = time.time()
@@ -323,7 +374,7 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False):
             if not q:
                 QUEUES.pop(cid, None)
             _save_queue(cid)
-            nxt = _start(cid, item["text"])
+            nxt = _start(cid, item["text"], origin=item.get("origin"), label=item.get("label", ""))
         elif not q:
             QUEUES.pop(cid, None)
     job["next"] = nxt
@@ -333,16 +384,18 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False):
         _notify_chat(cid, ("⏰ " if job.get("scheduled") else "✅ ") + str(job["result"] or "")[:700])
 
 
-def _start(cid: str, text: str, resume: bool = False, t0: float | None = None) -> str:
+def _start(cid: str, text: str, resume: bool = False, t0: float | None = None, origin: str | None = None,
+           label: str = "") -> str:
     """Start a task for a conversation. Caller holds _lock. The message is saved as `pending` right away."""
     jid = uuid.uuid4().hex[:10]
     JOBS[jid] = {"t0": t0 or time.time(), "events": [], "done": False, "result": None, "approval": None, "meta": None,
                  "chat": cid, "cancel": False, "text": text, "next": None, "artifacts": [], "resumed": resume,
-                 "live": {"thinking": "", "text": ""}, "todos": [], "ckpt": {}}
+                 "live": {"thinking": "", "text": ""}, "todos": [], "ckpt": {}, "origin": origin, "label": label,
+                 "question": None}
     try:
         c = _read(cid)
         old = c.get("pending") or {}
-        c["pending"] = {"q": text, "t": JOBS[jid]["t0"], "events": old.get("events", []) if resume else [],
+        c["pending"] = {"q": text, "t": JOBS[jid]["t0"], "origin": origin, "label": label, "events": old.get("events", []) if resume else [],
                         "artifacts": old.get("artifacts", []) if resume else []}
         if resume:
             JOBS[jid]["events"] = list(c["pending"]["events"])
@@ -353,8 +406,66 @@ def _start(cid: str, text: str, resume: bool = False, t0: float | None = None) -
         _write(c)
     except HTTPException:
         pass
-    threading.Thread(target=_run_job, args=(jid, cid, text, resume), daemon=True).start()
+    threading.Thread(target=_run_job, args=(jid, cid, text, resume, origin, label), daemon=True).start()
     return jid
+
+
+def _inject(cid: str | None, text: str, origin: str, label: str):
+    """A message from a monitor or a background subagent: wakes Atenea up in that conversation."""
+    if not cid:
+        return
+    with _lock:
+        try:
+            _read(cid)
+        except HTTPException:
+            return
+        if _running(cid):
+            QUEUES.setdefault(cid, []).append({"id": uuid.uuid4().hex[:8], "text": text, "origin": origin, "label": label})
+            _save_queue(cid)
+        else:
+            _start(cid, text, origin=origin, label=label)
+
+
+def _spawn_bg(cid: str, sub, task: str, name: str) -> str:
+    sid = uuid.uuid4().hex[:6]
+    rec = {"id": sid, "name": name, "task": task[:500], "chat": cid, "status": "running", "events": [],
+           "started": time.time(), "result": None, "cancel": False}
+    BGAGENTS[sid] = rec
+
+    def ev(kind, data):
+        if rec["cancel"]:
+            raise KeyboardInterrupt("cancelled")
+        if kind in ("tool_call", "notice"):
+            rec["events"].append({"t": round(time.time() - rec["started"], 1), "kind": kind,
+                                  "data": {k: str(v)[:200] for k, v in data.items()}})
+            rec["events"] = rec["events"][-60:]
+
+    def run():
+        sub.on_event = ev
+        sub.approve = lambda t, a: False                  # background work cannot stop to ask: actions needing OK are skipped
+        try:
+            rec["result"] = sub.run(task)
+            rec["status"] = "done"
+        except KeyboardInterrupt:
+            rec["result"], rec["status"] = "Stopped by the user.", "stopped"
+        except Exception as e:
+            rec["result"], rec["status"] = f"Error: {e}", "error"
+        rec["ended"] = time.time()
+        if rec["status"] != "stopped":
+            _inject(cid, f"[Background subagent «{name}» finished ({round(rec['ended'] - rec['started'])} s)]\n"
+                         f"Task: {task[:600]}\n\nResult:\n{rec['result']}", "subagent", name)
+    threading.Thread(target=run, daemon=True).start()
+    return sid
+
+
+def _monitor_fired(m: dict, text: str):
+    _inject(m.get("chat"), f"[Monitor «{m['name']}» fired]\n{text}\n\nAct on this if needed and tell the user briefly "
+                           "what happened.", "monitor", m["name"])
+    if m.get("chat"):
+        _notify_chat(m["chat"], f"🔔 Monitor «{m['name']}» fired")
+
+
+MON.on_fire = _monitor_fired
 
 
 def resume_interrupted():
@@ -375,7 +486,7 @@ def resume_interrupted():
             p = c.get("pending")
             if p and p.get("q"):
                 print(f"[web] resuming interrupted task in {cid}: {p['q'][:60]!r}", flush=True)
-                _start(cid, p["q"], resume=True, t0=p.get("t"))
+                _start(cid, p["q"], resume=True, t0=p.get("t"), origin=p.get("origin"), label=p.get("label") or "")
 
 
 def _usage(ag, job: dict | None = None) -> dict:
@@ -428,7 +539,8 @@ def get_chat(cid: str):
     c = _read(cid)
     jid = _running(cid)
     return {"id": c["id"], "title": c["title"], "project": c.get("project", ""), "log": c["log"],
-            "job": jid, "pending": JOBS[jid]["text"] if jid else (c.get("pending") or {}).get("q"), "queue": QUEUES.get(cid, []), "mode": c.get("mode") or _mode(None),
+            "job": jid, "pending": JOBS[jid]["text"] if jid else (c.get("pending") or {}).get("q"),
+            "pending_origin": (c.get("pending") or {}).get("origin"), "pending_label": (c.get("pending") or {}).get("label"), "queue": QUEUES.get(cid, []), "mode": c.get("mode") or _mode(None),
             "usage": c.get("usage") or {"ctx": 0, "max": _ctx_max(), "tps": None, "out": 0}}
 
 
@@ -488,7 +600,7 @@ def job(jid: str):
         raise HTTPException(404)
     j = JOBS[jid]
     ag = AGENTS.get(j["chat"])
-    return {k: j.get(k) for k in ("events", "done", "result", "approval", "meta", "chat", "next", "artifacts", "live", "todos")} | \
+    return {k: j.get(k) for k in ("events", "done", "result", "approval", "meta", "chat", "next", "artifacts", "live", "todos", "question")} | \
         {"secs": round(time.time() - j["t0"]), "usage": _usage(ag, j) if ag is not None else None}
 
 
@@ -498,6 +610,18 @@ def approve(jid: str, answer: str):
     if a:
         a["answer"] = "always" if answer == "always" else answer == "yes"
     return {"ok": bool(a)}
+
+
+class AnswerIn(BaseModel):
+    answer: str
+
+
+@app.post("/api/jobs/{jid}/answer", dependencies=[Depends(auth)])
+def answer(jid: str, a: AnswerIn):
+    q = JOBS.get(jid, {}).get("question")
+    if q:
+        q["answer"] = a.answer.strip()[:2000] or "(empty answer)"
+    return {"ok": bool(q)}
 
 
 @app.post("/api/jobs/{jid}/stop", dependencies=[Depends(auth)])
@@ -883,6 +1007,29 @@ def doctor():
     add("Memory", True, f"{len(MEM.load())} facts remembered")
     add("Conversations", True, f"{len([f for f in os.listdir(CHATS_DIR) if f.endswith('.json')]) if os.path.isdir(CHATS_DIR) else 0} saved")
     return {"checks": checks}
+
+
+# ---------------- activity tray: shells, subagents, monitors ----------------
+@app.get("/api/activity", dependencies=[Depends(auth)])
+def activity(chat: str | None = None):
+    shells = [p for p in BG.listing() if p["status"] == "running" or time.time() - p["started"] < 600]
+    agents = [{k: v for k, v in a.items()} for a in BGAGENTS.values()
+              if a["status"] == "running" or time.time() - a.get("ended", time.time()) < 600]
+    mons = [{k: v for k, v in m.items() if k != "hits"} | {"last_hit": m["hits"][-1] if m["hits"] else None}
+            for m in MON.listing() if m["status"] == "watching" or time.time() - m["created"] < 600]
+    return {"shells": shells, "agents": agents, "monitors": mons, "job": _running(chat) if chat else None}
+
+
+@app.post("/api/bgagents/{sid}/stop", dependencies=[Depends(auth)])
+def bgagent_stop(sid: str):
+    if sid in BGAGENTS:
+        BGAGENTS[sid]["cancel"] = True
+    return {"ok": sid in BGAGENTS}
+
+
+@app.post("/api/monitors/{mid}/stop", dependencies=[Depends(auth)])
+def monitor_stop(mid: str):
+    return {"text": MON.stop(mid)}
 
 
 # ---------------- background processes ----------------

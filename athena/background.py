@@ -16,7 +16,7 @@ PROCS: dict[str, dict] = {}
 _lock = threading.Lock()
 
 
-def start(command: str, cwd: str, name: str = "") -> dict:
+def start(command: str, cwd: str, name: str = "", chat: str | None = None) -> dict:
     os.makedirs(DIR, exist_ok=True)
     pid_id = uuid.uuid4().hex[:6]
     log = os.path.join(DIR, f"{pid_id}.log")
@@ -24,7 +24,7 @@ def start(command: str, cwd: str, name: str = "") -> dict:
     p = subprocess.Popen(command, shell=True, cwd=cwd, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                          start_new_session=True, executable="/bin/bash")
     info = {"id": pid_id, "name": name or command[:40], "command": command, "cwd": cwd, "pid": p.pid,
-            "started": time.time(), "log": log, "proc": p}
+            "started": time.time(), "log": log, "proc": p, "chat": chat}
     with _lock:
         PROCS[pid_id] = info
     return info
@@ -67,9 +67,9 @@ def listing() -> list[dict]:
     return [{k: v for k, v in i.items() if k != "proc"} | {"status": status(i)} for i in PROCS.values()]
 
 
-def tools(cwd_fn) -> list[Tool]:
+def tools(cwd_fn, chat: str | None = None) -> list[Tool]:
     def bg_start(command: str, name: str = "") -> str:
-        i = start(command, cwd_fn(), name)
+        i = start(command, cwd_fn(), name, chat)
         time.sleep(2)
         return f"Started background process {i['id']} (pid {i['pid']}).\n" + tail(i["id"], 20) + \
             "\nUse bg_logs to check it later and bg_stop when it is no longer needed."

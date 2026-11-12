@@ -63,6 +63,19 @@ header{height:56px;flex:none;border-bottom:1px solid var(--line);display:flex;al
 :root[data-theme=dark] .diff .da{background:#16301F;color:#A9D9BC}:root[data-theme=dark] .diff .dd{background:#3A1A16;color:#F0A89C}
 .fchg{font-size:12px;color:var(--muted);font-family:var(--mono)}
 .memrow{display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--line2);font-size:14px}.memrow span{flex:1}
+.sysm{align-self:center;max-width:min(680px,100%);width:100%;font-size:13px;color:var(--ink2)}
+.sysm details{border:1px dashed var(--line);border-radius:12px;background:color-mix(in srgb,var(--card) 60%,transparent);padding:7px 12px}
+.sysm summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;font-weight:500}.sysm summary::-webkit-details-marker{display:none}
+.sysm[open] .chev,.sysm details[open] .chev{transform:rotate(90deg)}.sysm .sx{white-space:pre-wrap;font:12px/1.5 var(--mono);color:var(--muted);margin-top:8px;max-height:240px;overflow:auto}
+.sysm.q{opacity:.7}
+#pact{border-color:color-mix(in srgb,var(--acc) 45%,var(--line));color:var(--ink)}#pact .live{width:7px;height:7px;border-radius:4px;background:var(--acc);animation:blink 1.4s infinite}
+.actsec{font-size:12px;font-weight:600;color:var(--muted);padding:8px 10px 4px}
+.acti{padding:8px 10px;border-radius:9px;display:flex;flex-direction:column;gap:4px}.acti:hover{background:var(--hover)}
+.acti .r1{display:flex;align-items:center;gap:8px;font-size:13.5px}.acti .r1 b{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acti .r2{font:11.5px/1.45 var(--mono);color:var(--muted);white-space:pre-wrap;max-height:120px;overflow:auto}
+.acti .st{font-size:11.5px;padding:2px 7px;border-radius:6px;background:var(--hover);font-family:var(--mono)}.acti .st.run{background:var(--acc-bg);color:var(--acc)}
+.askq{border:1px solid color-mix(in srgb,#3B6FB6 45%,var(--line));background:color-mix(in srgb,#3B6FB6 7%,var(--card));border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;max-width:720px}
+.askq h4{margin:0;font-size:15px}.askq input{flex:1;min-width:180px;border:1px solid var(--line);border-radius:9px;padding:8px 12px;background:var(--card);outline:none;font-size:14px}
 .u.q{opacity:.75;border-style:dashed}.qtag{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--muted);white-space:normal}
 .qtag button{border:0;background:transparent;color:var(--muted);text-decoration:underline;padding:0;font-size:12px}.qtag button:hover{color:var(--ink)}
 .u{align-self:flex-end;max-width:min(560px,85%);background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 15px;white-space:pre-wrap;word-wrap:break-word}
@@ -218,11 +231,13 @@ body.art-on #artpane{display:flex}
         <button class="pill m-auto" id="pmode" data-pop="popmode" title="Permission mode (Shift+Tab)"><span id="pmodeic"></span><span id="pmodelbl">Auto</span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></button>
         <button class="pill ctx" id="pctx" data-pop="popctx" title="Context used"><svg width="14" height="14" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--line)" stroke-width="5"/><circle id="ring" cx="18" cy="18" r="14" fill="none" stroke="var(--acc)" stroke-width="5" stroke-linecap="round" stroke-dasharray="88" stroke-dashoffset="88" transform="rotate(-90 18 18)"/></svg><span class="k" id="pctxv">0%</span><span class="lbl">context</span></button>
         <button class="pill" id="pspeed" data-pop="popspeed" title="Generation speed" hidden><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg><span class="k" id="pspeedv">—</span><span class="lbl">tok/s</span></button>
+        <button class="pill" id="pact" data-pop="popact" title="Background activity" hidden><span class="live"></span><span id="pactv"></span></button>
         <button class="pill" id="pmodel" data-pop="popmodel" title="Model"><span class="dot" id="cdot"></span><span class="lbl">Ornith · local</span></button>
         <div class="pop" id="popmode" hidden></div>
         <div class="pop" id="popctx" hidden></div>
         <div class="pop" id="popspeed" hidden></div>
         <div class="pop" id="popmodel" hidden></div>
+        <div class="pop" id="popact" hidden style="min-width:340px;max-width:min(460px,94vw);max-height:420px;overflow:auto"></div>
       </div>
       <div class="cbox" style="position:relative">
         <div class="pop" id="ac" hidden style="bottom:calc(100% + 8px);left:0;right:0;max-width:none;max-height:300px;overflow:auto"></div>
@@ -361,7 +376,11 @@ function projLabel(){const v=$('#proj').value;$('#projname').textContent=v||'Def
 function userEl(t){const d=document.createElement('div');d.className='u';d.innerHTML='<span class="ut"></span><span class="uacts"><button class="ib" data-u="rewind" title="Rewind to here" aria-label="Rewind to here"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button><button class="ib" data-u="fork" title="Fork from here" aria-label="Fork from here"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="5" r="2"/><circle cx="18" cy="5" r="2"/><circle cx="12" cy="19" r="2"/><path d="M6 7v2a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V7M12 12v5"/></svg></button><button class="ib" data-u="copy" title="Copy" aria-label="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></span>';
   d.querySelector('.ut').textContent=t;return d;}
 function diffHtml(t){return `<pre class="diff">${t.split('\n').map(l=>`<span class="${l.startsWith('+')&&!l.startsWith('+++')?'da':l.startsWith('-')&&!l.startsWith('---')?'dd':l.startsWith('@@')?'dh':''}">${esc(l)||' '}</span>`).join('')}</pre>`;}
-function msgIndex(u){return [...$$('#msgs .u:not(.q)')].indexOf(u);}
+function msgIndex(u){return [...$$('#msgs .u:not(.q), #msgs .sysm:not(.q)')].indexOf(u);}
+function sysEl(text,origin,label,queued){const d=document.createElement('div');d.className='sysm'+(queued?' q':'');
+  const ic=origin==='monitor'?'🔔':'⑂',what=origin==='monitor'?`Monitor «${esc(label)}» fired`:`Background subagent «${esc(label)}» finished`;
+  d.innerHTML=`<details><summary>${CHEV}<span>${ic} ${what}</span>${queued?'<span class="qtag" style="margin:0 0 0 8px">queued</span>':''}</summary><div class="sx"></div></details>`;
+  d.querySelector('.sx').textContent=text.replace(/^\[[^\]]*\]\n?/,'');return d;}
 $('#msgs').addEventListener('click',async e=>{const b=e.target.closest('.uacts button');const u=e.target.closest('.u:not(.q)');
   if(!b){if(u&&matchMedia('(hover:none)').matches)u.classList.toggle('show');return;}e.stopPropagation();
   const i=msgIndex(u),act=b.dataset.u;if(act==='copy'){navigator.clipboard?.writeText(u.querySelector('.ut').textContent);toast('Copied');return;}
@@ -385,7 +404,7 @@ function botEl(entry){const d=document.createElement('div');d.className='b';cons
     <details class="think" hidden><summary>${CHEV}<span class="tl">Thinking</span></summary><div class="tt"></div></details>
     <div class="todo" hidden></div>
     <details class="steps"${ev.length?'':' hidden'}><summary>${CHEV}<span class="sum">${ev.length} step${ev.length===1?'':'s'}${m?` · ${m.secs}s`:''}</span></summary><ol>${ev.map(stepLine).join('')}</ol></details>
-    <div class="ap"></div><div class="md out">${entry?md(entry.a||'(no answer)'):''}</div>`;
+    <div class="ap"></div><div class="qa"></div><div class="md out">${entry?md(entry.a||'(no answer)'):''}</div>`;
   if(m)d.querySelector('.st').textContent=`· ${m.secs}s`;if(entry){finishOut(d.querySelector('.out'),entry.artifacts);renderTodos(d,entry.todos);
     if(entry.files?.length)d.insertAdjacentHTML('beforeend',`<div class="fchg" title="${esc(entry.files.join('\n'))}">✎ ${entry.files.length} file${entry.files.length===1?'':'s'} changed · rewind from the message above</div>`);}return d;}
 function renderTodos(b,todos){const el=b.querySelector('.todo');if(!todos?.length){el.hidden=true;return;}el.hidden=false;
@@ -414,9 +433,10 @@ function scrollEnd(force){const t=$('#thread');if(force||t.scrollHeight-t.scroll
 function newChat(){loadCommands();stopPoll();S.chat=null;S.job=null;S.mode=defMode();renderMode();renderUsage(null);history.pushState({}, '', '/');$('#title').textContent='New chat';$('#hstate').hidden=true;empty();headerProj();setBusy(false);show('chat');renderList();$('#in').focus();}
 async function openChat(id,push=true){stopPoll();let c;try{c=await api('/api/chats/'+id);}catch(e){toast('Conversation not found');return newChat();}
   S.chat=c;S.job=c.job;loadCommands();S.mode=c.mode||defMode();renderMode();renderUsage(c.usage);if(push)history.pushState({}, '', '/c/'+id);show('chat');$('#title').textContent=c.title;
-  const M=$('#msgs');M.innerHTML='';for(const e of c.log){M.append(userEl(e.q));M.append(botEl(e));}
+  const M=$('#msgs');M.innerHTML='';for(const e of c.log){M.append(e.origin?sysEl(e.q,e.origin,e.label):userEl(e.q));M.append(botEl(e));}
   const le=c.log[c.log.length-1];if(le?.meta?.mode==='plan'&&!c.job&&!c.pending)planBar(M.lastElementChild);
-  if(c.job){if(c.pending)M.append(userEl(c.pending));M.append(liveEl());for(const q of c.queue||[])M.append(queuedEl(q.text,q.id));S.lastEv=0;poll();}
+  if(c.job){if(c.pending)M.append(c.pending_origin?sysEl(c.pending,c.pending_origin,c.pending_label):userEl(c.pending));M.append(liveEl());
+    for(const q of c.queue||[])M.append(q.origin?sysEl(q.text,q.origin,q.label,true):queuedEl(q.text,q.id));S.lastEv=0;poll();}
   else if(c.pending){M.append(userEl(c.pending));const d=botEl(null);d.querySelector('.out').innerHTML=`<p style="color:var(--muted)">This task was interrupted.</p><button class="btn">Retry</button>`;
     d.querySelector('button').onclick=()=>{d.remove();M.lastElementChild?.remove();$('#in').value=c.pending;grow();send();};M.append(d);}
   if(!c.log.length&&!c.job)empty();headerProj();setBusy(!!c.job);renderList();scrollEnd(true);}
@@ -456,12 +476,18 @@ async function poll(){const jid=S.job;if(!jid)return;let j;try{j=await api('/api
   if(ap.dataset.k!==key){ap.dataset.k=key;ap.innerHTML=j.approval?`<div class="appr"><h4><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>Allow this action?<small>${esc(j.approval.tool)}</small></h4>${j.approval.diff?diffHtml(j.approval.diff):`<pre>${esc(j.approval.args)}</pre>`}
       <div class="row"><button class="btn pri" data-a="yes">Allow</button>${j.approval.always?`<button class="btn" data-a="always">${esc(j.approval.always)}</button>`:''}<button class="btn ghost" data-a="no">Deny</button></div></div>`:'';
     ap.querySelectorAll('button').forEach(x=>x.onclick=()=>{api(`/api/jobs/${jid}/approve/${x.dataset.a}`,{method:'POST'});ap.innerHTML='';});}
-  $('#hstate').hidden=!j.approval;if(j.approval&&!S.noticed){S.noticed=1;notice('⏸ Needs you');}if(!j.approval)S.noticed=0;
+  const qa=b.querySelector('.qa');const qk=j.question?j.question.question:'';
+  if(qa.dataset.k!==qk){qa.dataset.k=qk;qa.innerHTML=j.question?`<div class="askq"><h4>❓ ${esc(j.question.question)}</h4><div class="row">${(j.question.options||[]).map(o=>`<button class="btn" data-o="${esc(o)}">${esc(o)}</button>`).join('')}</div>
+      <div class="row"><input placeholder="Or type your answer…" aria-label="Your answer"><button class="btn pri">Send</button></div></div>`:'';
+    const go=v=>{if(!v.trim())return;api(`/api/jobs/${jid}/answer`,{method:'POST',body:JSON.stringify({answer:v})});qa.innerHTML=`<div class="meta">You answered: ${esc(v)}</div>`;};
+    qa.querySelectorAll('[data-o]').forEach(x=>x.onclick=()=>go(x.dataset.o));const inp=qa.querySelector('input');
+    if(inp){qa.querySelector('.pri').onclick=()=>go(inp.value);inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();go(inp.value);}};}}
+  $('#hstate').hidden=!j.approval&&!j.question;if(j.question&&!S.asked){S.asked=1;notice('❓ Question');}if(!j.question)S.asked=0;if(j.approval&&!S.noticed){S.noticed=1;notice('⏸ Needs you');}if(!j.approval)S.noticed=0;
   const na=(j.artifacts||[]).length;if(na>(S.lastArt||0)){const a=j.artifacts[na-1];S.lastArt=na;delete ART[a.id];openArt(a.id);}
-  if(j.done){if(!j.next)notice('✓ Done');S.lastArt=0;b.querySelector('.wk')?.remove();const th2=b.querySelector('.think');if(th2&&!th2.hidden){th2.open=false;th2.querySelector('.tl').textContent='Thought process';}
+  if(j.done){b.querySelector('.qa').innerHTML='';if(!j.next)notice('✓ Done');S.lastArt=0;b.querySelector('.wk')?.remove();const th2=b.querySelector('.think');if(th2&&!th2.hidden){th2.open=false;th2.querySelector('.tl').textContent='Thought process';}
     if(j.meta?.mode==='plan'&&!j.next)planBar(b);b.classList.remove('live');b.querySelector('.out').innerHTML=md(j.result||'(no answer)');finishOut(b.querySelector('.out'),j.artifacts);st.open=false;if(!j.events.length)st.hidden=true;
     if(j.meta)b.querySelector('.st').textContent=`· ${j.meta.secs}s`;$('#hstate').hidden=true;
-    if(j.next){const q=$('.u.q');const live=liveEl();if(q){q.classList.remove('q');q.querySelector('.qtag')?.remove();q.after(live);}else $('#msgs').append(live);
+    if(j.next){const q=$('#msgs .q');if(!q){S.job=j.next;openChat(S.chat.id,false);return;}const live=liveEl();q.classList.remove('q');q.querySelector('.qtag')?.remove();q.after(live);
       S.job=j.next;S.lastEv=0;btnState();loadList();scrollEnd();S.timer=setTimeout(poll,800);return;}
     S.job=null;setBusy(false);
     if(S.chat){S.chat.log=S.chat.log||[];S.chat.log.push({});}headerProj();loadList();scrollEnd();return;}
@@ -501,7 +527,8 @@ function renderMode(){const m=S.mode||'auto';const p=$('#pmode');p.className='pi
 async function setMode(m){S.mode=m;renderMode();try{localStorage.setItem('mode',m);}catch(_){}
   if(S.chat?.id)await api('/api/chats/'+S.chat.id,{method:'PATCH',body:JSON.stringify({mode:m})}).catch(()=>toast('Could not change mode'));
   toast(MODES[m][0]+' mode');}
-function renderUsage(u){S.usage=u||{ctx:0,max:S.cfg?.model?.context||204800,tps:null,out:0};u=S.usage;const pct=u.max?Math.min(100,Math.round(100*u.ctx/u.max)):0;
+function renderUsage(u){if(u&&!u.ctx&&S.usage?.ctx&&S.job)u={...u,ctx:S.usage.ctx};if(u&&!u.tps&&S.usage?.tps&&S.job)u={...u,tps:S.usage.tps};
+  S.usage=u||{ctx:0,max:S.cfg?.model?.context||204800,tps:null,out:0};u=S.usage;const pct=u.max?Math.min(100,Math.round(100*u.ctx/u.max)):0;
   $('#pctxv').textContent=pct+'%';$('#ring').setAttribute('stroke-dashoffset',String(88-88*pct/100));$('#ring').setAttribute('stroke',pct>85?'var(--bad)':pct>60?'#C27D12':'var(--acc)');
   $('#popctx').innerHTML=`<div class="hd"><span>Context</span><span>${pct}%</span></div><div class="bd"><div class="big">${fmtK(u.ctx)} <span style="font-size:14px;font-weight:400;color:var(--muted)">of ${fmtK(u.max)} tokens</span></div>
     <div class="bar"><i style="width:${pct}%"></i></div><div style="font-size:12.5px;color:var(--muted)">Everything Atenea is keeping in mind for this chat: your messages, its answers and tool results. When it fills up, old tool output is summarised automatically.</div>
@@ -535,7 +562,7 @@ const BUILTIN=[['/new','Start a new chat'],['/clear','Start a new chat'],['/plan
   ['/compact','Summarise the chat to free context'],['/fork','Duplicate this chat'],['/export','Download this chat as Markdown'],['/remember','Remember something: /remember my client is Tribbu'],
   ['/memory','See what Atenea remembers'],['/init','Create ATENEA.md for this project'],['/schedule','Scheduled tasks'],['/bg','Background processes'],['/status','Model and ZEUS status'],
   ['/context','What fills the context window'],['/mcp','MCP servers: status and tools'],['/skills','Installed skills'],['/tools','Tools and which ones ask permission'],['/agents','Specialised subagents'],
-  ['/hooks','Configured hooks'],['/doctor','Check that everything works'],['/model','Model information'],['/usage','Tokens and speed of this chat'],['/permissions','Permission mode and always-allow rules'],
+  ['/hooks','Configured hooks'],['/tasks','Background shells, subagents and monitors'],['/doctor','Check that everything works'],['/model','Model information'],['/usage','Tokens and speed of this chat'],['/permissions','Permission mode and always-allow rules'],
   ['/config','Open settings'],['/rename','Rename this chat: /rename new title'],['/resume','Find an earlier chat'],['/todos','Current task list'],['/rewind','Rewind the last message'],
   ['/review','Review recent code changes with the reviewer subagent'],['/security-review','Security review of recent changes'],['/theme','Switch light / dark'],['/logout','Sign out'],['/help','All commands']];
 let CUSTOM=[],AC={items:[],i:0,kind:null,start:0};
@@ -572,6 +599,7 @@ async function slash(text){const [cmd,...rest]=text.trim().split(/\s+/);const ar
     case '/remember':if(!arg){toast('Usage: /remember something about you');return true;}{const r=await api('/api/memory');await api('/api/memory',{method:'PUT',body:JSON.stringify({facts:[...r.facts,arg]})});toast('Remembered');}return true;
     case '/memory':show('settings');setTimeout(()=>$('#memlist').scrollIntoView({block:'center'}),100);return true;
     case '/schedule':show('settings');setTimeout(()=>$('#schlist').scrollIntoView({block:'center'}),100);return true;
+    case '/tasks':case '/monitors':loadActivity().then(()=>{if($('#pact').hidden)localNote('Nothing running in the background.');else $('#pact').click();});return true;
     case '/bg':case '/bashes':show('settings');setTimeout(()=>$('#bglist').scrollIntoView({block:'center'}),100);return true;
     case '/status':$('#pmodel').click();return true;
     case '/init':$('#in').value='Explore this project and create (or update) ATENEA.md at its root: what it is, how to install, build, run and test it, the folder structure, and the conventions to follow. Keep it concise and accurate.';grow();send();return true;
@@ -596,7 +624,7 @@ async function slash(text){const [cmd,...rest]=text.trim().split(/\s+/);const ar
     case '/rename':if(!need())return true;if(!arg){toast('Usage: /rename new title');return true;}await api('/api/chats/'+S.chat.id,{method:'PATCH',body:JSON.stringify({title:arg})});S.chat.title=arg;$('#title').textContent=arg;loadList();return true;
     case '/resume':side(true);$('#q').focus();return true;
     case '/todos':{const t=[...$$('.b')].reverse().find(b=>!b.querySelector('.todo').hidden);if(t)t.querySelector('.todo').scrollIntoView({block:'center'});else localNote('No task list in this chat yet.');}return true;
-    case '/rewind':{const us=[...$$('#msgs .u:not(.q)')];if(!us.length){toast('Nothing to rewind');return true;}if(S.job){toast('Wait until Atenea finishes');return true;}rewindMenu(us[us.length-1].querySelector('[data-u=rewind]'),us.length-1);}return true;
+    case '/rewind':{const us=[...$$('#msgs .u:not(.q)')];if(!us.length){toast('Nothing to rewind');return true;}if(S.job){toast('Wait until Atenea finishes');return true;}const last=us[us.length-1];rewindMenu(last.querySelector('[data-u=rewind]'),msgIndex(last));}return true;
     case '/review':$('#in').value='Use the reviewer subagent to review the recent changes in this project (git diff, or the files we touched in this chat'+(arg?': '+arg:'')+'). Then summarise the findings for me, most severe first.';grow();send();return true;
     case '/security-review':$('#in').value='Do a security review of the recent changes in this project (git diff'+(arg?', focus: '+arg:'')+'): injection, secrets, auth, unsafe input, dangerous commands. Use the reviewer subagent and report only real, concrete issues.';grow();send();return true;
     case '/theme':$('#theme').click();return true;
@@ -623,6 +651,29 @@ const BASE_TITLE=()=>S.cfg?.assistant_name||'Atenea';
 function notice(t){if(!document.hidden)return;document.title=t+' · '+BASE_TITLE();try{const a=new (window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator(),g=a.createGain();
   o.frequency.value=880;g.gain.setValueAtTime(.06,a.currentTime);g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+.4);o.connect(g).connect(a.destination);o.start();o.stop(a.currentTime+.4);}catch(_){}}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)document.title=BASE_TITLE();});
+
+// ---------- activity tray: background shells, subagents and monitors ----------
+const ago=t=>{const s=Math.round(Date.now()/1000-t);return s<60?s+'s':s<3600?Math.round(s/60)+'m':Math.round(s/3600)+'h';};
+async function loadActivity(){let r;try{r=await api('/api/activity'+(S.chat?.id?'?chat='+S.chat.id:''));}catch(_){return;}
+  const sh=r.shells,ag=r.agents,mo=r.monitors,run=sh.filter(x=>x.status==='running').length+ag.filter(x=>x.status==='running').length+mo.filter(x=>x.status==='watching').length;
+  const p=$('#pact');p.hidden=!(sh.length+ag.length+mo.length);p.querySelector('.live').style.visibility=run?'visible':'hidden';
+  const parts=[];if(sh.length)parts.push(`${sh.length} shell${sh.length>1?'s':''}`);if(ag.length)parts.push(`${ag.length} agent${ag.length>1?'s':''}`);if(mo.length)parts.push(`${mo.length} monitor${mo.length>1?'s':''}`);$('#pactv').textContent=parts.join(' · ');
+  const pop=$('#popact'),open=!pop.hidden;
+  pop.innerHTML=(sh.length?'<div class="actsec">SHELLS</div>'+sh.map(x=>`<div class="acti"><div class="r1"><span>▸</span><b title="${esc(x.command)}">${esc(x.name)}</b><span class="st ${x.status==='running'?'run':''}">${esc(x.status)}</span>
+      <button class="ib" data-lg="${x.id}" title="Logs">≡</button>${x.status==='running'?`<button class="ib" data-ss="${x.id}" title="Stop">■</button>`:''}</div><div class="r2" id="al-${x.id}" hidden></div></div>`).join(''):'')+
+    (ag.length?'<div class="actsec">SUBAGENTS</div>'+ag.map(x=>`<div class="acti"><div class="r1"><span>⑂</span><b>${esc(x.name)}</b><span class="st ${x.status==='running'?'run':''}">${esc(x.status)} · ${ago(x.started)}</span>${x.status==='running'?`<button class="ib" data-as="${x.id}" title="Stop">■</button>`:''}</div>
+      <div class="r2">${esc(x.task.slice(0,140))}${x.events.length?'\n'+x.events.slice(-4).map(e=>'✓ '+(e.data.name||e.data.text||'')+' '+String(e.data.args||'').slice(0,60)).map(esc).join('\n'):''}</div></div>`).join(''):'')+
+    (mo.length?'<div class="actsec">MONITORS</div>'+mo.map(x=>`<div class="acti"><div class="r1"><span>🔔</span><b>${esc(x.name)}</b><span class="st ${x.status==='watching'?'run':''}">${esc(x.status)}${x.fired?' · fired '+x.fired+'×':''}</span>${x.status==='watching'?`<button class="ib" data-ms="${x.id}" title="Stop">■</button>`:''}</div>
+      <div class="r2">${esc(x.process?'process '+x.process:x.command+' · every '+x.interval+'s')}${x.pattern?' · /'+esc(x.pattern)+'/':' · on '+esc(x.trigger)}${x.last_hit?'\nlast: '+esc(x.last_hit.text.slice(0,160)):''}</div></div>`).join(''):'')||'<div class="actsec">Nothing running</div>';
+  pop.querySelectorAll('[data-lg]').forEach(b=>b.onclick=async e=>{e.stopPropagation();const el=$('#al-'+b.dataset.lg);el.hidden=!el.hidden;if(!el.hidden){el.textContent=(await api(`/api/bg/${b.dataset.lg}/logs?lines=40`)).text;el.scrollTop=el.scrollHeight;}});
+  pop.querySelectorAll('[data-ss]').forEach(b=>b.onclick=async e=>{e.stopPropagation();await api(`/api/bg/${b.dataset.ss}/stop`,{method:'POST'});loadActivity();});
+  pop.querySelectorAll('[data-as]').forEach(b=>b.onclick=async e=>{e.stopPropagation();await api(`/api/bgagents/${b.dataset.as}/stop`,{method:'POST'});loadActivity();});
+  pop.querySelectorAll('[data-ms]').forEach(b=>b.onclick=async e=>{e.stopPropagation();await api(`/api/monitors/${b.dataset.ms}/stop`,{method:'POST'});loadActivity();});
+  if(open)pop.hidden=false;
+  if(r.job&&!S.job&&S.view==='chat'&&S.chat?.id){openChat(S.chat.id,false);}       // a monitor or subagent woke Atenea up
+}
+setInterval(()=>{if(!document.hidden)loadActivity();},4000);
+$('#popact').addEventListener('click',e=>e.stopPropagation());
 
 // ---------- settings ----------
 function projRow(a='',p=''){const d=document.createElement('div');d.className='prow';d.innerHTML=`<input placeholder="alias" value="${esc(a)}" aria-label="Alias"><input placeholder="~/projects/my-app" value="${esc(p)}" aria-label="Folder"><button class="ib" title="Remove" aria-label="Remove">✕</button>`;

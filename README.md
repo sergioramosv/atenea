@@ -54,6 +54,9 @@ step-by-step style. On a modest local GPU every token and every step costs secon
   /export /remember /memory /init /review /schedule /bg /usage /rewind /help`…) and custom commands
   (`~/.config/athena/commands/*.md`, `$ARGUMENTS`); `@file` mentions attach project files.
 - Images, videos and files from ZEUS in the chat; artifacts in a sandboxed side panel.
+- **Activity tray** above the box: background shells, background subagents (`delegate(background=true)`) and
+  **monitors** (`monitor_start`: watch a command, process or log and wake Atenea up in the chat when it fires).
+- `ask_user`: Atenea asks you a question with clickable options.
 - Settings: model, projects, MCP connections, Telegram, permissions, memory, scheduled tasks, background
   processes, system status. Telegram notifications when long tasks finish or need approval.
 
