@@ -1,6 +1,7 @@
 """Atenea voz: dictado (Whisper large-v3-turbo, CPU int8) y voz de Atenea (Piper, español). Solo localhost:8083.
 
 POST /stt   cuerpo = audio en cualquier formato (webm, mp4/m4a del iPhone, wav…)  -> {"text": "...", "secs": 1.2}
+POST /stt?engine=parakeet  -> lo mismo con NVIDIA Parakeet TDT v3 (sherpa-onnx, ~0,1 s): para Atenea en vivo
 POST /tts   {"text": "...", "voice": "es_ES-sharvard-medium", "speaker": 1}       -> audio/wav
 Whisper se carga al primer uso y se descarga tras 15 min sin uso (libera ~1,5 GB)."""
 import io
@@ -20,6 +21,34 @@ STT_MODEL = os.environ.get("ATENEA_STT_MODEL", "large-v3-turbo")
 STT_FAST = os.environ.get("ATENEA_STT_FAST", "small")         # for live partial transcripts while you speak
 _stt = {"model": None, "last": 0.0, "fast": None, "fast_last": 0.0}
 _tts: dict = {}
+PARAKEET = os.environ.get("ATENEA_PARAKEET", os.path.join(os.path.dirname(VOICES), "models", "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8"))
+_pk: dict = {"rec": None}
+
+
+def parakeet():
+    import sherpa_onnx
+    with _lock:
+        if _pk["rec"] is None:
+            m = PARAKEET + "/"
+            _pk["rec"] = sherpa_onnx.OfflineRecognizer.from_transducer(
+                encoder=m + "encoder.int8.onnx", decoder=m + "decoder.int8.onnx", joiner=m + "joiner.int8.onnx",
+                tokens=m + "tokens.txt", num_threads=8, model_type="nemo_transducer")
+        return _pk["rec"]
+
+
+def transcribe_parakeet(data: bytes) -> dict:
+    t0 = time.time()
+    pcm = subprocess.run(["ffmpeg", "-v", "quiet", "-i", "pipe:0", "-f", "f32le", "-ac", "1", "-ar", "16000", "pipe:1"],
+                         input=data, capture_output=True, timeout=60).stdout
+    audio = np.frombuffer(pcm, dtype=np.float32)
+    if audio.size < 1600:
+        return {"text": "", "secs": 0}
+    rec = parakeet()
+    st = rec.create_stream()
+    st.accept_waveform(16000, audio)
+    rec.decode_stream(st)
+    return {"text": st.result.text.strip(), "engine": "parakeet", "audio_secs": round(audio.size / 16000, 1),
+            "secs": round(time.time() - t0, 2)}
 _lock = threading.Lock()
 
 
@@ -87,6 +116,8 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         data = self.rfile.read(int(self.headers.get("Content-Length") or 0))
         try:
+            if self.path.startswith("/stt") and "engine=parakeet" in self.path and os.path.isdir(PARAKEET):
+                return self._send(200, json.dumps(transcribe_parakeet(data)).encode())
             if self.path.startswith("/stt"):
                 return self._send(200, json.dumps(transcribe(data, "fast=1" in self.path)).encode())
             if self.path.startswith("/tts"):
@@ -100,4 +131,6 @@ class H(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     threading.Thread(target=reaper, daemon=True).start()
+    if os.path.isdir(PARAKEET):
+        threading.Thread(target=parakeet, daemon=True).start()      # load at start: live voice needs it instantly
     ThreadingHTTPServer(("127.0.0.1", 8083), H).serve_forever()

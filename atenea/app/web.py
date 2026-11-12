@@ -23,7 +23,7 @@ import time
 import uuid
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel
 
 from . import artifacts as A
@@ -627,6 +627,9 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False, origin: str | 
         text_for_model = text if chat.get("runner") else _expand_mentions(text, ag.cwd)   # the CLI expands @files
         ag.note = _turn_note(ag)
         fast = _is_quick(text, ag.mode) and not resume
+        if origin == "voice":                               # live voice: short spoken answers, think only for real tasks
+            ag.note += VOICE_NOTE
+            fast = not resume and not _TASK_WORDS.search(text)
         ag.profile.think = False if fast else None
         job["quick"] = fast
         slot = _slot_acquire(cid, ag)
@@ -678,7 +681,7 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False, origin: str | 
     job["next"] = nxt
     job["done"] = True
     secs = time.time() - job["t0"]
-    if job.get("scheduled") or (secs > 20 and not job["cancel"]):
+    if job.get("scheduled") or (secs > 20 and not job["cancel"] and job.get("origin") != "voice"):
         _notify_chat(cid, str(job["result"] or "")[:700])
 
 
@@ -1654,6 +1657,120 @@ def _run_flow(item: dict):
     finally:
         FLOW_RUNNING.pop(sid, None)
         FLOWS.WAIT.pop(sid, None)
+
+
+VOICE_NOTE = ("\n[Live voice conversation: Sergio is talking to you and hears your answer through a speaker. Answer like "
+              "a person on a call: 1-3 short sentences, plain spoken Spanish, no markdown, lists, tables, links, code or "
+              "emojis. Numbers and dates written as they are said. If something needs tools, say in a few words what you "
+              "are doing, use them, then give the result briefly.]")
+_SENT = re.compile(r"(.+?[.!?…:;](?=\s)|.+?\n)", re.S)
+
+
+def _speakable(t: str) -> str:
+    t = re.sub(r"```.*?```", " ", t, flags=re.S)
+    t = re.sub(r"!\[[^\]]*\]\([^)]*\)", " ", t)
+    t = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", t)
+    t = re.sub(r"https?://\S+", " ", t)
+    t = re.sub(r"[*_#>`|~]+", " ", t)
+    t = re.sub(r"^\s*[-•]\s+", "", t, flags=re.M)
+    return NOTIFY.no_emoji(re.sub(r"\s+", " ", t)).strip()
+
+
+def _tts_wav(text: str) -> bytes | None:
+    import urllib.request
+    cfg = C.load().get("voice") or {}
+    body = {"text": text[:1200], "voice": cfg.get("voice", "es_ES-sharvard-medium"), "speaker": cfg.get("speaker", 1)}
+    try:
+        req = urllib.request.Request(VOICE + "/tts", json.dumps(body).encode(), {"Content-Type": "application/json"})
+        return urllib.request.urlopen(req, timeout=60).read()
+    except Exception as e:
+        print(f"[live] tts failed: {e}", flush=True)
+        return None
+
+
+def _live_stream(cid: str, jid: str, user_text: str, stt_secs: float):
+    """NDJSON: the transcript, then each sentence of Atenea's answer as text + WAV, as soon as it is written."""
+    yield json.dumps({"type": "user", "text": user_text, "chat": cid, "job": jid, "stt": stt_secs}) + "\n"
+    job, done_upto, last_turn, t0 = JOBS[jid], 0, None, time.time()
+
+    def say(sentence: str):
+        s = _speakable(sentence)
+        if len(re.sub(r"\W", "", s)) < 2:
+            return None
+        wav = _tts_wav(s)
+        return json.dumps({"type": "say", "text": s, "audio": base64.b64encode(wav).decode() if wav else None,
+                           "t": round(time.time() - t0, 2)}) + "\n"
+
+    while True:
+        if job["cancel"]:
+            yield json.dumps({"type": "end", "cancelled": True}) + "\n"
+            return
+        live = job["live"]
+        if live is not last_turn:                           # a new model call (after a tool): start reading it from 0
+            last_turn, done_upto = live, 0
+        text = live.get("text", "")
+        finished = job["done"]
+        if finished and job.get("result") and not text:
+            text = str(job["result"])
+        chunk = text[done_upto:]
+        out = []
+        for m in _SENT.finditer(chunk):
+            if len(m.group(0).strip()) < 12 and not finished:
+                break
+            out.append(m.group(0))
+        if finished:
+            rest = chunk[sum(len(x) for x in out):]
+            if rest.strip():
+                out.append(rest)
+        for sent in out:
+            done_upto += len(sent)
+            line = say(sent)
+            if line:
+                yield line
+            if job["cancel"]:
+                break
+        if finished:
+            yield json.dumps({"type": "end", "secs": round(time.time() - t0, 1)}) + "\n"
+            return
+        time.sleep(0.12)
+
+
+@app.post("/api/live/turn", dependencies=[Depends(auth)])
+async def live_turn(request: Request, chat: str | None = None):
+    """One spoken turn of Atenea en vivo: audio in, a streamed spoken answer out. The turn is a normal chat message,
+    so it is saved in the conversation and can use tools."""
+    import urllib.request
+    data = await request.body()
+    if not data or len(data) > 20 * 1024 * 1024:
+        raise HTTPException(400, "No audio")
+    t0 = time.time()
+    try:
+        eng = (C.load().get("voice") or {}).get("live_stt", "parakeet")
+        req = urllib.request.Request(VOICE + "/stt" + (f"?engine={eng}" if eng else ""), data, {"Content-Type": "application/octet-stream"})
+        text = (json.load(urllib.request.urlopen(req, timeout=60)).get("text") or "").strip()
+    except Exception as e:
+        raise HTTPException(503, f"Voice service unavailable: {e}")
+    stt_secs = round(time.time() - t0, 2)
+    if len(re.sub(r"\W", "", text)) < 2 or re.fullmatch(r"(?i)\W*(gracias|subtítulos.*|amara\.org.*)\W*", text):
+        return StreamingResponse(iter([json.dumps({"type": "empty", "stt": stt_secs}) + "\n"]), media_type="application/x-ndjson")
+    with _lock:
+        c = _read(chat) if chat else _new_chat(None, None, "chat")
+        run = _running(c["id"])
+        if run:                                             # barge-in: the previous answer is dropped
+            JOBS[run]["cancel"] = True
+    for _ in range(50):
+        if not _running(c["id"]):
+            break
+        time.sleep(0.1)
+    with _lock:
+        c = _read(c["id"])
+        if not c["log"] and c["title"] == "New chat":
+            c["title"] = _title(text)
+        c["updated"] = time.time()
+        _write(c)
+        jid = _start(c["id"], text, origin="voice", label="voz")
+    return StreamingResponse(_live_stream(c["id"], jid, text, stt_secs), media_type="application/x-ndjson",
+                             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
 
 def _scheduler_loop():
