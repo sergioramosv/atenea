@@ -333,7 +333,7 @@ $('#theme').onclick=()=>{const t=document.documentElement.dataset.theme==='dark'
 // ---------- helpers ----------
 function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('on'),2400);}
 async function api(p,o={}){const r=await fetch(p,{headers:{'Content-Type':'application/json'},credentials:'same-origin',...o});
-  if(r.status===401){location.href='/login';throw new Error('auth');}if(!r.ok)throw new Error((await r.json().catch(()=>({}))).detail||r.status);return r.json();}
+  if(r.status===401){location.href='/login';throw new Error('auth');}if(!r.ok){const e=new Error((await r.json().catch(()=>({}))).detail||r.status);e.status=r.status;throw e;}return r.json();}
 const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const unesc=s=>s.replace(/&quot;/g,'"').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');
 function mediaSrc(src){src=unesc(src);return /^(\/|~\/)/.test(src)?'/api/file?path='+encodeURIComponent(src):src;}
@@ -492,7 +492,7 @@ async function send(){if(S.atts.some(a=>!a.done&&!a.err))return toast('Wait for 
     $('#title').textContent=S.chat.title;headerProj();loadList();poll();}
   catch(e){$('.live .out').innerHTML=md('**Could not send:** '+e.message);$('.live')?.classList.remove('live');setBusy(false);}}
 function stopPoll(){clearTimeout(S.timer);S.timer=null;}
-async function poll(){const jid=S.job;if(!jid)return;let j;try{j=await api('/api/jobs/'+jid);}catch(e){if(String(e.message)==='404'){S.job=null;setBusy(false);return S.chat&&openChat(S.chat.id,false);}S.timer=setTimeout(poll,3000);return;}
+async function poll(){const jid=S.job;if(!jid)return;let j;try{j=await api('/api/jobs/'+jid);}catch(e){if(e.status===404){S.job=null;setBusy(false);return S.chat&&openChat(S.chat.id,false);}S.timer=setTimeout(poll,3000);return;}
   if(jid!==S.job)return;if(j.usage)renderUsage(j.usage);const b=$('.live');if(!b)return;
   const st=b.querySelector('.steps'),ol=st.querySelector('ol');
   if(j.events.length>S.lastEv){st.hidden=false;j.events.slice(S.lastEv).forEach(e=>ol.insertAdjacentHTML('beforeend',stepLine(e)));S.lastEv=j.events.length;ol.scrollTop=ol.scrollHeight;}
@@ -761,7 +761,7 @@ async function loadActivity(){let r;try{r=await api('/api/activity'+(S.chat?.id?
   pop.querySelectorAll('[data-as]').forEach(b=>b.onclick=async e=>{e.stopPropagation();await api(`/api/bgagents/${b.dataset.as}/stop`,{method:'POST'});loadActivity();});
   pop.querySelectorAll('[data-ms]').forEach(b=>b.onclick=async e=>{e.stopPropagation();await api(`/api/monitors/${b.dataset.ms}/stop`,{method:'POST'});loadActivity();});
   if(open)pop.hidden=false;
-  if(r.job&&!S.job&&S.view==='chat'&&S.chat?.id){openChat(S.chat.id,false);}       // a monitor or subagent woke Atenea up
+  if(r.job&&r.job!==S.job&&S.view==='chat'&&S.chat?.id){openChat(S.chat.id,false);}       // a monitor or subagent woke Atenea up
 }
 setInterval(()=>{if(!document.hidden)loadActivity();},4000);
 $('#popact').addEventListener('click',e=>e.stopPropagation());

@@ -155,6 +155,16 @@ def _mode(m: str | None) -> str:
     return m if m in MODES else (C.load().get("default_mode") or "auto")
 
 
+MODE_TEXT = {"ask": "Ask first: the user gets an Allow/Deny popup before every command and file edit",
+             "edits": "Accept edits: file edits run freely, commands show an Allow/Deny popup",
+             "auto": "Auto: you act freely; only external actions (send, delete, publish…) show a popup",
+             "plan": "Plan: read-only; propose a plan, the user approves it with buttons"}
+
+
+def _mode_note(mode: str) -> str:
+    return f"\n# Current permission mode of this chat: {MODE_TEXT.get(mode, mode)}.\n"
+
+
 def _ctx_max() -> int:
     return int(C.load()["model"].get("context") or 204800)
 
@@ -340,7 +350,7 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False, origin: str | 
         job["base"] = (ag.stats.completion_tokens, ag.stats.secs_model)
         text_for_model = _expand_mentions(text, ag.cwd)
         if getattr(ag, "_sys_tmpl", None):              # always the latest memory, even if saved in another chat
-            ag.messages[0]["content"] = ag._sys_tmpl.replace("<<MEMORY>>", MEM.block())
+            ag.messages[0]["content"] = ag._sys_tmpl.replace("<<MEMORY>>", MEM.block() + _mode_note(ag.mode))
         job["result"] = ag.run(RESUME_NOTE + text_for_model if resume else text_for_model)
         job["meta"] = {"steps": ag.stats.requests - s0, "secs": round(time.time() - t0), "mode": job.get("mode")}
     except KeyboardInterrupt:
