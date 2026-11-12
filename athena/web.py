@@ -172,8 +172,41 @@ def _agent(chat: dict):
 
 
 # ---------------- running a turn ----------------
-def _run_job(jid: str, cid: str, text: str):
+RESUME_NOTE = ("[The server restarted while you were working on my last message, so your work was interrupted. "
+               "Continue from where you left off: check what was already done (files, commands, messages sent) "
+               "before repeating any action, then finish the task.]\n\nMy message was:\n")
+
+
+def _save_progress(cid: str, ag, job: dict, force: bool = False):
+    """Write the conversation to disk while a task runs (at most every few seconds), so a restart loses nothing."""
+    if not force and time.time() - job.get("_saved", 0) < 4:
+        return
+    job["_saved"] = time.time()
+    with _lock:
+        try:
+            c = _read(cid)
+        except HTTPException:
+            return
+        c["messages"] = ag.messages
+        if c.get("pending"):
+            c["pending"]["events"] = job["events"][-200:]
+            c["pending"]["artifacts"] = job["artifacts"]
+        _write(c)
+
+
+def _save_queue(cid: str):
+    """Mirror the in-memory queue in the conversation file (caller holds _lock)."""
+    try:
+        c = _read(cid)
+    except HTTPException:
+        return
+    c["queue"] = QUEUES.get(cid, [])
+    _write(c)
+
+
+def _run_job(jid: str, cid: str, text: str, resume: bool = False):
     job = JOBS[jid]
+    holder: dict = {}
 
     def ev(kind, data):
         if job["cancel"]:
@@ -181,6 +214,8 @@ def _run_job(jid: str, cid: str, text: str):
         if kind in ("tool_call", "notice", "subagent"):
             job["events"].append({"t": round(time.time() - job["t0"], 1), "kind": kind,
                                   "data": {k: str(v)[:400] for k, v in data.items()}})
+        if kind in ("turn", "tool_call", "subagent") and "ag" in holder:
+            _save_progress(cid, holder["ag"], job)
 
     def approve(tool, args):
         job["approval"] = {"tool": tool.name, "args": str(args)[:1500], "answer": None}
@@ -199,17 +234,19 @@ def _run_job(jid: str, cid: str, text: str):
         with _lock:
             chat = _read(cid)
         ag = _agent(chat)
+        holder["ag"] = ag
         ag.on_event, ag.approve = ev, approve
         ag._on_artifact = lambda m: job["artifacts"].append({"id": m["id"], "title": m["title"], "version": m["version"]})
         s0, t0 = ag.stats.requests, time.time()
         job["base"] = (ag.stats.completion_tokens, ag.stats.secs_model)
-        job["result"] = ag.run(text)
+        job["result"] = ag.run(RESUME_NOTE + text if resume else text)
         job["meta"] = {"steps": ag.stats.requests - s0, "secs": round(time.time() - t0)}
     except KeyboardInterrupt:
         job["result"] = "_Stopped._"
         job["meta"] = {"steps": 0, "secs": round(time.time() - job["t0"]), "stopped": True}
     except Exception as e:
         job["result"] = f"**Error:** {type(e).__name__}: {e}"
+    nxt = None
     with _lock:
         try:
             chat = _read(cid)
@@ -218,29 +255,67 @@ def _run_job(jid: str, cid: str, text: str):
                 chat["messages"] = ag.messages
                 chat["usage"] = _usage(ag, job)
             chat["log"].append({"q": text, "a": job["result"], "events": job["events"], "meta": job["meta"],
-                                "t": job["t0"], "artifacts": job["artifacts"]})
+                                "t": job["t0"], "artifacts": job["artifacts"], **({"resumed": True} if resume else {})})
+            chat["pending"] = None
             chat["updated"] = time.time()
             _write(chat)
         except HTTPException:                               # deleted while it was running
             QUEUES.pop(cid, None)
-    nxt = None
-    with _lock:
         q = QUEUES.get(cid)
         if q and not job["cancel"]:
             item = q.pop(0)
+            if not q:
+                QUEUES.pop(cid, None)
+            _save_queue(cid)
             nxt = _start(cid, item["text"])
-        if not q:
+        elif not q:
             QUEUES.pop(cid, None)
     job["next"] = nxt
     job["done"] = True
 
 
-def _start(cid: str, text: str) -> str:
+def _start(cid: str, text: str, resume: bool = False, t0: float | None = None) -> str:
+    """Start a task for a conversation. Caller holds _lock. The message is saved as `pending` right away."""
     jid = uuid.uuid4().hex[:10]
-    JOBS[jid] = {"t0": time.time(), "events": [], "done": False, "result": None, "approval": None, "meta": None,
-                 "chat": cid, "cancel": False, "text": text, "next": None, "artifacts": []}
-    threading.Thread(target=_run_job, args=(jid, cid, text), daemon=True).start()
+    JOBS[jid] = {"t0": t0 or time.time(), "events": [], "done": False, "result": None, "approval": None, "meta": None,
+                 "chat": cid, "cancel": False, "text": text, "next": None, "artifacts": [], "resumed": resume}
+    try:
+        c = _read(cid)
+        old = c.get("pending") or {}
+        c["pending"] = {"q": text, "t": JOBS[jid]["t0"], "events": old.get("events", []) if resume else [],
+                        "artifacts": old.get("artifacts", []) if resume else []}
+        if resume:
+            JOBS[jid]["events"] = list(c["pending"]["events"])
+            JOBS[jid]["artifacts"] = list(c["pending"]["artifacts"])
+            JOBS[jid]["events"].append({"t": round(time.time() - JOBS[jid]["t0"], 1), "kind": "notice",
+                                        "data": {"text": "server restarted · resuming where it left off"}})
+        c["updated"] = time.time()
+        _write(c)
+    except HTTPException:
+        pass
+    threading.Thread(target=_run_job, args=(jid, cid, text, resume), daemon=True).start()
     return jid
+
+
+def resume_interrupted():
+    """On startup: resume tasks that were running when the server stopped, and restore queued messages."""
+    if not os.path.isdir(CHATS_DIR):
+        return
+    with _lock:
+        for f in os.listdir(CHATS_DIR):
+            if not f.endswith(".json"):
+                continue
+            cid = f[:-5]
+            try:
+                c = _read(cid)
+            except Exception:
+                continue
+            if c.get("queue"):
+                QUEUES[cid] = c["queue"]
+            p = c.get("pending")
+            if p and p.get("q"):
+                print(f"[web] resuming interrupted task in {cid}: {p['q'][:60]!r}", flush=True)
+                _start(cid, p["q"], resume=True, t0=p.get("t"))
 
 
 def _usage(ag, job: dict | None = None) -> dict:
@@ -277,7 +352,7 @@ def list_chats(q: str = ""):
             except Exception:
                 continue
             running = bool(_running(c["id"]))
-            if not c["log"] and not running:
+            if not c["log"] and not running and not c.get("pending"):
                 continue                                    # empty chats are not listed
             if q and q not in c["title"].lower() and not any(
                     q in (e.get("q", "") + " " + (e.get("a") or "")).lower() for e in c["log"]):
@@ -293,7 +368,7 @@ def get_chat(cid: str):
     c = _read(cid)
     jid = _running(cid)
     return {"id": c["id"], "title": c["title"], "project": c.get("project", ""), "log": c["log"],
-            "job": jid, "pending": JOBS[jid]["text"] if jid else None, "queue": QUEUES.get(cid, []), "mode": c.get("mode") or _mode(None),
+            "job": jid, "pending": JOBS[jid]["text"] if jid else (c.get("pending") or {}).get("q"), "queue": QUEUES.get(cid, []), "mode": c.get("mode") or _mode(None),
             "usage": c.get("usage") or {"ctx": 0, "max": _ctx_max(), "tps": None, "out": 0}}
 
 
@@ -336,6 +411,7 @@ def chat(inp: ChatIn):
         if running:                                        # busy: queue it, it runs when the current task ends
             item = {"id": uuid.uuid4().hex[:8], "text": inp.text}
             QUEUES.setdefault(c["id"], []).append(item)
+            _save_queue(c["id"])
             return {"queued": item["id"], "job": running, "chat": c["id"], "title": c["title"],
                     "project": c.get("project", ""), "mode": c.get("mode"), "position": len(QUEUES[c["id"]])}
         if not c["log"] and c["title"] == "New chat":
@@ -372,6 +448,7 @@ def stop(jid: str):
     JOBS[jid]["cancel"] = True
     with _lock:
         q = QUEUES.pop(JOBS[jid]["chat"], [])
+        _save_queue(JOBS[jid]["chat"])
     return {"ok": True, "queued": [i["text"] for i in q]}
 
 
@@ -382,6 +459,7 @@ def unqueue(cid: str, qid: str):
         QUEUES[cid] = [i for i in q if i["id"] != qid]
         if not QUEUES[cid]:
             QUEUES.pop(cid, None)
+        _save_queue(cid)
     return {"ok": True}
 
 
@@ -514,6 +592,7 @@ def main():
         C.save(cfg)
         print(f"[web] generated password: {cfg['web']['password']}", flush=True)
     _secret()
+    resume_interrupted()
     import uvicorn
     uvicorn.run(app, host=cfg["web"]["host"], port=int(cfg["web"]["port"]), log_level="warning")
 

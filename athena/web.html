@@ -343,6 +343,8 @@ async function openChat(id,push=true){stopPoll();let c;try{c=await api('/api/cha
   S.chat=c;S.job=c.job;S.mode=c.mode||defMode();renderMode();renderUsage(c.usage);if(push)history.pushState({}, '', '/c/'+id);show('chat');$('#title').textContent=c.title;
   const M=$('#msgs');M.innerHTML='';for(const e of c.log){M.append(userEl(e.q));M.append(botEl(e));}
   if(c.job){if(c.pending)M.append(userEl(c.pending));M.append(liveEl());for(const q of c.queue||[])M.append(queuedEl(q.text,q.id));S.lastEv=0;poll();}
+  else if(c.pending){M.append(userEl(c.pending));const d=botEl(null);d.querySelector('.out').innerHTML=`<p style="color:var(--muted)">This task was interrupted.</p><button class="btn">Retry</button>`;
+    d.querySelector('button').onclick=()=>{d.remove();M.lastElementChild?.remove();$('#in').value=c.pending;grow();send();};M.append(d);}
   if(!c.log.length&&!c.job)empty();headerProj();setBusy(!!c.job);renderList();scrollEnd(true);}
 function liveEl(){const d=botEl(null);d.classList.add('live');d.querySelector('.out').innerHTML=`<div class="working"><span class="pulse"><i></i><i></i><i></i></span><span class="wt">Thinking…</span></div>`;return d;}
 function queuedEl(t,qid){const d=document.createElement('div');d.className='u q';if(qid)d.dataset.q=qid;
@@ -399,6 +401,10 @@ $('#title').onclick=()=>{if(!S.chat||S.view!=='chat')return;const t=$('#title');
 $('#title').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();e.target.blur();}if(e.key==='Escape'){e.target.textContent=S.chat.title;e.target.blur();}});
 $('#title').addEventListener('blur',async()=>{const t=$('#title');if(t.contentEditable!=='true')return;t.contentEditable='false';const v=t.textContent.trim();
   if(v&&S.chat&&v!==S.chat.title){S.chat.title=v;await api('/api/chats/'+S.chat.id,{method:'PATCH',body:JSON.stringify({title:v})}).catch(()=>{});loadList();}else t.textContent=S.chat?.title||'New chat';});
+// Coming back to the tab (e.g. on the phone): resync with the server so nothing looks lost or stuck.
+let hiddenAt=0;document.addEventListener('visibilitychange',()=>{if(document.hidden){hiddenAt=Date.now();return;}
+  if(Date.now()-hiddenAt<1500)return;loadList();mini();if(S.view==='chat'&&S.chat?.id){const keep=$('#in').value;openChat(S.chat.id,false).then(()=>{if(keep){$('#in').value=keep;grow();}});}});
+window.addEventListener('pageshow',e=>{if(e.persisted&&S.chat?.id)openChat(S.chat.id,false);});
 window.addEventListener('popstate',()=>{const m=location.pathname.match(/^\/c\/(\w+)/);m?openChat(m[1],false):newChat();});
 // ---------- floating bar: mode, context, speed, model ----------
 const IC={ask:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/></svg>',
