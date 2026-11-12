@@ -375,6 +375,10 @@ def run_tools(s: "Session"):
             if tool == "read_raw":
                 p = os.path.join(s.cwd, os.path.expanduser(args["path"]))
                 out = open(p, encoding="utf-8").read() if os.path.exists(p) else "\0missing"
+            elif tool == "read_b64":
+                import base64
+                p = os.path.join(s.cwd, os.path.expanduser(args["path"]))
+                out = base64.b64encode(open(p, "rb").read()).decode() if os.path.isfile(p) else "\0missing"
             elif tool == "restore_raw":
                 p = os.path.join(s.cwd, os.path.expanduser(args["path"]))
                 if args.get("content") is None:

@@ -28,6 +28,7 @@ from pydantic import BaseModel
 
 from . import artifacts as A
 from . import background as BG
+from . import media as MEDIA
 from . import monitors as MON
 from . import notify as NOTIFY
 from . import scheduler as SCH
@@ -50,10 +51,9 @@ ACTIVITY_INSTR = """- BACKGROUND WORK: you can keep the user unblocked. bg_start
   delegate(..., background=true) runs a subagent in the background and its result arrives later as a message.
   Messages that start with [Monitor …] or [Background subagent …] come from those, not from the user: act on them
   and tell the user briefly what happened.
-- ATTACHMENTS: lines like [attachment: /path/file (type, size)] are files the user uploaded. Your model cannot see
-  images directly, but you can work with any file using tools: python (Pillow) for image size/colors/crops, `tesseract`
-  for text in images (OCR), `ffmpeg`/`ffprobe` for video and audio (extract frames, convert, trim), and read text,
-  PDFs (pdftotext) or spreadsheets. Show results with ![…](/path). Say honestly when you cannot tell what an image shows.
+- ATTACHMENTS: lines like [attachment: /path/file (type, size)] are files the user uploaded. For images use
+  look_at_image (it really sees them); for video extract frames with ffmpeg and look at them; read text, PDFs
+  (pdftotext) or spreadsheets with tools. Show results with ![…](/path).
 - ASKING THE USER: when you need a decision or a missing detail, call ask_user with a short question and 2-4 clear
   options (the user can also type their own answer). Don't use it for trivial things you can decide yourself.
 - ABOUT THIS PANEL (so you can explain it): the user talks to you in the Atenea web panel. Permission modes (pill above
@@ -333,7 +333,7 @@ def _agent(chat: dict):
             ag.messages = [ag.messages[0]] + [m for m in chat["messages"] if m["role"] != "system"]
         # keep the context meter right before the first model call of this process (it reports 0 until then)
         ag.context_tokens = (chat.get("usage") or {}).get("ctx") or _est(ag.messages) + _est(ag.schemas())
-        ag.messages[0]["content"] += "\n" + A.INSTRUCTIONS + "\n" + ACTIVITY_INSTR
+        ag.messages[0]["content"] += "\n" + A.INSTRUCTIONS + "\n" + ACTIVITY_INSTR + "\n" + MEDIA.INSTRUCTIONS
         for t in BG.tools(lambda: ag.cwd, chat["id"]) + MON.tools(lambda: ag.cwd, chat["id"]):
             ag._tools[t.name] = t
         ag.spawn_bg = lambda sub, task, name, _cid=chat["id"]: _spawn_bg(_cid, sub, task, name)
@@ -345,6 +345,48 @@ def _agent(chat: dict):
             a = fn(question[:500], opts)
             return f"The user answered: {a}" if a is not None else "The user did not answer in 30 minutes; continue with your best judgement and say what you assumed."
         from .registry import Tool as _Tool
+
+        def _image_bytes(path: str, _cid=chat["id"]) -> bytes | str:
+            p = path if os.path.isabs(os.path.expanduser(path)) else os.path.join(ag.cwd, path)
+            p = os.path.expanduser(p)
+            if os.path.isfile(p):                         # on ZEUS (uploads, generated images, local chats)
+                return open(p, "rb").read()
+            if chat.get("runner"):                        # on the user's computer
+                raw = _runner_call(_cid, "read_b64", {"path": path}, timeout=120)
+                if raw.startswith("Error") or raw.startswith("\0missing"):
+                    return f"Error: cannot read {path} on {chat.get('runner_name') or 'the computer'}"
+                import base64 as _b64
+                return _b64.b64decode(raw)
+            return f"Error: image not found: {path}"
+
+        def look_at_image(path: str, question: str = "") -> str:
+            data = _image_bytes(path)
+            return data if isinstance(data, str) else MEDIA.look_at_image(data, question)
+
+        def edit_image(path: str, instruction: str) -> str:
+            data = _image_bytes(path)
+            if isinstance(data, str):
+                return data
+            tmp = os.path.join(UPLOADS_DIR, "edit-src-" + uuid.uuid4().hex[:6] + ".png")
+            os.makedirs(UPLOADS_DIR, exist_ok=True)
+            open(tmp, "wb").write(data)
+            return MEDIA.edit_image(tmp, instruction)
+
+        for _t in (
+            _Tool("look_at_image", "See an image with a vision model: describe it, read its text, or answer a question "
+                  "about it. `path`: file path (uploads, generated images, or a file in the project).",
+                  {"type": "object", "properties": {"path": {"type": "string"}, "question": {"type": "string"}},
+                   "required": ["path"]}, look_at_image),
+            _Tool("generate_image", "Create an image from a detailed English prompt (~40 s). Returns a markdown line to "
+                  "show it. Optional width/height (256-1536, default 1024) and seed.",
+                  {"type": "object", "properties": {"prompt": {"type": "string"}, "width": {"type": "integer"},
+                   "height": {"type": "integer"}, "seed": {"type": "integer"}}, "required": ["prompt"]},
+                  lambda prompt, width=1024, height=1024, seed=-1: MEDIA.generate_image(prompt, width, height, seed)),
+            _Tool("edit_image", "Edit an existing image following an instruction (~60 s): change style, objects, "
+                  "background, text, season… Returns a markdown line to show the result.",
+                  {"type": "object", "properties": {"path": {"type": "string"}, "instruction": {"type": "string"}},
+                   "required": ["path", "instruction"]}, edit_image)):
+            ag._tools[_t.name] = _t
         ag._tools["ask_user"] = _Tool("ask_user", "Ask the user a question and wait for the answer. Give 2-4 short "
                                       "`options` they can click (they can also type something else).",
                                       {"type": "object", "properties": {"question": {"type": "string"},
