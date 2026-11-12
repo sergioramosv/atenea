@@ -116,10 +116,21 @@ def _write(chat: dict):
     os.replace(tmp, _path(chat["id"]))
 
 
-def _new_chat(project: str | None) -> dict:
+MODES = ("ask", "edits", "auto", "plan")
+
+
+def _mode(m: str | None) -> str:
+    return m if m in MODES else (C.load().get("default_mode") or "auto")
+
+
+def _ctx_max() -> int:
+    return int(C.load()["model"].get("context") or 204800)
+
+
+def _new_chat(project: str | None, mode: str | None = None) -> dict:
     now = time.time()
-    chat = {"id": uuid.uuid4().hex[:12], "title": "New chat", "project": project or "", "created": now,
-            "updated": now, "log": [], "messages": []}
+    chat = {"id": uuid.uuid4().hex[:12], "title": "New chat", "project": project or "", "mode": _mode(mode),
+            "created": now, "updated": now, "log": [], "messages": [], "usage": None}
     _write(chat)
     return chat
 
@@ -149,6 +160,7 @@ def _agent(chat: dict):
         if chat.get("messages"):
             ag.messages = [ag.messages[0]] + [m for m in chat["messages"] if m["role"] != "system"]
         AGENTS[chat["id"]] = ag
+    ag.mode = chat.get("mode") or _mode(None)
     return ag
 
 
@@ -182,6 +194,7 @@ def _run_job(jid: str, cid: str, text: str):
         ag = _agent(chat)
         ag.on_event, ag.approve = ev, approve
         s0, t0 = ag.stats.requests, time.time()
+        job["base"] = (ag.stats.completion_tokens, ag.stats.secs_model)
         job["result"] = ag.run(text)
         job["meta"] = {"steps": ag.stats.requests - s0, "secs": round(time.time() - t0)}
     except KeyboardInterrupt:
@@ -195,6 +208,7 @@ def _run_job(jid: str, cid: str, text: str):
             ag = AGENTS.get(cid)
             if ag is not None:
                 chat["messages"] = ag.messages
+                chat["usage"] = _usage(ag, job)
             chat["log"].append({"q": text, "a": job["result"], "events": job["events"], "meta": job["meta"],
                                 "t": job["t0"]})
             chat["updated"] = time.time()
@@ -204,15 +218,25 @@ def _run_job(jid: str, cid: str, text: str):
     job["done"] = True
 
 
+def _usage(ag, job: dict | None = None) -> dict:
+    """Context in use and generation speed of the last turn (what the bar above the composer shows)."""
+    out, secs = ag.stats.completion_tokens, ag.stats.secs_model
+    if job and job.get("base"):
+        out, secs = out - job["base"][0], secs - job["base"][1]
+    return {"ctx": ag.context_tokens, "max": _ctx_max(), "out": out,
+            "tps": round(out / secs, 1) if secs > 0.5 else None, "calls": ag.stats.requests}
+
+
 class ChatIn(BaseModel):
     text: str
     chat: str | None = None
     project: str | None = None
+    mode: str | None = None
 
 
 class ChatPatch(BaseModel):
     title: str | None = None
-    project: str | None = None
+    mode: str | None = None
 
 
 @app.get("/api/chats", dependencies=[Depends(auth)])
@@ -243,7 +267,8 @@ def list_chats(q: str = ""):
 def get_chat(cid: str):
     c = _read(cid)
     return {"id": c["id"], "title": c["title"], "project": c.get("project", ""), "log": c["log"],
-            "job": _running(cid)}
+            "job": _running(cid), "mode": c.get("mode") or _mode(None),
+            "usage": c.get("usage") or {"ctx": 0, "max": _ctx_max(), "tps": None, "out": 0}}
 
 
 @app.patch("/api/chats/{cid}", dependencies=[Depends(auth)])
@@ -252,6 +277,10 @@ def patch_chat(cid: str, p: ChatPatch):
         c = _read(cid)
         if p.title is not None and p.title.strip():
             c["title"] = p.title.strip()[:120]
+        if p.mode is not None:
+            c["mode"] = _mode(p.mode)
+            if cid in AGENTS:
+                AGENTS[cid].mode = c["mode"]                 # takes effect on the next tool call, even mid-task
         _write(c)
     return {"ok": True}
 
@@ -275,7 +304,7 @@ def chat(inp: ChatIn):
     if not inp.text.strip():
         raise HTTPException(400, "Empty message")
     with _lock:
-        c = _read(inp.chat) if inp.chat else _new_chat(inp.project)
+        c = _read(inp.chat) if inp.chat else _new_chat(inp.project, inp.mode)
         if _running(c["id"]):
             raise HTTPException(409, "This conversation is still working")
         if not c["log"] and c["title"] == "New chat":
@@ -286,7 +315,7 @@ def chat(inp: ChatIn):
     JOBS[jid] = {"t0": time.time(), "events": [], "done": False, "result": None, "approval": None, "meta": None,
                  "chat": c["id"], "cancel": False}
     threading.Thread(target=_run_job, args=(jid, c["id"], inp.text), daemon=True).start()
-    return {"job": jid, "chat": c["id"], "title": c["title"], "project": c.get("project", "")}
+    return {"job": jid, "chat": c["id"], "title": c["title"], "project": c.get("project", ""), "mode": c["mode"]}
 
 
 @app.get("/api/jobs/{jid}", dependencies=[Depends(auth)])
@@ -294,8 +323,9 @@ def job(jid: str):
     if jid not in JOBS:
         raise HTTPException(404)
     j = JOBS[jid]
+    ag = AGENTS.get(j["chat"])
     return {k: j[k] for k in ("events", "done", "result", "approval", "meta", "chat")} | \
-        {"secs": round(time.time() - j["t0"])}
+        {"secs": round(time.time() - j["t0"]), "usage": _usage(ag, j) if ag is not None else None}
 
 
 @app.post("/api/jobs/{jid}/approve/{answer}", dependencies=[Depends(auth)])
@@ -320,6 +350,8 @@ def get_config():
     if cfg["telegram"].get("token"):
         cfg["telegram"]["token"] = cfg["telegram"]["token"][:8] + "…(hidden)"
     cfg.pop("web", None)
+    cfg.setdefault("default_mode", "auto")
+    cfg["model"].setdefault("context", 204800)
     return cfg
 
 

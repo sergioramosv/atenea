@@ -53,6 +53,17 @@ MSG_EMPTY = ("Your reply was cut off or empty. Continue: use the tools to make t
 MSG_VERIFY = ("Not finished yet: the verification `{cmd}` fails:\n{out}\n"
               "Fix the problem and verify again before finishing.")
 MSG_DENIED = "The user did NOT authorize this action. Do not retry it; continue without it or ask what they prefer."
+MSG_PLAN_BLOCK = ("Plan mode is on: you may only read and search. Do not modify files, run commands or take external "
+                  "actions. Finish your investigation and reply with a concise, numbered plan for the user to approve.")
+PLAN_NOTE = ("\n\n[Plan mode: investigate using read-only tools only, then reply with a numbered plan. "
+             "Do not change anything yet.]")
+
+# Permission modes (like Claude Code). Which tool kinds need the user's approval in each mode:
+#   ask   -> edits, commands and external actions        edits -> commands and external actions
+#   auto  -> only external actions (tools marked dangerous) plan -> nothing runs except read-only tools
+MODES = ("ask", "edits", "auto", "plan")
+READ_ONLY = {"read_file", "list_files", "grep", "load_skill"}
+EDIT_TOOLS = {"write_file", "edit_file"}
 
 
 @dataclass
@@ -92,6 +103,7 @@ class Agent:
     approve: ApproveFn | None = None
     system: str | None = None
     verbose: bool = False
+    mode: str = "auto"                                      # ask | edits | auto | plan (see MODES)
 
     def __post_init__(self):
         self.cwd = os.path.abspath(os.path.expanduser(self.cwd))
@@ -117,6 +129,7 @@ class Agent:
         self.messages: list[dict] = [{"role": "system", "content": tmpl.format(
             name=self.name, cwd=self.cwd, extra="\n".join(extra))}]
         self._invalid = self._nudges = self._cooldown = self._verify_fails = 0
+        self.context_tokens = 0                              # size of the conversation in the last request
 
     # ---------- helpers ----------
     def _emit(self, kind: str, **data):
@@ -144,7 +157,10 @@ class Agent:
         t = self._tools.get(name)
         if not t:
             return f"Error: unknown tool '{name}'. Available: {', '.join(self._tools)}"
-        if t.dangerous and self.approve and not self.approve(t, args):
+        need = self._needs_approval(t)
+        if need == "block":
+            return MSG_PLAN_BLOCK
+        if need and self.approve and not self.approve(t, args):
             return MSG_DENIED
         try:
             out = t(**args)
@@ -154,12 +170,29 @@ class Agent:
             return f"Error: {type(e).__name__}: {e}"
         return T.clip(out if isinstance(out, str) else json.dumps(out, ensure_ascii=False, default=str))
 
+    def _needs_approval(self, t: Tool) -> bool | str:
+        """Decide from the permission mode whether a tool call needs approval (True), runs freely (False)
+        or is refused because plan mode only allows reading ("block")."""
+        name = t.name
+        builtin = name in READ_ONLY or name in EDIT_TOOLS or name == "bash"
+        if self.mode == "plan":                         # read-only: built-in readers and safe (non-dangerous) extras
+            return "block" if t.dangerous or (builtin and name not in READ_ONLY) else False
+        if t.dangerous:
+            return True
+        if not builtin or name in READ_ONLY:
+            return False
+        if self.mode == "ask":
+            return True                                 # edits and commands
+        if self.mode == "edits":
+            return name == "bash"
+        return False                                    # auto
+
     def _delegate(self, args: dict) -> str:
         task = args.get("task", "")
         self._emit("subagent", task=task[:300])
         sub = Agent(cwd=self.cwd, profile=self.sub_profile or self.profile, name=f"{self.name}/sub",
                     tools=self.tools, allow_delegate=False, max_turns=40, system=SYSTEM_SUB,
-                    on_event=self.on_event, approve=self.approve, verbose=self.verbose)
+                    on_event=self.on_event, approve=self.approve, verbose=self.verbose, mode=self.mode)
         res = sub.run(task)
         self.stats.add(sub.stats)
         self.transcripts.append({"task": task, "messages": sub.messages, "subs": sub.transcripts})
@@ -173,7 +206,7 @@ class Agent:
     # ---------- loop ----------
     def run(self, task: str) -> str:
         """Run a task (or a new message in the same conversation) and return the final answer."""
-        self.messages.append({"role": "user", "content": task})
+        self.messages.append({"role": "user", "content": task + (PLAN_NOTE if self.mode == "plan" else "")})
         self._nudges = self._verify_fails = 0
         for turn in range(self.max_turns):
             self._emit("turn", n=turn + 1)
@@ -195,6 +228,7 @@ class Agent:
             self.stats.prompt_tokens += u.get("prompt_tokens", 0)
             self.stats.completion_tokens += u.get("completion_tokens", 0)
             self.stats.secs_model += r["secs"]
+            self.context_tokens = u.get("prompt_tokens", 0) + u.get("completion_tokens", 0)
             msg = r["message"]
             calls = msg.get("tool_calls") or []
             content = msg.get("content") or ""

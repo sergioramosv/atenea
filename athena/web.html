@@ -98,6 +98,21 @@ header{height:56px;flex:none;border-bottom:1px solid var(--line);display:flex;al
 .badge{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
 #send{margin-left:auto;width:36px;height:36px;border-radius:10px;border:0;background:var(--btn);color:var(--btn-ink);display:flex;align-items:center;justify-content:center}
 #send:disabled{opacity:.35;cursor:default}#send.stop{background:transparent;border:1px solid var(--line);color:var(--ink)}
+.fbar{max-width:820px;margin:0 auto 8px;display:flex;gap:6px;position:relative;flex-wrap:wrap}
+.pill{height:30px;border-radius:15px;border:1px solid var(--line);background:var(--card);box-shadow:0 2px 10px rgba(17,19,21,.06);padding:0 11px;font-size:12.5px;display:flex;align-items:center;gap:6px;color:var(--ink2);white-space:nowrap}
+.pill:hover{border-color:color-mix(in srgb,var(--ink) 25%,var(--line));color:var(--ink)}.pill.on{border-color:var(--ink);color:var(--ink)}
+.pill .k{font-family:var(--mono);font-size:12px}.pill svg{flex:none}
+.m-ask{--mc:var(--muted)}.m-edits{--mc:#2F8A5B}.m-auto{--mc:#C27D12}.m-plan{--mc:#3B6FB6}
+:root[data-theme=dark] .m-edits{--mc:#7FC29B}:root[data-theme=dark] .m-auto{--mc:#F1C77A}:root[data-theme=dark] .m-plan{--mc:#8DB0E8}
+#pmode{color:var(--mc);border-color:color-mix(in srgb,var(--mc) 45%,var(--line));font-weight:500}
+.pop{position:absolute;bottom:38px;left:0;z-index:15;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:8px;min-width:280px;max-width:min(360px,92vw);font-size:13.5px}
+.pop[hidden]{display:none}
+.opt{display:flex;gap:10px;width:100%;text-align:left;border:0;background:transparent;border-radius:9px;padding:9px 10px;align-items:flex-start}
+.opt:hover{background:var(--hover)}.opt.cur{background:var(--hover)}.opt .tx{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}.opt b{font-weight:600;color:var(--mc);font-size:13.5px}.opt .tx span{color:var(--muted);font-size:12.5px;line-height:1.4}
+.opt .ic{color:var(--mc);padding-top:2px}.opt .ck{margin-left:auto;color:var(--ink);visibility:hidden;padding-top:2px}.opt.cur .ck{visibility:visible}
+.pop .hd{font-size:12px;font-weight:600;color:var(--muted);padding:4px 10px 6px;display:flex;justify-content:space-between}
+.pop .bd{padding:4px 10px 8px;display:flex;flex-direction:column;gap:8px;color:var(--ink2)}.pop .big{font-size:20px;font-weight:600;color:var(--ink)}
+.pop .bar{margin-top:0}.pop .rowk{display:flex;justify-content:space-between;font-size:13px}.pop .rowk span:last-child{font-family:var(--mono);color:var(--ink)}
 .hint{max-width:820px;margin:8px auto 0;text-align:center;font-size:12px;color:var(--muted)}
 /* settings */
 #v-settings{overflow:auto}
@@ -121,6 +136,7 @@ header{height:56px;flex:none;border-bottom:1px solid var(--line);display:flex;al
 .toast.on{opacity:1;transform:translateX(-50%)}
 .scrim{display:none}
 @media (max-width:820px){
+  .pill .lbl{display:none}.pill.ctx .lbl{display:inline}
   #side{position:fixed;inset:0 auto 0 0;z-index:30;transform:translateX(-100%);transition:transform .2s;box-shadow:var(--shadow);width:86vw;max-width:320px}
   #side.open{transform:none}.scrim.on{display:block;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:20}
   #menu{display:flex}header{padding:0 10px}#msgs{padding:20px 14px 8px}.comp{padding:0 10px 10px;padding-bottom:max(10px,env(safe-area-inset-bottom))}
@@ -156,11 +172,20 @@ header{height:56px;flex:none;border-bottom:1px solid var(--line);display:flex;al
   <section class="view on" id="v-chat">
     <div id="thread"><div id="msgs"></div></div>
     <div class="comp">
+      <div class="fbar" id="fbar">
+        <button class="pill m-auto" id="pmode" data-pop="popmode" title="Permission mode (Shift+Tab)"><span id="pmodeic"></span><span id="pmodelbl">Auto</span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></button>
+        <button class="pill ctx" id="pctx" data-pop="popctx" title="Context used"><svg width="14" height="14" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--line)" stroke-width="5"/><circle id="ring" cx="18" cy="18" r="14" fill="none" stroke="var(--acc)" stroke-width="5" stroke-linecap="round" stroke-dasharray="88" stroke-dashoffset="88" transform="rotate(-90 18 18)"/></svg><span class="k" id="pctxv">0%</span><span class="lbl">context</span></button>
+        <button class="pill" id="pspeed" data-pop="popspeed" title="Generation speed" hidden><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg><span class="k" id="pspeedv">—</span><span class="lbl">tok/s</span></button>
+        <button class="pill" id="pmodel" data-pop="popmodel" title="Model"><span class="dot" id="cdot"></span><span class="lbl">Ornith · local</span></button>
+        <div class="pop" id="popmode" hidden></div>
+        <div class="pop" id="popctx" hidden></div>
+        <div class="pop" id="popspeed" hidden></div>
+        <div class="pop" id="popmodel" hidden></div>
+      </div>
       <div class="cbox">
         <textarea id="in" rows="1" placeholder="Ask Atenea anything…" aria-label="Message"></textarea>
         <div class="cbar">
           <label class="sel" id="projsel" title="Folder Atenea works in"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span id="projname">Default folder</span><select id="proj" aria-label="Project folder"></select></label>
-          <span class="badge"><span class="dot" id="cdot"></span>Ornith · local</span>
           <button id="send" aria-label="Send" disabled><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
         </div>
       </div>
@@ -261,9 +286,9 @@ function botEl(entry){const d=document.createElement('div');d.className='b';cons
     <div class="ap"></div><div class="md out">${entry?md(entry.a||'(no answer)'):''}</div>`;
   if(m)d.querySelector('.st').textContent=`· ${m.secs}s`;return d;}
 function scrollEnd(force){const t=$('#thread');if(force||t.scrollHeight-t.scrollTop-t.clientHeight<200)t.scrollTop=t.scrollHeight;}
-function newChat(){stopPoll();S.chat=null;S.job=null;history.pushState({}, '', '/');$('#title').textContent='New chat';$('#hstate').hidden=true;empty();headerProj();setBusy(false);show('chat');renderList();$('#in').focus();}
+function newChat(){stopPoll();S.chat=null;S.job=null;S.mode=defMode();renderMode();renderUsage(null);history.pushState({}, '', '/');$('#title').textContent='New chat';$('#hstate').hidden=true;empty();headerProj();setBusy(false);show('chat');renderList();$('#in').focus();}
 async function openChat(id,push=true){stopPoll();let c;try{c=await api('/api/chats/'+id);}catch(e){toast('Conversation not found');return newChat();}
-  S.chat=c;S.job=c.job;if(push)history.pushState({}, '', '/c/'+id);show('chat');$('#title').textContent=c.title;
+  S.chat=c;S.job=c.job;S.mode=c.mode||defMode();renderMode();renderUsage(c.usage);if(push)history.pushState({}, '', '/c/'+id);show('chat');$('#title').textContent=c.title;
   const M=$('#msgs');M.innerHTML='';for(const e of c.log){M.append(userEl(e.q));M.append(botEl(e));}
   if(c.job){const last=c.log.length?null:null;M.append(liveEl());S.lastEv=0;poll();}
   if(!c.log.length&&!c.job)empty();headerProj();setBusy(!!c.job);renderList();scrollEnd(true);}
@@ -273,13 +298,13 @@ function setBusy(b){const s=$('#send');s.classList.toggle('stop',b);s.setAttribu
   s.disabled=!b&&!$('#in').value.trim();}
 async function send(){if(S.job)return;const t=$('#in').value.trim();if(!t)return;$('#in').value='';grow();
   $('.empty')?.remove();const M=$('#msgs');M.append(userEl(t));M.append(liveEl());scrollEnd(true);setBusy(true);
-  try{const r=await api('/api/chat',{method:'POST',body:JSON.stringify({text:t,chat:S.chat?.id||null,project:S.chat?null:($('#proj').value||null)})});
+  try{const r=await api('/api/chat',{method:'POST',body:JSON.stringify({text:t,chat:S.chat?.id||null,project:S.chat?null:($('#proj').value||null),mode:S.mode})});
     S.job=r.job;S.lastEv=0;if(!S.chat){S.chat={id:r.chat,title:r.title,project:r.project,log:[]};history.pushState({}, '', '/c/'+r.chat);}
     $('#title').textContent=S.chat.title;headerProj();loadList();poll();}
   catch(e){$('.live .out').innerHTML=md('**Could not send:** '+e.message);$('.live')?.classList.remove('live');setBusy(false);}}
 function stopPoll(){clearTimeout(S.timer);S.timer=null;}
 async function poll(){const jid=S.job;if(!jid)return;let j;try{j=await api('/api/jobs/'+jid);}catch(e){if(String(e.message)==='404'){S.job=null;setBusy(false);return S.chat&&openChat(S.chat.id,false);}S.timer=setTimeout(poll,3000);return;}
-  if(jid!==S.job)return;const b=$('.live');if(!b)return;
+  if(jid!==S.job)return;if(j.usage)renderUsage(j.usage);const b=$('.live');if(!b)return;
   const st=b.querySelector('.steps'),ol=st.querySelector('ol');
   if(j.events.length>S.lastEv){st.hidden=false;j.events.slice(S.lastEv).forEach(e=>ol.insertAdjacentHTML('beforeend',stepLine(e)));S.lastEv=j.events.length;ol.scrollTop=ol.scrollHeight;}
   st.querySelector('.sum').textContent=`${j.events.length} step${j.events.length===1?'':'s'} · ${j.secs}s`;
@@ -304,6 +329,44 @@ $('#title').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault(
 $('#title').addEventListener('blur',async()=>{const t=$('#title');if(t.contentEditable!=='true')return;t.contentEditable='false';const v=t.textContent.trim();
   if(v&&S.chat&&v!==S.chat.title){S.chat.title=v;await api('/api/chats/'+S.chat.id,{method:'PATCH',body:JSON.stringify({title:v})}).catch(()=>{});loadList();}else t.textContent=S.chat?.title||'New chat';});
 window.addEventListener('popstate',()=>{const m=location.pathname.match(/^\/c\/(\w+)/);m?openChat(m[1],false):newChat();});
+// ---------- floating bar: mode, context, speed, model ----------
+const IC={ask:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/></svg>',
+  edits:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
+  auto:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
+  plan:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>'};
+const MODES={ask:['Ask first','Asks before editing files or running commands.'],edits:['Accept edits','Edits files on its own; asks before running commands.'],
+  auto:['Auto','Works on its own. Only asks before external actions, like sending an email.'],plan:['Plan','Read-only: investigates and proposes a plan before changing anything.']};
+const ORDER=['ask','edits','auto','plan'];
+function fmtK(n){return n>=1000?(n/1000).toFixed(n>=100000?0:1)+'k':String(n||0);}
+function renderMode(){const m=S.mode||'auto';const p=$('#pmode');p.className='pill m-'+m;$('#pmodeic').innerHTML=IC[m];$('#pmodelbl').textContent=MODES[m][0];
+  $('#popmode').innerHTML=`<div class="hd"><span>Permission mode</span><span style="font-weight:400">Shift+Tab to switch</span></div>`+ORDER.map(k=>`<button class="opt m-${k}${k===m?' cur':''}" data-m="${k}"><span class="ic">${IC[k]}</span><span class="tx"><b>${MODES[k][0]}</b><span>${MODES[k][1]}</span></span><span class="ck">✓</span></button>`).join('');
+  $$('#popmode .opt').forEach(o=>o.onclick=()=>{setMode(o.dataset.m);closePops();});}
+async function setMode(m){S.mode=m;renderMode();try{localStorage.setItem('mode',m);}catch(_){}
+  if(S.chat?.id)await api('/api/chats/'+S.chat.id,{method:'PATCH',body:JSON.stringify({mode:m})}).catch(()=>toast('Could not change mode'));
+  toast(MODES[m][0]+' mode');}
+function renderUsage(u){S.usage=u||{ctx:0,max:S.cfg?.model?.context||204800,tps:null,out:0};u=S.usage;const pct=u.max?Math.min(100,Math.round(100*u.ctx/u.max)):0;
+  $('#pctxv').textContent=pct+'%';$('#ring').setAttribute('stroke-dashoffset',String(88-88*pct/100));$('#ring').setAttribute('stroke',pct>85?'var(--bad)':pct>60?'#C27D12':'var(--acc)');
+  $('#popctx').innerHTML=`<div class="hd"><span>Context</span><span>${pct}%</span></div><div class="bd"><div class="big">${fmtK(u.ctx)} <span style="font-size:14px;font-weight:400;color:var(--muted)">of ${fmtK(u.max)} tokens</span></div>
+    <div class="bar"><i style="width:${pct}%"></i></div><div style="font-size:12.5px;color:var(--muted)">Everything Atenea is keeping in mind for this chat: your messages, its answers and tool results. When it fills up, old tool output is summarised automatically.</div>
+    <div class="row"><button class="btn" id="ctxnew">Start a fresh chat</button></div></div>`;
+  $('#ctxnew').onclick=()=>{closePops();newChat();};
+  $('#pspeed').hidden=!u.tps;$('#pspeedv').textContent=u.tps?Math.round(u.tps):'—';
+  $('#popspeed').innerHTML=`<div class="hd"><span>Last answer</span></div><div class="bd"><div class="big">${u.tps??'—'} <span style="font-size:14px;font-weight:400;color:var(--muted)">tokens / s</span></div>
+    <div class="rowk"><span>Tokens generated</span><span>${(u.out||0).toLocaleString()}</span></div><div class="rowk"><span>Model calls (this chat)</span><span>${u.calls??'—'}</span></div>
+    <div style="font-size:12.5px;color:var(--muted)">Ornith on ZEUS usually writes 25–35 tokens per second; two chats working at once share the GPU.</div></div>`;}
+function renderModel(s){const ok=s&&s.ornith==='active';$('#cdot').className='dot '+(ok?'ok':'bad');
+  $('#popmodel').innerHTML=`<div class="hd"><span>Model</span><span>${ok?'online':'offline'}</span></div><div class="bd"><div class="big">Ornith <span style="font-size:14px;font-weight:400;color:var(--muted)">· local on ZEUS</span></div>
+    <div class="rowk"><span>GPU</span><span>${s?.gpu_temp||'—'} °C · ${s?.gpu_power||'—'} W</span></div><div class="rowk"><span>Working on</span><span>${s?.busy??0} task${s?.busy===1?'':'s'}</span></div>
+    <div class="rowk"><span>Memory</span><span>${s?((+s.ram_used/1024).toFixed(0)+' / '+(+s.ram_total/1024).toFixed(0)+' GB'):'—'}</span></div>
+    <div class="row"><button class="btn" id="msettings">Model settings</button></div></div>`;
+  $('#msettings').onclick=()=>{closePops();show('settings');};}
+function closePops(){$$('.pop').forEach(p=>p.hidden=true);$$('.pill').forEach(p=>p.classList.remove('on'));}
+$$('#fbar .pill').forEach(b=>b.onclick=e=>{e.stopPropagation();const pop=$('#'+b.dataset.pop);const open=pop.hidden;closePops();
+  if(open){pop.hidden=false;b.classList.add('on');pop.style.left=Math.min(b.offsetLeft,Math.max(0,$('#fbar').clientWidth-pop.offsetWidth))+'px';}});
+document.addEventListener('click',e=>{if(!e.target.closest('.pop'))closePops();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closePops();});
+$('#in').addEventListener('keydown',e=>{if(e.key==='Tab'&&e.shiftKey){e.preventDefault();setMode(ORDER[(ORDER.indexOf(S.mode)+1)%ORDER.length]);}});
+
 // ---------- settings ----------
 function projRow(a='',p=''){const d=document.createElement('div');d.className='prow';d.innerHTML=`<input placeholder="alias" value="${esc(a)}" aria-label="Alias"><input placeholder="~/projects/my-app" value="${esc(p)}" aria-label="Folder"><button class="ib" title="Remove" aria-label="Remove">✕</button>`;
   d.querySelector('button').onclick=()=>d.remove();$('#plist').append(d);}
@@ -330,9 +393,10 @@ async function loadStatus(){const s=await api('/api/status');const pct=(a,b)=>b?
     card('Telegram bot',`<span class="dot ${s.hermes==='active'?'ok':''}"></span>${s.hermes==='active'?'Running':'Stopped'}`,'Hermes')+
     card('Working on',`${s.busy}`,s.busy===1?'task':'tasks')+card('GPU',(s.gpu_temp||'—')+' °C',(s.gpu_power||'—')+' W')+
     card('Memory',`${(ru/1024).toFixed(1)} GB`,`of ${(rt/1024).toFixed(0)} GB`,pct(ru,rt))+card('Models disk',`${du} GB`,`of ${dt} GB`,pct(du,dt));}
-async function mini(){try{const s=await api('/api/status');const ok=s.ornith==='active';$('#mdot').className='dot '+(ok?'ok':'bad');$('#cdot').className='dot '+(ok?'ok':'bad');
+async function mini(){try{const s=await api('/api/status');const ok=s.ornith==='active';$('#mdot').className='dot '+(ok?'ok':'bad');renderModel(s);
   $('#mbusy').textContent=s.busy?`${s.busy} working`:(ok?'online':'offline');$('#mgpu').textContent=`GPU ${s.gpu_temp||'—'} °C · ${s.gpu_power||'—'} W`;}catch(e){}}
 // ---------- start ----------
-(async()=>{try{await loadCfg();}catch(e){}const m=location.pathname.match(/^\/c\/(\w+)/);if(m)await openChat(m[1],false);else{empty();headerProj();}
+function defMode(){let m=null;try{m=localStorage.getItem('mode');}catch(_){}return MODES[m]?m:(S.cfg?.default_mode||'auto');}
+(async()=>{try{await loadCfg();}catch(e){}S.mode=defMode();renderMode();renderUsage(null);renderModel(null);const m=location.pathname.match(/^\/c\/(\w+)/);if(m)await openChat(m[1],false);else{empty();headerProj();}
   loadList();mini();setInterval(mini,30000);$('#in').focus();})();
 </script></body></html>
