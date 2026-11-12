@@ -1,0 +1,9 @@
+[Unit]
+Description=Atenea - copia de seguridad diaria (03:17)
+
+[Timer]
+OnCalendar=*-*-* 03:17
+Persistent=true
+
+[Install]
+WantedBy=timers.target

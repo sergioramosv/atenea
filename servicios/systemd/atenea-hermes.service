@@ -1,0 +1,15 @@
+[Unit]
+Description=Atenea hermes
+After=network-online.target ornith.service
+Wants=network-online.target
+
+[Service]
+User=sergio
+Group=sergio
+WorkingDirectory=/mnt/models/atenea
+ExecStart=/mnt/models/atenea/.venv/bin/python -m atenea.hermes
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target

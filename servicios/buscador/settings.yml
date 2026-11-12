@@ -1,0 +1,16 @@
+use_default_settings: true
+general:
+  instance_name: "Atenea buscador"
+search:
+  safe_search: 0
+  default_lang: "es"
+  formats: [html, json]
+server:
+  bind_address: "127.0.0.1"
+  port: 8888
+  limiter: false
+  public_instance: false
+  image_proxy: false
+ui:
+  static_use_hash: true
+  # secret_key: se genera al instalar (no se guarda en git)

@@ -1,0 +1,14 @@
+[Unit]
+Description=Atenea buscador (SearXNG privado, solo localhost)
+After=network-online.target
+
+[Service]
+User=sergio
+WorkingDirectory=/mnt/models/tools/searxng
+Environment=SEARXNG_SETTINGS_PATH=/mnt/models/tools/searxng-settings.yml
+ExecStart=/mnt/models/tools/searxng/.venv/bin/python -m searx.webapp
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1724,6 +1724,41 @@ def presence():
     return {"ok": True}
 
 
+# ---------------- voice (atenea-voz service on :8083) ----------------
+VOICE = os.environ.get("ATENEA_VOICE_URL", "http://127.0.0.1:8083")
+
+
+@app.post("/api/stt", dependencies=[Depends(auth)])
+async def stt(request: Request):
+    import urllib.request
+    data = await request.body()
+    if len(data) > 50 * 1024 * 1024:
+        raise HTTPException(413, "Recording too long")
+    try:
+        req = urllib.request.Request(VOICE + "/stt", data, {"Content-Type": "application/octet-stream"})
+        return json.load(urllib.request.urlopen(req, timeout=180))
+    except Exception as e:
+        raise HTTPException(503, f"Voice service unavailable: {e}")
+
+
+class TtsIn(BaseModel):
+    text: str
+    voice: str | None = None
+
+
+@app.post("/api/tts", dependencies=[Depends(auth)])
+def tts(t: TtsIn):
+    import urllib.request
+    cfg = C.load().get("voice") or {}
+    body = {"text": t.text[:3000], "voice": t.voice or cfg.get("voice", "es_ES-sharvard-medium"), "speaker": cfg.get("speaker", 1)}
+    try:
+        req = urllib.request.Request(VOICE + "/tts", json.dumps(body).encode(), {"Content-Type": "application/json"})
+        wav = urllib.request.urlopen(req, timeout=120).read()
+    except Exception as e:
+        raise HTTPException(503, f"Voice service unavailable: {e}")
+    return Response(wav, media_type="audio/wav", headers={"Cache-Control": "private, max-age=3600"})
+
+
 # ---------------- uploads (photos, videos, any file) ----------------
 UPLOADS_DIR = os.path.join(os.path.dirname(C.PATH), "uploads")
 

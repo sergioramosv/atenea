@@ -92,6 +92,10 @@ header{height:56px;flex:none;border-bottom:1px solid var(--line);display:flex;al
 .uatt{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.uatt img,.uatt video{max-width:220px;max-height:180px;border-radius:10px;border:1px solid var(--line);display:block}
 .uatt a.filechip{font-size:12.5px}
 .ctxrow{display:grid;grid-template-columns:12px 1fr auto auto;gap:8px;align-items:center;font-size:13px;padding:2px 0}.ctxrow .sw{width:10px;height:10px;border-radius:3px}.ctxrow .n{font-family:var(--mono);text-align:right}.ctxrow .pc{color:var(--muted);text-align:right;min-width:44px}
+.mic{width:36px;height:36px;border-radius:10px;margin-left:auto}.mic+#send{margin-left:6px}
+.mic.rec{background:#C0392B;color:#fff;animation:blink 1.2s infinite}.mic.busy{opacity:.5}
+.speak{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px 4px;border-radius:6px;margin-left:2px}.speak:hover{color:var(--ink);background:var(--hover)}
+.speak.on{color:var(--acc)}
 .u.q{opacity:.75;border-style:dashed}.qtag{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--muted);white-space:normal}
 .qtag button{border:0;background:transparent;color:var(--muted);text-decoration:underline;padding:0;font-size:12px}.qtag button:hover{color:var(--ink)}
 .u{align-self:flex-end;max-width:min(560px,85%);background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 15px;white-space:pre-wrap;word-wrap:break-word}
@@ -277,6 +281,7 @@ img.media,.uatt img{cursor:zoom-in}
           <button class="ib plus" id="plus" title="Add photos, videos or files" aria-label="Add"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
           <input type="file" id="filein" multiple hidden><input type="file" id="camin" accept="image/*,video/*" capture="environment" hidden>
           <label class="sel" id="projsel" title="Folder Atenea works in"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span id="projname">Default folder</span><select id="proj" aria-label="Project folder"></select></label>
+          <button class="ib mic" id="mic" title="Dictate (tap to start, tap to stop)" aria-label="Dictate"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
           <button id="send" aria-label="Send" disabled><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
         </div>
       </div>
@@ -456,7 +461,7 @@ function rewindMenu(btn,i){closePops();const m=$('#rwmenu');m.innerHTML=`<div cl
 function stepLine(e){const d=e.data;const txt=e.kind==='tool_call'?`${d.name}  ${(d.args||'').replace(/^\{|\}$/g,'')}`:e.kind==='subagent'?`subagent  ${d.task||''}`:(d.text||'');
   return `<li><span class="t">${e.t}s</span><span class="ok">${e.kind==='notice'?'!':'✓'}</span><span>${esc(txt.slice(0,200))}</span></li>`;}
 function botEl(entry){const d=document.createElement('div');d.className='b';const ev=entry?.events||[];const m=entry?.meta;
-  d.innerHTML=`<div class="bh">${MARK()}<b>${esc(S.cfg?.assistant_name||'Atenea')}</b><span class="st"></span></div>
+  d.innerHTML=`<div class="bh">${MARK()}<b>${esc(S.cfg?.assistant_name||'Atenea')}</b><span class="st"></span><button class="speak" title="Listen" aria-label="Listen"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5 6 9H2v6h4l5 4zM15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg></button></div>
     <details class="think" hidden><summary>${CHEV}<span class="tl">Thinking</span></summary><div class="tt"></div></details>
     <div class="todo" hidden></div>
     <details class="steps"${ev.length?'':' hidden'}><summary>${CHEV}<span class="sum">${ev.length} step${ev.length===1?'':'s'}${m?` · ${m.secs}s`:''}</span></summary><ol>${ev.map(stepLine).join('')}</ol></details>
@@ -541,7 +546,8 @@ async function poll(){const jid=S.job;if(!jid)return;let j;try{j=await api('/api
     if(inp){qa.querySelector('.pri').onclick=()=>go(inp.value);inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();go(inp.value);}};}}
   $('#hstate').hidden=!j.approval&&!j.question;if(j.question&&!S.asked){S.asked=1;notice('❓ Question');}if(!j.question)S.asked=0;if(j.approval&&!S.noticed){S.noticed=1;notice('⏸ Needs you');}if(!j.approval)S.noticed=0;
   const na=(j.artifacts||[]).length;if(na>(S.lastArt||0)){const a=j.artifacts[na-1];S.lastArt=na;delete ART[a.id];openArt(a.id);}
-  if(j.done){b.querySelector('.qa').innerHTML='';if(!j.next)notice('✓ Done');S.lastArt=0;b.querySelector('.wk')?.remove();const th2=b.querySelector('.think');if(th2&&!th2.hidden){th2.open=false;th2.querySelector('.tl').textContent='Thought process';}
+  if(j.done){b.querySelector('.qa').innerHTML='';if(!j.next)notice('✓ Done');
+    if(S.voiceTurn&&!j.next){S.voiceTurn=false;setTimeout(()=>speakText(plainForSpeech(j.result),b.querySelector('.speak')),50);}S.lastArt=0;b.querySelector('.wk')?.remove();const th2=b.querySelector('.think');if(th2&&!th2.hidden){th2.open=false;th2.querySelector('.tl').textContent='Thought process';}
     if(j.meta?.mode==='plan'&&!j.next)planBar(b);b.classList.remove('live');b.querySelector('.out').innerHTML=md(j.result||'(no answer)');finishOut(b.querySelector('.out'),j.artifacts);st.open=false;if(!j.events.length)st.hidden=true;
     if(j.meta)b.querySelector('.st').textContent=`· ${j.meta.secs}s`;$('#hstate').hidden=true;
     if(j.next){const q=$('#msgs .q');if(!q){S.job=j.next;openChat(S.chat.id,false);return;}const live=liveEl();q.classList.remove('q');q.querySelector('.qtag')?.remove();q.after(live);
@@ -732,6 +738,34 @@ $('#lbshare').onclick=async()=>{const src=LB.list[LB.i];
     if(navigator.share){await navigator.share({title:lbName(src),url:new URL(src,location.href).href});return;}
     await navigator.clipboard.writeText(new URL(src,location.href).href);toast('Link copied');}
   catch(err){if(err.name!=='AbortError')toast('Could not share: '+err.message);}};
+
+// ---------- voice: dictation and spoken answers ----------
+const AUD=new Audio();let REC=null;
+function plainForSpeech(md){return String(md||'').replace(/```[\s\S]*?```/g,' (código omitido) ').replace(/!\[[^\]]*\]\([^)]*\)/g,'').replace(/\[([^\]]+)\]\([^)]*\)/g,'$1')
+  .replace(/\[\[artifact:\w+\]\]/g,'').replace(/[#*_`>|~-]{1,}/g,' ').replace(/\n+/g,'. ').replace(/\s+/g,' ').trim().slice(0,2500);}
+async function speakText(text,btn){if(!text)return;if(btn?.classList.contains('on')){AUD.pause();btn.classList.remove('on');return;}
+  $$('.speak.on').forEach(b=>b.classList.remove('on'));btn?.classList.add('on');
+  try{const r=await fetch('/api/tts',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({text})});
+    if(!r.ok)throw new Error(r.status);AUD.src=URL.createObjectURL(await r.blob());await AUD.play();}catch(e){toast('Could not speak: '+e.message);btn?.classList.remove('on');}
+  AUD.onended=()=>btn?.classList.remove('on');}
+document.addEventListener('click',e=>{const b=e.target.closest('.speak');if(!b)return;const out=b.closest('.b')?.querySelector('.out');speakText(plainForSpeech(out?.innerText||''),b);});
+$('#mic').onclick=async()=>{
+  if(REC){REC.stop();return;}
+  if(!navigator.mediaDevices?.getUserMedia)return toast(isSecureContext?'This browser cannot record audio':'Dictation needs the HTTPS address (Tailscale)');
+  try{AUD.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';AUD.play().catch(()=>{});}catch(_){}   // unlock audio on iPhone
+  let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:true});}catch(e){return toast('Microphone permission denied');}
+  const mime=['audio/webm;codecs=opus','audio/mp4','audio/webm'].find(m=>window.MediaRecorder&&MediaRecorder.isTypeSupported(m))||'';
+  const chunks=[];REC=new MediaRecorder(stream,mime?{mimeType:mime}:{});const t0=Date.now();const ph=$('#in').placeholder;
+  const tick=setInterval(()=>{$('#in').placeholder=`🎙 Listening… ${Math.round((Date.now()-t0)/1000)}s — tap the mic to stop`;},250);
+  REC.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+  REC.onstop=async()=>{clearInterval(tick);stream.getTracks().forEach(t=>t.stop());REC=null;$('#mic').classList.remove('rec');$('#mic').classList.add('busy');$('#in').placeholder='Transcribing…';
+    try{const blob=new Blob(chunks,{type:mime||'audio/webm'});const r=await fetch('/api/stt',{method:'POST',body:blob,credentials:'same-origin'});const j=await r.json();
+      if(!r.ok)throw new Error(j.detail||r.status);
+      if(j.text){const t=$('#in');t.value=(t.value?t.value+' ':'')+j.text;grow();S.voiceTurn=true;
+        if((S.cfg?.voice||{}).autosend!==false)send();}else toast("I didn't catch anything");}
+    catch(e){toast('Dictation failed: '+e.message);}
+    $('#mic').classList.remove('busy');$('#in').placeholder=ph;};
+  REC.start();$('#mic').classList.add('rec');};
 
 // ---------- attachments: + button, drag & drop, paste ----------
 S.atts=[];

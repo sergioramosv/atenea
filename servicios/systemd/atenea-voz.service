@@ -1,0 +1,13 @@
+[Unit]
+Description=Atenea voz (dictado Whisper + voz Piper, solo localhost)
+
+[Service]
+User=sergio
+WorkingDirectory=/mnt/models/tools/voice
+ExecStart=/mnt/models/tools/voice/venv/bin/python /mnt/models/atenea/servicios/voz/server.py
+Environment=ATENEA_VOICES=/mnt/models/tools/voice/voices
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
