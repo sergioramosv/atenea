@@ -12,7 +12,9 @@ import base64
 import hashlib
 import hmac
 import json
+import mimetypes
 import os
+import re
 import secrets
 import subprocess
 import threading
@@ -23,12 +25,14 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 
+from . import artifacts as A
 from . import config as C
 from .runtime import build_agent
 
 app = FastAPI(title="Atenea", docs_url=None, redoc_url=None)
 JOBS: dict[str, dict] = {}
 AGENTS: dict[str, object] = {}          # live agents, one per conversation id
+QUEUES: dict[str, list[dict]] = {}      # messages sent while a conversation is busy: run in order afterwards
 COOKIE = "atenea_session"
 SESSION_DAYS = 30
 HERE = os.path.dirname(__file__)
@@ -159,6 +163,9 @@ def _agent(chat: dict):
         ag = build_agent(_cwd(chat.get("project")))
         if chat.get("messages"):
             ag.messages = [ag.messages[0]] + [m for m in chat["messages"] if m["role"] != "system"]
+        ag.messages[0]["content"] += "\n" + A.INSTRUCTIONS
+        ag._tools["create_artifact"] = A.make_tool(lambda: ag.cwd, chat["id"],
+                                                   on_create=lambda m: getattr(ag, "_on_artifact", lambda _: None)(m))
         AGENTS[chat["id"]] = ag
     ag.mode = chat.get("mode") or _mode(None)
     return ag
@@ -193,6 +200,7 @@ def _run_job(jid: str, cid: str, text: str):
             chat = _read(cid)
         ag = _agent(chat)
         ag.on_event, ag.approve = ev, approve
+        ag._on_artifact = lambda m: job["artifacts"].append({"id": m["id"], "title": m["title"], "version": m["version"]})
         s0, t0 = ag.stats.requests, time.time()
         job["base"] = (ag.stats.completion_tokens, ag.stats.secs_model)
         job["result"] = ag.run(text)
@@ -210,12 +218,29 @@ def _run_job(jid: str, cid: str, text: str):
                 chat["messages"] = ag.messages
                 chat["usage"] = _usage(ag, job)
             chat["log"].append({"q": text, "a": job["result"], "events": job["events"], "meta": job["meta"],
-                                "t": job["t0"]})
+                                "t": job["t0"], "artifacts": job["artifacts"]})
             chat["updated"] = time.time()
             _write(chat)
         except HTTPException:                               # deleted while it was running
-            pass
+            QUEUES.pop(cid, None)
+    nxt = None
+    with _lock:
+        q = QUEUES.get(cid)
+        if q and not job["cancel"]:
+            item = q.pop(0)
+            nxt = _start(cid, item["text"])
+        if not q:
+            QUEUES.pop(cid, None)
+    job["next"] = nxt
     job["done"] = True
+
+
+def _start(cid: str, text: str) -> str:
+    jid = uuid.uuid4().hex[:10]
+    JOBS[jid] = {"t0": time.time(), "events": [], "done": False, "result": None, "approval": None, "meta": None,
+                 "chat": cid, "cancel": False, "text": text, "next": None, "artifacts": []}
+    threading.Thread(target=_run_job, args=(jid, cid, text), daemon=True).start()
+    return jid
 
 
 def _usage(ag, job: dict | None = None) -> dict:
@@ -266,8 +291,9 @@ def list_chats(q: str = ""):
 @app.get("/api/chats/{cid}", dependencies=[Depends(auth)])
 def get_chat(cid: str):
     c = _read(cid)
+    jid = _running(cid)
     return {"id": c["id"], "title": c["title"], "project": c.get("project", ""), "log": c["log"],
-            "job": _running(cid), "mode": c.get("mode") or _mode(None),
+            "job": jid, "pending": JOBS[jid]["text"] if jid else None, "queue": QUEUES.get(cid, []), "mode": c.get("mode") or _mode(None),
             "usage": c.get("usage") or {"ctx": 0, "max": _ctx_max(), "tps": None, "out": 0}}
 
 
@@ -288,6 +314,7 @@ def patch_chat(cid: str, p: ChatPatch):
 @app.delete("/api/chats/{cid}", dependencies=[Depends(auth)])
 def delete_chat(cid: str):
     jid = _running(cid)
+    QUEUES.pop(cid, None)
     if jid:
         JOBS[jid]["cancel"] = True
     AGENTS.pop(cid, None)
@@ -305,16 +332,17 @@ def chat(inp: ChatIn):
         raise HTTPException(400, "Empty message")
     with _lock:
         c = _read(inp.chat) if inp.chat else _new_chat(inp.project, inp.mode)
-        if _running(c["id"]):
-            raise HTTPException(409, "This conversation is still working")
+        running = _running(c["id"])
+        if running:                                        # busy: queue it, it runs when the current task ends
+            item = {"id": uuid.uuid4().hex[:8], "text": inp.text}
+            QUEUES.setdefault(c["id"], []).append(item)
+            return {"queued": item["id"], "job": running, "chat": c["id"], "title": c["title"],
+                    "project": c.get("project", ""), "mode": c.get("mode"), "position": len(QUEUES[c["id"]])}
         if not c["log"] and c["title"] == "New chat":
             c["title"] = _title(inp.text)
         c["updated"] = time.time()
         _write(c)
-    jid = uuid.uuid4().hex[:10]
-    JOBS[jid] = {"t0": time.time(), "events": [], "done": False, "result": None, "approval": None, "meta": None,
-                 "chat": c["id"], "cancel": False}
-    threading.Thread(target=_run_job, args=(jid, c["id"], inp.text), daemon=True).start()
+        jid = _start(c["id"], inp.text)
     return {"job": jid, "chat": c["id"], "title": c["title"], "project": c.get("project", ""), "mode": c["mode"]}
 
 
@@ -324,7 +352,7 @@ def job(jid: str):
         raise HTTPException(404)
     j = JOBS[jid]
     ag = AGENTS.get(j["chat"])
-    return {k: j[k] for k in ("events", "done", "result", "approval", "meta", "chat")} | \
+    return {k: j.get(k) for k in ("events", "done", "result", "approval", "meta", "chat", "next", "artifacts")} | \
         {"secs": round(time.time() - j["t0"]), "usage": _usage(ag, j) if ag is not None else None}
 
 
@@ -338,9 +366,71 @@ def approve(jid: str, answer: str):
 
 @app.post("/api/jobs/{jid}/stop", dependencies=[Depends(auth)])
 def stop(jid: str):
-    if jid in JOBS:
-        JOBS[jid]["cancel"] = True
-    return {"ok": jid in JOBS}
+    """Stop the running task. Queued messages are not run: they are returned so the UI can put them back."""
+    if jid not in JOBS:
+        return {"ok": False, "queued": []}
+    JOBS[jid]["cancel"] = True
+    with _lock:
+        q = QUEUES.pop(JOBS[jid]["chat"], [])
+    return {"ok": True, "queued": [i["text"] for i in q]}
+
+
+@app.delete("/api/chats/{cid}/queue/{qid}", dependencies=[Depends(auth)])
+def unqueue(cid: str, qid: str):
+    with _lock:
+        q = QUEUES.get(cid, [])
+        QUEUES[cid] = [i for i in q if i["id"] != qid]
+        if not QUEUES[cid]:
+            QUEUES.pop(cid, None)
+    return {"ok": True}
+
+
+# ---------------- artifacts & media ----------------
+SANDBOX = {"Content-Security-Policy": "sandbox allow-scripts allow-popups allow-forms allow-modals allow-downloads",
+           "Cache-Control": "no-store"}
+
+
+@app.get("/api/artifacts/{aid}", dependencies=[Depends(auth)])
+def artifact_meta(aid: str):
+    m = A.get(aid)
+    if not m:
+        raise HTTPException(404, "Artifact not found")
+    return m
+
+
+@app.get("/a/{aid}")
+def artifact_page(aid: str, request: Request, v: int | None = None, download: int = 0):
+    """The page itself. Sandboxed (opaque origin): it can run scripts but cannot reach the panel's API or cookies."""
+    if not _valid(request.cookies.get(COOKIE)):
+        return RedirectResponse("/login")
+    f = A.file_for(aid, v)
+    if not f:
+        raise HTTPException(404, "Artifact not found")
+    headers = dict(SANDBOX)
+    if download:
+        title = re.sub(r"[^\w\- ]+", "", (A.get(aid) or {}).get("title", "artifact")).strip() or "artifact"
+        headers["Content-Disposition"] = f'attachment; filename="{title}.html"'
+    return FileResponse(f, media_type="text/html; charset=utf-8", headers=headers)
+
+
+MEDIA_ROOTS = [os.path.expanduser("~"), "/mnt/models", "/tmp"]
+
+
+@app.get("/api/file", dependencies=[Depends(auth)])
+def local_file(path: str):
+    """Images, videos, PDFs and other files from this machine, so Atenea can show them in the chat."""
+    real = os.path.realpath(os.path.expanduser(path))
+    if not any(real == r or real.startswith(r.rstrip("/") + "/") for r in MEDIA_ROOTS):
+        raise HTTPException(403, "Outside the allowed folders")
+    if os.path.basename(real).startswith(".") or "/.ssh/" in real or "/.config/athena/config.json" in real:
+        raise HTTPException(403, "Private file")
+    if not os.path.isfile(real):
+        raise HTTPException(404, "File not found")
+    mt = mimetypes.guess_type(real)[0] or "application/octet-stream"
+    headers = {"Cache-Control": "private, max-age=300"}
+    if mt in ("text/html", "image/svg+xml"):
+        headers.update(SANDBOX)                         # never run local HTML/SVG with the panel's origin
+    return FileResponse(real, media_type=mt, headers=headers)
 
 
 # ---------------- settings & status ----------------
