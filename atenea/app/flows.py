@@ -351,7 +351,8 @@ TEMPLATES = {
                        "por asignatura y ordenadas por fecha de entrega. Después, para cada actividad: qué piden en 2 líneas; "
                        "busca en internet cómo abordarla (web_search y web_fetch, 2-3 fuentes buenas); pautas paso a paso; "
                        "errores típicos; tiempo estimado; y las fuentes con enlace. En español, claro y sin emojis. "
-                       "No guardes nada en memoria.")}}
+                       "No guardes nada en memoria."
+                       "Tu respuesta final ES el informe completo, con todo lo anterior escrito en ella (no un resumen de lo que has hecho ni preguntas al final).")}}
 
 
 # ---------------------------------------------------------------- run + diff
