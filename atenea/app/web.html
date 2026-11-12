@@ -117,6 +117,7 @@ header{height:56px;flex:none;border-bottom:1px solid var(--line);display:flex;al
 .days{display:flex;gap:4px}.days button{width:36px;height:34px;border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:12.5px}.days button.on{background:var(--btn);color:var(--btn-ink);border-color:var(--btn)}
 .run{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--bg);display:flex;flex-direction:column;gap:4px;cursor:pointer}.run:hover{border-color:var(--acc)}
 .run .rh{display:flex;gap:8px;font-size:13px;color:var(--muted)}.run .ra{font-size:13.5px;color:var(--ink2);white-space:pre-wrap;max-height:4.5em;overflow:hidden}
+.si{display:inline-block;vertical-align:-2px;flex:none}.sdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:1px}.sdot.ok{background:var(--ok,#2f9e5b)}.sdot.bad{background:var(--bad,#c0392b)}.sdot.off{background:var(--muted)}
 .u.q{opacity:.75;border-style:dashed}.qtag{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--muted);white-space:normal}
 .qtag button{border:0;background:transparent;color:var(--muted);text-decoration:underline;padding:0;font-size:12px}.qtag button:hover{color:var(--ink)}
 .u{align-self:flex-end;max-width:min(560px,85%);background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 15px;white-space:pre-wrap;word-wrap:break-word}
@@ -327,7 +328,7 @@ img.media,.uatt img{cursor:zoom-in}
         <div class="f"><label for="s_mcp">MCP servers</label><div><textarea class="code" id="s_mcp" spellcheck="false"></textarea><div class="err" id="mcperr"></div></div></div></div>
       <div class="card"><h2>Atenea Telegram</h2><p class="d">Talk to Atenea from your phone. Create a bot with @BotFather and get your user id from @userinfobot.</p>
         <div class="f"><label for="s_tok">Bot token</label><input id="s_tok" autocomplete="off"><label for="s_users">Allowed user ids</label><input id="s_users" placeholder="123456789, …"></div></div>
-      <div class="card"><h2>Atenea voz</h2><p class="d">Tap 🎙 to dictate: the words appear as you speak, and the full text stays in the box for you to review and send.</p>
+      <div class="card"><h2>Atenea voz</h2><p class="d">Tap <svg class="si" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3"/></svg> to dictate: the words appear as you speak, and the full text stays in the box for you to review and send.</p>
         <label style="display:flex;gap:10px;align-items:center;font-size:14px"><input type="checkbox" id="v_speak"> Read Atenea's answer aloud when I dictate</label>
         <label style="display:flex;gap:10px;align-items:center;font-size:14px"><input type="checkbox" id="v_send"> Send automatically when I stop dictating</label></div>
       <div class="card"><h2>Atenea documentos</h2><p class="d">Atenea searches these folders, the files you upload, the documents she creates and all your past conversations (by meaning and by words). The index updates every 15 minutes.</p>
@@ -364,7 +365,7 @@ img.media,.uatt img{cursor:zoom-in}
 </aside>
 </div>
 <div class="modal" id="pickm" hidden><div class="mbox" role="dialog" aria-label="New Code session">
-  <div class="mhd"><b>New Code session</b><button class="ib" id="pickx" aria-label="Close">✕</button></div>
+  <div class="mhd"><b>New Code session</b><button class="ib" id="pickx" aria-label="Close"><svg class="si" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
   <div class="mtabs"><button data-t="proj" class="on">Projects on ZEUS</button><button data-t="gh">GitHub</button><button data-t="path">Other folder</button></div>
   <div class="mbody" id="pickbody"></div></div></div>
 <div class="pop" id="rwmenu" hidden style="position:fixed;bottom:auto;z-index:60"></div>
@@ -384,6 +385,9 @@ img.media,.uatt img{cursor:zoom-in}
 </div>
 <div class="toast" id="toast" role="status"></div>
 <script>
+const ICP={"term":"<path d=\"M4 17l6-6-6-6M12 19h8\"/>","list":"<path d=\"M4 6h16M4 12h16M4 18h16\"/>","stop":"<rect x=\"6\" y=\"6\" width=\"12\" height=\"12\" rx=\"1.5\" fill=\"currentColor\"/>","clock": "<circle cx=\"12\" cy=\"13\" r=\"8\"/><path d=\"M12 9v4l2 2M9 2h6\"/>", "repeat": "<path d=\"M17 2l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3\"/>", "wait": "<path d=\"M5 22h14M5 2h14M17 22v-4.2a2 2 0 0 0-.6-1.4L12 12l-4.4 4.4a2 2 0 0 0-.6 1.4V22M7 2v4.2a2 2 0 0 0 .6 1.4L12 12l4.4-4.4a2 2 0 0 0 .6-1.4V2\"/>", "sun": "<circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4\"/>", "file": "<path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"/><path d=\"M14 2v6h6\"/>", "down": "<path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3\"/>", "folder": "<path d=\"M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z\"/>", "lock": "<rect x=\"4\" y=\"11\" width=\"16\" height=\"10\" rx=\"2\"/><path d=\"M8 11V7a4 4 0 0 1 8 0v4\"/>", "branch": "<circle cx=\"6\" cy=\"6\" r=\"2.5\"/><circle cx=\"6\" cy=\"18\" r=\"2.5\"/><circle cx=\"18\" cy=\"8\" r=\"2.5\"/><path d=\"M6 8.5v7M18 10.5c0 4-6 3-11 6\"/>", "clip": "<path d=\"M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5\"/>", "bell": "<path d=\"M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0\"/>", "check": "<path d=\"M20 6L9 17l-5-5\"/>", "x": "<path d=\"M18 6L6 18M6 6l12 12\"/>", "bolt": "<path d=\"M13 2L4 14h7l-1 8 9-12h-7z\"/>", "pen": "<path d=\"M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z\"/>", "help": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01\"/>", "pause": "<path d=\"M9 5v14M15 5v14\"/>", "ban": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M4.9 4.9l14.2 14.2\"/>", "mic": "<rect x=\"9\" y=\"2\" width=\"6\" height=\"12\" rx=\"3\"/><path d=\"M19 10v2a7 7 0 0 1-14 0v-2M12 19v3\"/>", "cam": "<path d=\"M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z\"/><circle cx=\"12\" cy=\"13\" r=\"4\"/>"};
+const ico=(n,s=14)=>`<svg class="si" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICP[n]}</svg>`;
+const dot=k=>`<span class="sdot ${k}"></span>`;
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s);
 const S={chat:null,job:null,chats:[],cfg:null,lastEv:0,timer:null,view:'chat'};
 // ---------- theme ----------
@@ -400,16 +404,18 @@ function mediaSrc(src){src=unesc(src);return /^(\/|~\/)/.test(src)?'/api/file?pa
 function media(alt,src){const u=esc(mediaSrc(src)),a=esc(unesc(alt)),ext=(unesc(src).split('?')[0].match(/\.(\w+)$/)||[])[1]?.toLowerCase()||'';
   if(['mp4','webm','mov','m4v','ogv'].includes(ext))return `<video class="media" controls preload="metadata" src="${u}"></video>`;
   if(['mp3','wav','ogg','m4a','flac'].includes(ext))return `<audio class="media" controls src="${u}"></audio>`;
-  if(['pdf','txt','csv','json','md','log','zip','docx','xlsx','pptx','odt','ods'].includes(ext))return `<a class="filechip" href="${u}" target="_blank" rel="noopener">📄 ${a||unesc(src).split('/').pop()}</a>`;
+  if(['pdf','txt','csv','json','md','log','zip','docx','xlsx','pptx','odt','ods'].includes(ext))return `<a class="filechip" href="${u}" target="_blank" rel="noopener">${ico('file')} ${a||unesc(src).split('/').pop()}</a>`;
   return `<a href="${u}" target="_blank" rel="noopener" class="imgl"><img class="media" src="${u}" alt="${a}" loading="lazy"></a>`;}
 function inline(s){const keep=[];const k=h=>{keep.push(h);return `\u0001${keep.length-1}\u0001`;};
   s=s.replace(/`([^`]+)`/g,(_,c)=>k(`<code>${c}</code>`))
    .replace(/\[\[artifact:([a-z0-9]{6,16})\]\]/g,(_,id)=>k(`<span class="acard" data-a="${id}"></span>`))
    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g,(_,a,u)=>k(media(a,u)))
-   .replace(/\[([^\]]+)\]\(((?:https?:|\/)[^)\s]+)\)/g,(_,t,u)=>k(`<a href="${esc(mediaSrc(u))}" target="_blank" rel="noopener"${u.startsWith('/')?' class="filechip"':''}>${t}</a>${u.startsWith('/')&&/\.(pdf|docx|xlsx|pptx|csv|zip)$/i.test(u)?` <a class="filechip" href="${esc(mediaSrc(u))}&download=1" title="Download">⬇</a>`:''}`));
+   .replace(/\[([^\]]+)\]\(((?:https?:|\/)[^)\s]+)\)/g,(_,t,u)=>k(`<a href="${esc(mediaSrc(u))}" target="_blank" rel="noopener"${u.startsWith('/')?' class="filechip"':''}>${t}</a>${u.startsWith('/')&&/\.(pdf|docx|xlsx|pptx|csv|zip)$/i.test(u)?` <a class="filechip" href="${esc(mediaSrc(u))}&download=1" title="Download">${ico('down')}</a>`:''}`));
   s=s.replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/(^|[\s(])[*_]([^*_\n]+)[*_](?=[\s).,!?:;]|$)/g,'$1<i>$2</i>');
   return s.replace(/\u0001(\d+)\u0001/g,(_,i)=>keep[+i]);}
-function md(src){const blocks=[];src=String(src??'').replace(/```(\w*)\n?([\s\S]*?)```/g,(_,l,c)=>{blocks.push(c.replace(/\n$/,''));return `\u0000${blocks.length-1}\u0000`;});
+const NOEMO=/(?:\p{Extended_Pictographic}|\p{Regional_Indicator})(?:\uFE0F|\u200D|\p{Emoji_Modifier})*\s?/gu;
+const noEmoji=t=>String(t??'').replace(NOEMO,'');
+function md(src){const blocks=[];src=noEmoji(src).replace(/```(\w*)\n?([\s\S]*?)```/g,(_,l,c)=>{blocks.push(c.replace(/\n$/,''));return `\u0000${blocks.length-1}\u0000`;});
   const lines=esc(src).split('\n');let h='',list=null,para=[];const flush=()=>{if(para.length){h+='<p>'+inline(para.join('<br>'))+'</p>';para=[];}};
   const close=()=>{if(list){h+=`</${list}>`;list=null;}};
   for(let i=0;i<lines.length;i++){const L=lines[i];let m;
@@ -434,7 +440,7 @@ function renderList(){if(S.space==='tasks')return renderTasks();const L=$('#list
   if(!items.length){L.innerHTML=`<div class="nolist">${$('#q').value?'Nothing matches your search.':code?'Your coding sessions will appear here, grouped by project. Start one with “New session” or run <code>atenea</code> in a folder.':'Your conversations will appear here.'}</div>`;return;}
   if(code){const by={};for(const c of items)(by[c.project||'']=by[c.project||'']||[]).push(c);
     var ordered=Object.entries(by).sort((a,b)=>Math.max(...b[1].map(x=>x.updated))-Math.max(...a[1].map(x=>x.updated))).flatMap(([p,cs])=>cs.map(c=>({...c,_g:p})));}
-  let h='',g=null;for(const c of (code?ordered:items)){const gg=code?c._g:groupOf(c.updated);if(gg!==g){g=gg;h+=code?`<div class="grp" title="${esc(gg)}">⌂ ${esc(pname(gg)||'no folder')}</div>`:`<div class="grp">${g}</div>`;}
+  let h='',g=null;for(const c of (code?ordered:items)){const gg=code?c._g:groupOf(c.updated);if(gg!==g){g=gg;h+=code?`<div class="grp" title="${esc(gg)}">${ico('folder',12)} ${esc(pname(gg)||'no folder')}</div>`:`<div class="grp">${g}</div>`;}
     h+=`<a class="it${c.id===S.chat?.id?' on':''}" href="/c/${c.id}" data-id="${c.id}">${c.running?'<span class="run" title="Working"></span>':''}${c.client==='cli'?'<span title="Started in the terminal" style="font-family:var(--mono);font-size:11px;color:var(--muted)">&gt;_</span>':''}<span class="tt">${esc(c.title)}</span>
       <span class="acts"><button class="ib ren" title="Rename" aria-label="Rename"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
       <button class="ib del" title="Delete" aria-label="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button></span></a>`;}
@@ -459,7 +465,7 @@ function renderTasks(){const q=$('#q').value.trim().toLowerCase();const L=$('#li
   if(!items.length){L.innerHTML=`<div class="nolist">${q?'Nothing matches.':'Reminders and recurring tasks live here. Create one with “New task”, or tell Atenea “recuérdame…” in a chat.'}</div>`;return;}
   const grp=k=>items.filter(t=>(t.kind||'task')===k);let h='';
   for(const [k,label] of [['reminder','REMINDERS'],['task','RECURRING TASKS']]){const g=grp(k);if(!g.length)continue;h+=`<div class="grp">${label}</div>`;
-    h+=g.map(t=>`<a class="tk${t.id===S.task?' on':''}${t.enabled?'':' off'}" data-t="${t.id}"><span class="tn">${k==='reminder'?'⏰':'🔁'} ${esc(t.name)}</span><span class="tw">${esc(humanWhen(t.when))} · ${t.enabled?(t.next?'next '+fmtT(t.next):'done'):'paused'}</span></a>`).join('');}
+    h+=g.map(t=>`<a class="tk${t.id===S.task?' on':''}${t.enabled?'':' off'}" data-t="${t.id}"><span class="tn">${ico(k==='reminder'?'clock':'repeat')} ${esc(t.name)}</span><span class="tw">${esc(humanWhen(t.when))} · ${t.enabled?(t.next?'next '+fmtT(t.next):'done'):'paused'}</span></a>`).join('');}
   L.innerHTML=h;L.querySelectorAll('[data-t]').forEach(a=>a.onclick=()=>openTask(a.dataset.t));}
 function whenEditor(w){const now=new Date(Date.now()+3600e3);const d0=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`,t0=String(now.getHours()).padStart(2,'0')+':00';
   let rep='once',date=d0,time=t0,days=['mon'],md=1,n=30,unit='m',m;w=String(w||'');
@@ -478,15 +484,15 @@ async function openTask(id){S.task=id;S.chat=null;stopPoll();show('task');render
   const t=id?await api('/api/schedules/'+id):{kind:'reminder',name:'',prompt:'',when:'',enabled:true,mode:'auto',runs:[]};
   $('#title').textContent=id?t.name:'New task';const rem=t.kind==='reminder';
   B.innerHTML=`<h1>${id?esc(t.name):'New task'}</h1>
-    <div class="card"><div class="kindsel"><button data-k="reminder" class="${rem?'on':''}"><b>⏰ Reminder</b>A notification on your phone at that time.</button><button data-k="task" class="${rem?'':'on'}"><b>🔁 Task</b>Atenea does something on her own (search, summarise, check…).</button></div>
+    <div class="card"><div class="kindsel"><button data-k="reminder" class="${rem?'on':''}"><b>${ico('clock',15)} Reminder</b>A notification on your phone at that time.</button><button data-k="task" class="${rem?'':'on'}"><b>${ico('repeat',15)} Task</b>Atenea does something on her own (search, summarise, check…).</button></div>
       <div class="f"><label for="t_name">Name</label><input id="t_name" value="${esc(t.name)}" placeholder="${rem?'Call Marta':'Morning briefing'}">
         <label for="t_prompt" id="t_plabel">${rem?'What to remind':'What Atenea should do'}</label><textarea id="t_prompt" placeholder="${rem?'Call Marta about the October report':'Summarise my important emails and today\'s meetings'}">${esc(t.prompt)}</textarea>
         <label>When</label><div>${whenEditor(t.when)}</div></div>
       <div class="row"><button class="btn pri" id="t_save">${id?'Save':'Create'}</button>${id?`<button class="btn" id="t_run">Run now</button><button class="btn" id="t_toggle">${t.enabled?'Pause':'Resume'}</button><button class="btn ghost" id="t_del" style="color:var(--bad)">Delete</button>`:''}
         ${id&&t.next?`<span style="margin-left:auto;color:var(--muted);font-size:13px;align-self:center">Next: ${fmtT(t.next)}</span>`:''}</div></div>
-    ${id?`<div class="card"><h2>History</h2>${t.runs.length?t.runs.map(r=>`<div class="run" ${r.chat&&!r.gone?`data-c="${r.chat}"`:''}><div class="rh"><span>${fmtT(r.t)}</span>${r.running?'<span class="run" style="padding:0;border:0;background:none">⏳ running…</span>':''}${r.secs?`<span>· ${r.secs}s</span>`:''}${r.kind==='reminder'?'<span>· notification sent</span>':''}</div>
-      ${r.answer?`<div class="ra">${esc(r.answer.replace(/\*\*|__|^#+ /gm,''))}</div>`:r.text?`<div class="ra">${esc(r.text)}</div>`:''}</div>`).join(''):'<div style="color:var(--muted);font-size:13.5px">Not run yet.</div>'}</div>`:''}
-    ${!id?`<div class="card"><h2>Ready-made</h2><div class="row"><button class="btn" id="t_brief">☀️ Morning briefing (weekdays 08:00)</button></div></div>`:''}`;
+    ${id?`<div class="card"><h2>History</h2>${t.runs.length?t.runs.map(r=>`<div class="run" ${r.chat&&!r.gone?`data-c="${r.chat}"`:''}><div class="rh"><span>${fmtT(r.t)}</span>${r.running?'<span class="run" style="padding:0;border:0;background:none">'+ico('wait',13)+' running…</span>':''}${r.secs?`<span>· ${r.secs}s</span>`:''}${r.kind==='reminder'?'<span>· notification sent</span>':''}</div>
+      ${r.answer?`<div class="ra">${esc(noEmoji(r.answer).replace(/\*\*|__|^#+ /gm,''))}</div>`:r.text?`<div class="ra">${esc(r.text)}</div>`:''}</div>`).join(''):'<div style="color:var(--muted);font-size:13.5px">Not run yet.</div>'}</div>`:''}
+    ${!id?`<div class="card"><h2>Ready-made</h2><div class="row"><button class="btn" id="t_brief">${ico('sun')} Morning briefing (weekdays 08:00)</button></div></div>`:''}`;
   wireWhen();let kind=t.kind||'task';
   B.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{kind=b.dataset.k;B.querySelectorAll('[data-k]').forEach(x=>x.classList.toggle('on',x===b));$('#t_plabel').textContent=kind==='reminder'?'What to remind':'What Atenea should do';});
   $('#t_save').onclick=async()=>{const body={name:$('#t_name').value.trim()||($('#t_prompt').value.trim().slice(0,50)||'Task'),prompt:$('#t_prompt').value.trim(),when:readWhen(),kind};
@@ -519,9 +525,9 @@ async function pickTab(t){PICK=t;$$('.mtabs button').forEach(b=>b.classList.togg
     $('#pickgo').onclick=()=>{const v=$('#pickpath').value.trim();if(v)startCode(v);};$('#pickpath').focus();return;}
   B.innerHTML='<div class="nolist">Loading…</div>';
   try{if(t==='proj'){const r=await api('/api/code/projects');
-      B.innerHTML=r.projects.length?r.projects.map(p=>`<button class="prj" data-p="${esc(p.path)}"><span style="font-size:18px">${p.git?'⎇':'📁'}</span><span style="min-width:0"><b>${esc(p.name)}</b><div class="pth">${esc(p.path)}</div></span><span class="tg">${p.source==='recent'?'recent':p.source==='project'?'project':'folder'}</span></button>`).join(''):`<div class="nolist">No projects yet in <code>${esc(r.workspace)}</code>. Clone one from the GitHub tab, or open any folder.</div>`;}
+      B.innerHTML=r.projects.length?r.projects.map(p=>`<button class="prj" data-p="${esc(p.path)}"><span style="display:flex;color:var(--muted)">${ico(p.git?'branch':'folder',18)}</span><span style="min-width:0"><b>${esc(p.name)}</b><div class="pth">${esc(p.path)}</div></span><span class="tg">${p.source==='recent'?'recent':p.source==='project'?'project':'folder'}</span></button>`).join(''):`<div class="nolist">No projects yet in <code>${esc(r.workspace)}</code>. Clone one from the GitHub tab, or open any folder.</div>`;}
     else{const r=await api('/api/github/repos');
-      B.innerHTML=r.repos.map(x=>`<button class="prj" data-r="${esc(x.nameWithOwner)}"><span style="font-size:18px">${x.isPrivate?'🔒':'⎇'}</span><span style="min-width:0"><b>${esc(x.nameWithOwner.split('/')[1])}</b><div class="pth">${esc(x.description||x.nameWithOwner)}</div></span><span class="tg">${x.pushedAt?new Date(x.pushedAt).toLocaleDateString():''}</span></button>`).join('');}
+      B.innerHTML=r.repos.map(x=>`<button class="prj" data-r="${esc(x.nameWithOwner)}"><span style="display:flex;color:var(--muted)">${ico(x.isPrivate?'lock':'branch',18)}</span><span style="min-width:0"><b>${esc(x.nameWithOwner.split('/')[1])}</b><div class="pth">${esc(x.description||x.nameWithOwner)}</div></span><span class="tg">${x.pushedAt?new Date(x.pushedAt).toLocaleDateString():''}</span></button>`).join('');}
     B.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>startCode(b.dataset.p));
     B.querySelectorAll('[data-r]').forEach(b=>b.onclick=async()=>{b.querySelector('.tg').textContent='cloning…';try{const r=await api('/api/code/clone',{method:'POST',body:JSON.stringify({repo:b.dataset.r})});startCode(r.path);}catch(e){toast(e.message);b.querySelector('.tg').textContent='failed';}});}
   catch(e){B.innerHTML=`<div class="nolist">${esc(e.message)}</div>`;}}
@@ -531,9 +537,9 @@ $$('.mtabs button').forEach(b=>b.onclick=()=>pickTab(b.dataset.t));
 function startCode(path){$('#pickm').hidden=true;S.codeProject=path;S.mode='edits';renderMode();newChat(true);}
 async function loadGit(){const chip=$('#hgit');if(!S.chat?.id||(S.chat.kind||'chat')!=='code'){chip.hidden=true;return;}
   try{const r=await api(`/api/chats/${S.chat.id}/git`);if(!r.repo){chip.hidden=true;return;}chip.hidden=false;
-    chip.textContent=`⎇ ${r.branch}${r.count?` · ${r.count} changed`:''}`;chip.title=r.changes.map(c=>c.status+' '+c.path).join('\n')||'No changes';}catch(_){chip.hidden=true;}}
+    chip.dataset.v=`${r.branch}${r.count?` · ${r.count} changed`:''}`;chip.innerHTML=ico('branch',12)+' '+esc(chip.dataset.v);chip.title=r.changes.map(c=>c.status+' '+c.path).join('\n')||'No changes';}catch(_){chip.hidden=true;}}
 async function showChanges(){if(!S.chat?.id)return;const r=await api(`/api/chats/${S.chat.id}/diff`);
-  $('#apt').textContent='Changes · '+pname(S.chat.project);$('#apver').textContent=($('#hgit').textContent||'').replace(/^⎇ /,'');
+  $('#apt').textContent='Changes · '+pname(S.chat.project);$('#apver').textContent=$('#hgit').dataset.v||'';
   $('#apframe').hidden=true;const code=$('#apcode');code.hidden=false;code.innerHTML=(r.diff?diffHtml(r.diff):'<div style="padding:12px;color:var(--muted)">No changes to tracked files.</div>')
     +(r.untracked.length?`<div style="padding:10px 4px;font-family:var(--f)"><b>New files</b><br>${r.untracked.map(esc).join('<br>')}</div>`:'');
   $('#apview').hidden=true;$('#apopen').hidden=true;$('#apdl').hidden=true;document.body.classList.add('art-on');}
@@ -556,20 +562,20 @@ function empty(){const nm=S.cfg?.assistant_name||'Atenea';
   $('#msgs').innerHTML=`<div class="empty">${MARK().replace(/<img /g,'<img style="width:72px;height:72px;margin:0 auto 18px" ')}
   <h2>How can I help?</h2><p>${esc(nm)} runs on ZEUS. Your files never leave home.</p><div class="sugg">${SUGG.map(s=>`<button>${esc(s)}</button>`).join('')}</div></div>`;
   $$('.sugg button').forEach(b=>b.onclick=()=>{$('#in').value=b.textContent;grow();send();});}
-function headerProj(){const p=S.chat?.project||(S.space==='code'?S.codeProject:'')||'';$('#hproj').hidden=!p;$('#hproj').textContent=p?'⌂ '+pname(p):'';$('#hproj').title=p;
+function headerProj(){const p=S.chat?.project||(S.space==='code'?S.codeProject:'')||'';$('#hproj').hidden=!p;$('#hproj').innerHTML=p?ico('folder',12)+' '+esc(pname(p)):'';$('#hproj').title=p;
   const locked=!!(S.chat&&(S.chat.log?.length||S.job));$('#projsel').classList.toggle('locked',locked);$('#proj').value=locked?p:$('#proj').value;projLabel();}
 function projLabel(){const v=$('#proj').value;$('#projname').textContent=v||'Default folder';$('#projsel').classList.toggle('dflt',!v);}
 function userEl(t){const d=document.createElement('div');d.className='u';d.innerHTML='<span class="ut"></span><span class="uacts"><button class="ib" data-u="rewind" title="Rewind to here" aria-label="Rewind to here"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button><button class="ib" data-u="fork" title="Fork from here" aria-label="Fork from here"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="5" r="2"/><circle cx="18" cy="5" r="2"/><circle cx="12" cy="19" r="2"/><path d="M6 7v2a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V7M12 12v5"/></svg></button><button class="ib" data-u="copy" title="Copy" aria-label="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></span>';
   const at=[];t=String(t).replace(/\n?\[attachment: ([^\]\n]+?)(?: \(([^)]*)\))?\]/g,(_,p,meta)=>{at.push([p,meta||'']);return '';}).trim();
   d.querySelector('.ut').textContent=t;
   if(at.length){const box=document.createElement('div');box.className='uatt';box.innerHTML=at.map(([p,meta])=>{const u='/api/file?path='+encodeURIComponent(p),nm=p.split('/').pop().replace(/^[0-9a-f]{6}-/,'');
-    return /^image\//.test(meta)||/\.(png|jpe?g|gif|webp|heic|avif)$/i.test(p)?`<a href="${u}" target="_blank"><img src="${u}" alt="${esc(nm)}" loading="lazy"></a>`:/^video\//.test(meta)||/\.(mp4|mov|webm|m4v)$/i.test(p)?`<video src="${u}" controls preload="metadata"></video>`:`<a class="filechip" href="${u}" target="_blank">📎 ${esc(nm)}</a>`;}).join('');
+    return /^image\//.test(meta)||/\.(png|jpe?g|gif|webp|heic|avif)$/i.test(p)?`<a href="${u}" target="_blank"><img src="${u}" alt="${esc(nm)}" loading="lazy"></a>`:/^video\//.test(meta)||/\.(mp4|mov|webm|m4v)$/i.test(p)?`<video src="${u}" controls preload="metadata"></video>`:`<a class="filechip" href="${u}" target="_blank">${ico('clip')} ${esc(nm)}</a>`;}).join('');
     d.querySelector('.ut').after(box);}
   return d;}
 function diffHtml(t){return `<pre class="diff">${t.split('\n').map(l=>`<span class="${l.startsWith('+')&&!l.startsWith('+++')?'da':l.startsWith('-')&&!l.startsWith('---')?'dd':l.startsWith('@@')?'dh':''}">${esc(l)||' '}</span>`).join('')}</pre>`;}
 function msgIndex(u){return [...$$('#msgs .u:not(.q), #msgs .sysm:not(.q)')].indexOf(u);}
 function sysEl(text,origin,label,queued){const d=document.createElement('div');d.className='sysm'+(queued?' q':'');
-  const ic=origin==='monitor'?'🔔':'⑂',what=origin==='monitor'?`Monitor «${esc(label)}» fired`:`Background subagent «${esc(label)}» finished`;
+  const ic=origin==='monitor'?ico('bell'):ico('branch'),what=origin==='monitor'?`Monitor «${esc(label)}» fired`:`Background subagent «${esc(label)}» finished`;
   d.innerHTML=`<details><summary>${CHEV}<span>${ic} ${what}</span>${queued?'<span class="qtag" style="margin:0 0 0 8px">queued</span>':''}</summary><div class="sx"></div></details>`;
   d.querySelector('.sx').textContent=text.replace(/^\[[^\]]*\]\n?/,'');return d;}
 $('#msgs').addEventListener('click',async e=>{const b=e.target.closest('.uacts button');const u=e.target.closest('.u:not(.q)');
@@ -589,18 +595,18 @@ function rewindMenu(btn,i){closePops();const m=$('#rwmenu');m.innerHTML=`<div cl
       await openChat(S.chat.id,false);if(o.dataset.w!=='code'){$('#in').value=res.q;grow();}
       toast(res.restored.length?`Restored ${res.restored.length} file${res.restored.length===1?'':'s'}`:'Rewound');}catch(err){toast(err.message);}});}
 function stepLine(e){const d=e.data;const txt=e.kind==='tool_call'?`${d.name}  ${(d.args||'').replace(/^\{|\}$/g,'')}`:e.kind==='subagent'?`subagent  ${d.task||''}`:(d.text||'');
-  return `<li><span class="t">${e.t}s</span><span class="ok">${e.kind==='notice'?'!':'✓'}</span><span>${esc(txt.slice(0,200))}</span></li>`;}
+  return `<li><span class="t">${e.t}s</span><span class="ok">${e.kind==='notice'?'!':ico('check',12)}</span><span>${esc(txt.slice(0,200))}</span></li>`;}
 function botEl(entry){const d=document.createElement('div');d.className='b';const ev=entry?.events||[];const m=entry?.meta;
   d.innerHTML=`<div class="bh">${MARK()}<b>${esc(S.cfg?.assistant_name||'Atenea')}</b><span class="st"></span><button class="speak" title="Listen" aria-label="Listen"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5 6 9H2v6h4l5 4zM15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg></button></div>
     <details class="think" hidden><summary>${CHEV}<span class="tl">Thinking</span></summary><div class="tt"></div></details>
     <div class="todo" hidden></div>
     <details class="steps"${ev.length?'':' hidden'}><summary>${CHEV}<span class="sum">${ev.length} step${ev.length===1?'':'s'}${m?` · ${m.secs}s`:''}</span></summary><ol>${ev.map(stepLine).join('')}</ol></details>
     <div class="ap"></div><div class="qa"></div><div class="md out">${entry?md(entry.a||'(no answer)'):''}</div>`;
-  if(m)d.querySelector('.st').textContent=`· ${m.secs}s${m.quick?' · ⚡ quick':''}`;if(entry){finishOut(d.querySelector('.out'),entry.artifacts);renderTodos(d,entry.todos);
-    if(entry.files?.length)d.insertAdjacentHTML('beforeend',`<div class="fchg" title="${esc(entry.files.join('\n'))}">✎ ${entry.files.length} file${entry.files.length===1?'':'s'} changed · rewind from the message above</div>`);}return d;}
+  if(m)d.querySelector('.st').textContent=`· ${m.secs}s${m.quick?' · quick':''}`;if(entry){finishOut(d.querySelector('.out'),entry.artifacts);renderTodos(d,entry.todos);
+    if(entry.files?.length)d.insertAdjacentHTML('beforeend',`<div class="fchg" title="${esc(entry.files.join('\n'))}">${ico('pen',13)} ${entry.files.length} file${entry.files.length===1?'':'s'} changed · rewind from the message above</div>`);}return d;}
 function renderTodos(b,todos){const el=b.querySelector('.todo');if(!todos?.length){el.hidden=true;return;}el.hidden=false;
   const done=todos.filter(t=>t.status==='completed').length;
-  el.innerHTML=`<div class="th"><span>Tasks</span><span>${done}/${todos.length}</span></div><ul>${todos.map(t=>`<li class="${t.status}"><span class="bx">${t.status==='completed'?'✓':''}</span><span>${esc(t.content)}</span></li>`).join('')}</ul>`;}
+  el.innerHTML=`<div class="th"><span>Tasks</span><span>${done}/${todos.length}</span></div><ul>${todos.map(t=>`<li class="${t.status}"><span class="bx">${t.status==='completed'?ico('check',11):''}</span><span>${esc(t.content)}</span></li>`).join('')}</ul>`;}
 function planBar(b){if(b.querySelector('.planbar'))return;b.insertAdjacentHTML('beforeend',`<div class="planbar"><b>Approve this plan?</b>
   <button class="btn pri" data-m="edits">Approve · Accept edits</button><button class="btn" data-m="auto">Approve · Auto</button><button class="btn ghost" data-m="">Keep planning</button></div>`);
   b.querySelectorAll('.planbar button').forEach(x=>x.onclick=async()=>{const m=x.dataset.m;b.querySelector('.planbar').remove();
@@ -669,14 +675,14 @@ async function poll(){const jid=S.job;if(!jid)return;let j;try{j=await api('/api
       <div class="row"><button class="btn pri" data-a="yes">Allow</button>${j.approval.always?`<button class="btn" data-a="always">${esc(j.approval.always)}</button>`:''}<button class="btn ghost" data-a="no">Deny</button></div></div>`:'';
     ap.querySelectorAll('button').forEach(x=>x.onclick=()=>{api(`/api/jobs/${jid}/approve/${x.dataset.a}`,{method:'POST'});ap.innerHTML='';});}
   const qa=b.querySelector('.qa');const qk=j.question?j.question.question:'';
-  if(qa.dataset.k!==qk){qa.dataset.k=qk;qa.innerHTML=j.question?`<div class="askq"><h4>❓ ${esc(j.question.question)}</h4><div class="row">${(j.question.options||[]).map(o=>`<button class="btn" data-o="${esc(o)}">${esc(o)}</button>`).join('')}</div>
+  if(qa.dataset.k!==qk){qa.dataset.k=qk;qa.innerHTML=j.question?`<div class="askq"><h4>${ico('help',15)} ${esc(j.question.question)}</h4><div class="row">${(j.question.options||[]).map(o=>`<button class="btn" data-o="${esc(o)}">${esc(o)}</button>`).join('')}</div>
       <div class="row"><input placeholder="Or type your answer…" aria-label="Your answer"><button class="btn pri">Send</button></div></div>`:'';
     const go=v=>{if(!v.trim())return;api(`/api/jobs/${jid}/answer`,{method:'POST',body:JSON.stringify({answer:v})});qa.innerHTML=`<div class="meta">You answered: ${esc(v)}</div>`;};
     qa.querySelectorAll('[data-o]').forEach(x=>x.onclick=()=>go(x.dataset.o));const inp=qa.querySelector('input');
     if(inp){qa.querySelector('.pri').onclick=()=>go(inp.value);inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();go(inp.value);}};}}
-  $('#hstate').hidden=!j.approval&&!j.question;if(j.question&&!S.asked){S.asked=1;notice('❓ Question');}if(!j.question)S.asked=0;if(j.approval&&!S.noticed){S.noticed=1;notice('⏸ Needs you');}if(!j.approval)S.noticed=0;
+  $('#hstate').hidden=!j.approval&&!j.question;if(j.question&&!S.asked){S.asked=1;notice('Question');}if(!j.question)S.asked=0;if(j.approval&&!S.noticed){S.noticed=1;notice('Needs you');}if(!j.approval)S.noticed=0;
   const na=(j.artifacts||[]).length;if(na>(S.lastArt||0)){const a=j.artifacts[na-1];S.lastArt=na;delete ART[a.id];openArt(a.id);}
-  if(j.done){b.querySelector('.qa').innerHTML='';loadGit();if(!j.next)notice('✓ Done');
+  if(j.done){b.querySelector('.qa').innerHTML='';loadGit();if(!j.next)notice('Done');
     if(S.voiceTurn&&!j.next){S.voiceTurn=false;if((S.cfg?.voice||{}).speak_replies)setTimeout(()=>speakText(plainForSpeech(j.result),b.querySelector('.speak')),50);}S.lastArt=0;b.querySelector('.wk')?.remove();const th2=b.querySelector('.think');if(th2&&!th2.hidden){th2.open=false;th2.querySelector('.tl').textContent='Thought process';}
     if(j.meta?.mode==='plan'&&!j.next)planBar(b);b.classList.remove('live');b.querySelector('.out').innerHTML=md(j.result||'(no answer)');finishOut(b.querySelector('.out'),j.artifacts);st.open=false;if(!j.events.length)st.hidden=true;
     if(j.meta)b.querySelector('.st').textContent=`· ${j.meta.secs}s`;$('#hstate').hidden=true;
@@ -715,7 +721,7 @@ const MODES={ask:['Ask first','Asks before editing files or running commands.'],
 const ORDER=['ask','edits','auto','plan'];
 function fmtK(n){return n>=1000?(n/1000).toFixed(n>=100000?0:1)+'k':String(n||0);}
 function renderMode(){const m=S.mode||'auto';const p=$('#pmode');p.className='pill m-'+m;$('#pmodeic').innerHTML=IC[m];$('#pmodelbl').textContent=MODES[m][0];
-  $('#popmode').innerHTML=`<div class="hd"><span>Permission mode</span><span style="font-weight:400">Shift+Tab to switch</span></div>`+ORDER.map(k=>`<button class="opt m-${k}${k===m?' cur':''}" data-m="${k}"><span class="ic">${IC[k]}</span><span class="tx"><b>${MODES[k][0]}</b><span>${MODES[k][1]}</span></span><span class="ck">✓</span></button>`).join('');
+  $('#popmode').innerHTML=`<div class="hd"><span>Permission mode</span><span style="font-weight:400">Shift+Tab to switch</span></div>`+ORDER.map(k=>`<button class="opt m-${k}${k===m?' cur':''}" data-m="${k}"><span class="ic">${IC[k]}</span><span class="tx"><b>${MODES[k][0]}</b><span>${MODES[k][1]}</span></span><span class="ck">${ico('check')}</span></button>`).join('');
   $$('#popmode .opt').forEach(o=>o.onclick=()=>{setMode(o.dataset.m);closePops();});}
 async function setMode(m){S.mode=m;renderMode();try{localStorage.setItem('mode',m);}catch(_){}
   if(S.chat?.id)await api('/api/chats/'+S.chat.id,{method:'PATCH',body:JSON.stringify({mode:m})}).catch(()=>toast('Could not change mode'));
@@ -805,13 +811,13 @@ async function slash(text){const [cmd,...rest]=text.trim().split(/\s+/);const ar
         <tr><td>Free</td><td style="text-align:right;font-family:var(--mono)">${fmtK(free)}</td><td style="text-align:right;color:var(--muted)">${(100*free/r.max).toFixed(1)}%</td></tr></table>
         ${r.total>r.max*.6?'Getting full: use <code>/compact</code> to summarise, or start a <code>/new</code> chat.':''}`);}return true;
     case '/mcp':{localNote('Checking MCP servers…');const r=await api('/api/mcp');$('#msgs').lastElementChild.remove();
-      localNote(`<b>MCP servers</b>${r.servers.length?'<ul>'+r.servers.map(m=>`<li><b>${esc(m.name)}</b> — ${!m.enabled?'⚪ disabled':m.error?'🔴 '+esc(m.error):'🟢 connected · '+m.tools.length+' tools'}<br><span style="color:var(--muted);font-size:13px"><code>${esc(m.target)}</code>${m.tools.length?' · '+m.tools.slice(0,12).map(esc).join(', ')+(m.tools.length>12?'…':''):''}</span>${m.error?` <button class="btn" style="height:28px;padding:0 10px" onclick="api('/api/mcp?reconnect=${encodeURIComponent(m.name)}').then(()=>slash('/mcp'))">Reconnect</button>`:''}</li>`).join('')+'</ul>':'<p>No MCP servers yet. Add them in <a href="#" onclick="show(\'settings\');return false">Settings → Connections</a> (Gmail, Calendar, GitHub, Notion…).</p>'}`);}return true;
+      localNote(`<b>MCP servers</b>${r.servers.length?'<ul>'+r.servers.map(m=>`<li><b>${esc(m.name)}</b> — ${!m.enabled?dot('off')+'disabled':m.error?dot('bad')+esc(m.error):dot('ok')+'connected · '+m.tools.length+' tools'}<br><span style="color:var(--muted);font-size:13px"><code>${esc(m.target)}</code>${m.tools.length?' · '+m.tools.slice(0,12).map(esc).join(', ')+(m.tools.length>12?'…':''):''}</span>${m.error?` <button class="btn" style="height:28px;padding:0 10px" onclick="api('/api/mcp?reconnect=${encodeURIComponent(m.name)}').then(()=>slash('/mcp'))">Reconnect</button>`:''}</li>`).join('')+'</ul>':'<p>No MCP servers yet. Add them in <a href="#" onclick="show(\'settings\');return false">Settings → Connections</a> (Gmail, Calendar, GitHub, Notion…).</p>'}`);}return true;
     case '/skills':{const r=await api('/api/skills');localNote(`<b>Skills</b> <span style="color:var(--muted)">· from ${r.dirs.map(d=>'<code>'+esc(d)+'</code>').join(', ')||'no folders'}</span>${r.skills.length?'<ul>'+r.skills.map(k=>`<li><b>${esc(k.name)}</b> — ${esc(k.description)}</li>`).join('')+'</ul>':'<p>No skills installed. A skill is a folder with a <code>SKILL.md</code> (name, description and instructions) inside one of those folders; Atenea loads it when it is relevant.</p>'}`);}return true;
-    case '/tools':{const r=await api('/api/tools'+(S.chat?.id?'?chat='+S.chat.id:''));localNote(`<b>Tools</b> <span style="color:var(--muted)">· mode ${esc(MODES[r.mode]?.[0]||r.mode)}</span><table>${r.tools.map(t=>`<tr><td><code>${esc(t.name)}</code></td><td style="color:var(--muted);font-size:13px">${esc(t.description)}</td><td style="white-space:nowrap">${t.approval==='free'?'✓ free':t.approval==='asks'?'⏸ asks':'⛔ plan'}</td></tr>`).join('')}</table>`);}return true;
+    case '/tools':{const r=await api('/api/tools'+(S.chat?.id?'?chat='+S.chat.id:''));localNote(`<b>Tools</b> <span style="color:var(--muted)">· mode ${esc(MODES[r.mode]?.[0]||r.mode)}</span><table>${r.tools.map(t=>`<tr><td><code>${esc(t.name)}</code></td><td style="color:var(--muted);font-size:13px">${esc(t.description)}</td><td style="white-space:nowrap">${t.approval==='free'?'free':t.approval==='asks'?'asks':'blocked in plan'}</td></tr>`).join('')}</table>`);}return true;
     case '/agents':{const r=await api('/api/agents'+(S.chat?.id?'?chat='+S.chat.id:''));localNote(`<b>Subagents</b><ul>${r.agents.map(a=>`<li><b>${esc(a.name)}</b> — ${esc(a.description)}${a.tools?`<br><span style="color:var(--muted);font-size:13px">tools: ${a.tools.map(esc).join(', ')}</span>`:''}</li>`).join('')}</ul>Ask “use the reviewer to…” or let Atenea pick. Add your own as <code>.md</code> files in <code>~/.config/atenea/agents/</code> or <code>.atenea/agents/</code>.`);}return true;
     case '/hooks':{const r=await api('/api/hooks');const ev=Object.entries(r.hooks);localNote(`<b>Hooks</b>${ev.length?'<ul>'+ev.map(([e,hs])=>`<li><b>${esc(e)}</b><ul>${hs.map(h=>`<li><code>${esc(h.matcher||'*')}</code> → <code>${esc(h.command)}</code></li>`).join('')}</ul></li>`).join('')+'</ul>':'<p>No hooks. They are shell commands that run on events: <code>PreToolUse</code> (exit 2 blocks the tool), <code>PostToolUse</code> (e.g. format after each edit), <code>UserPromptSubmit</code> (add context) and <code>Stop</code> (e.g. run tests before finishing). Configure them in <code>~/.config/atenea/config.json</code> → <code>"hooks"</code>, or ask Atenea to set one up.</p>'}`);}return true;
-    case '/doctor':{localNote('Running checks…');const r=await api('/api/doctor');$('#msgs').lastElementChild.remove();localNote(`<b>Doctor</b><ul>${r.checks.map(c=>`<li>${c.ok?'🟢':'🔴'} <b>${esc(c.name)}</b> — ${esc(c.detail)}</li>`).join('')}</ul>`);}return true;
-    case '/model':{const st=await api('/api/status');localNote(`<b>Model</b><ul><li>Ornith 1.5 · 35B Mixture-of-Experts (~3B active) · Q4_K_M</li><li>llama.cpp (Vulkan) on ZEUS · ${st.ornith==='active'?'🟢 online':'🔴 offline'}</li><li>Context: ${fmtK(S.cfg?.model?.context||204800)} tokens per conversation</li><li>GPU ${esc(st.gpu_temp||'—')} °C · ${esc(st.gpu_power||'—')} W · ${st.busy} task(s) running</li></ul>`);}return true;
+    case '/doctor':{localNote('Running checks…');const r=await api('/api/doctor');$('#msgs').lastElementChild.remove();localNote(`<b>Doctor</b><ul>${r.checks.map(c=>`<li>${dot(c.ok?'ok':'bad')}<b>${esc(c.name)}</b> — ${esc(c.detail)}</li>`).join('')}</ul>`);}return true;
+    case '/model':{const st=await api('/api/status');localNote(`<b>Model</b><ul><li>Ornith 1.5 · 35B Mixture-of-Experts (~3B active) · Q4_K_M</li><li>llama.cpp (Vulkan) on ZEUS · ${st.ornith==='active'?dot('ok')+'online':dot('bad')+'offline'}</li><li>Context: ${fmtK(S.cfg?.model?.context||204800)} tokens per conversation</li><li>GPU ${esc(st.gpu_temp||'—')} °C · ${esc(st.gpu_power||'—')} W · ${st.busy} task(s) running</li></ul>`);}return true;
     case '/usage':case '/cost':{const u=S.usage||{};localNote(`<b>This chat</b><ul><li>Context in use: ${fmtK(u.ctx||0)} tokens</li><li>Last answer: ${(u.out||0).toLocaleString()} tokens at ${u.tps??'—'} tok/s</li><li>Model calls: ${u.calls??'—'}</li><li>Cost: 0 € — it all runs on ZEUS</li></ul>`);}return true;
     case '/permissions':{localNote(`<b>Permission mode:</b> ${esc(MODES[S.mode][0])} — ${esc(MODES[S.mode][1])}<br>Change it with Shift+Tab or the pill above the box. Always-allow rules: ${(S.cfg.allow_rules||[]).map(r=>'<code>'+esc(r.tool+(r.prefix?' '+r.prefix:''))+'</code>').join(', ')||'none'} (manage them in Settings → Permissions).`);}return true;
     case '/config':case '/settings':show('settings');return true;
@@ -888,7 +894,7 @@ $('#mic').onclick=async()=>{
       const j=await r.json();if(!stopped&&r.ok&&j.text)show(j.text+' …');}catch(_){}
     busy=false;}
   REC=new MediaRecorder(stream,mime?{mimeType:mime}:{});
-  const tick=setInterval(()=>{t.placeholder=`🎙 Listening… ${Math.round((Date.now()-t0)/1000)}s`;partial();},1200);
+  const tick=setInterval(()=>{t.placeholder=`Listening… ${Math.round((Date.now()-t0)/1000)}s`;partial();},1200);
   REC.ondataavailable=e=>e.data.size&&chunks.push(e.data);
   REC.onstop=async()=>{stopped=true;clearInterval(tick);stream.getTracks().forEach(x=>x.stop());REC=null;
     $('#mic').classList.remove('rec');$('#mic').classList.add('busy');t.placeholder='Finishing transcription…';
@@ -903,8 +909,8 @@ $('#mic').onclick=async()=>{
 // ---------- attachments: + button, drag & drop, paste ----------
 S.atts=[];
 const fsize=n=>n>1e9?(n/1e9).toFixed(1)+' GB':n>1e6?(n/1e6).toFixed(1)+' MB':Math.max(1,Math.round(n/1e3))+' KB';
-function renderAtts(){const box=$('#atts');box.hidden=!S.atts.length;box.innerHTML=S.atts.map((a,i)=>`<div class="att">${a.preview&&a.kind==='image'?`<img src="${a.preview}" alt="">`:a.preview&&a.kind==='video'?`<video src="${a.preview}" muted></video>`:`<span class="ico">📄</span>`}
-  <span><div class="nm">${esc(a.name)}</div><div class="sz">${a.done?fsize(a.size):a.err?'failed':'uploading…'}</div></span><button class="x" data-i="${i}" aria-label="Remove">✕</button>${a.done||a.err?'':`<span class="bar"><i style="width:${a.pct||0}%"></i></span>`}</div>`).join('');
+function renderAtts(){const box=$('#atts');box.hidden=!S.atts.length;box.innerHTML=S.atts.map((a,i)=>`<div class="att">${a.preview&&a.kind==='image'?`<img src="${a.preview}" alt="">`:a.preview&&a.kind==='video'?`<video src="${a.preview}" muted></video>`:`<span class="ico">${ico('file',18)}</span>`}
+  <span><div class="nm">${esc(a.name)}</div><div class="sz">${a.done?fsize(a.size):a.err?'failed':'uploading…'}</div></span><button class="x" data-i="${i}" aria-label="Remove">${ico('x',12)}</button>${a.done||a.err?'':`<span class="bar"><i style="width:${a.pct||0}%"></i></span>`}</div>`).join('');
   box.querySelectorAll('.x').forEach(b=>b.onclick=()=>{S.atts.splice(+b.dataset.i,1);renderAtts();btnState();});btnState();}
 function uploadFile(file){const a={name:file.name||'pasted.png',size:file.size,kind:(file.type||'').split('/')[0],pct:0,done:false};
   if(['image','video'].includes(a.kind))a.preview=URL.createObjectURL(file);S.atts.push(a);renderAtts();
@@ -916,9 +922,9 @@ function attText(){return S.atts.filter(a=>a.done).map(a=>`\n[attachment: ${a.pa
 $('#filein').onchange=e=>{[...e.target.files].forEach(uploadFile);e.target.value='';};
 $('#camin').onchange=e=>{[...e.target.files].forEach(uploadFile);e.target.value='';};
 function renderPlus(){const projs=Object.keys(S.cfg?.projects||{}),cur=$('#proj').value,locked=$('#projsel').classList.contains('locked');
-  $('#popplus').innerHTML=`<button class="opt" data-p="files"><span class="ic">📎</span><span class="tx"><b style="color:var(--ink)">Photos, videos or files</b><span>Or drag them here, or paste an image</span></span></button>
-    <button class="opt" data-p="cam"><span class="ic">📷</span><span class="tx"><b style="color:var(--ink)">Take a photo or video</b></span></button>
-    ${S.space==='code'?`<button class="opt" data-cp="1"><span class="ic">⌂</span><span class="tx"><b style="color:var(--ink)">${S.chat?'Project: '+esc(pname(S.chat.project)):'Choose project…'}</b><span>${esc(S.chat?.project||S.codeProject||'')}</span></span></button>`:''}`;
+  $('#popplus').innerHTML=`<button class="opt" data-p="files"><span class="ic">${ico('clip',18)}</span><span class="tx"><b style="color:var(--ink)">Photos, videos or files</b><span>Or drag them here, or paste an image</span></span></button>
+    <button class="opt" data-p="cam"><span class="ic">${ico('cam',18)}</span><span class="tx"><b style="color:var(--ink)">Take a photo or video</b></span></button>
+    ${S.space==='code'?`<button class="opt" data-cp="1"><span class="ic">${ico('folder',18)}</span><span class="tx"><b style="color:var(--ink)">${S.chat?'Project: '+esc(pname(S.chat.project)):'Choose project…'}</b><span>${esc(S.chat?.project||S.codeProject||'')}</span></span></button>`:''}`;
   $$('#popplus [data-cp]').forEach(b=>b.onclick=e=>{e.stopPropagation();closePops();if(!S.chat)openPicker();});
   $$('#popplus [data-p]').forEach(b=>b.onclick=e=>{e.stopPropagation();closePops();$(b.dataset.p==='files'?'#filein':'#camin').click();});
   $$('#popplus [data-f]').forEach(b=>b.onclick=e=>{e.stopPropagation();if(b.disabled)return;$('#proj').value=b.dataset.f;$('#proj').onchange();closePops();});}
@@ -949,7 +955,7 @@ async function renderPush(){const box=$('#pushbox');const httpsUrl='https://zeus
   if(isIOS&&!standalone){box.innerHTML='On iPhone, notifications only work in the installed app: tap <b>Share → Add to Home Screen</b>, open Atenea from the new icon and come back to this page.';return;}
   if(!('PushManager' in window)||!('Notification' in window)){box.textContent='This browser does not support push notifications.';return;}
   const r=await api('/api/push/key');const sub=SWREG?await SWREG.pushManager.getSubscription():null;
-  box.innerHTML=`${sub?'✅ <b>Enabled on this device.</b>':Notification.permission==='denied'?'🚫 Notifications are blocked for this site in the browser/iOS settings.':'This device is not receiving notifications yet.'}
+  box.innerHTML=`${sub?ico('check')+' <b>Enabled on this device.</b>':Notification.permission==='denied'?ico('ban')+' Notifications are blocked for this site in the browser/iOS settings.':'This device is not receiving notifications yet.'}
     <div style="color:var(--muted);font-size:13px;margin:4px 0 10px">${r.devices.length} device${r.devices.length===1?'':'s'} subscribed${r.devices.length?': '+r.devices.map(d=>esc(d.label||'device')).join(', '):''}.</div>
     <div class="row">${sub?'<button class="btn" id="pushtest">Send a test</button><button class="btn ghost" id="pushoff">Turn off on this device</button>':'<button class="btn pri" id="pushon">Enable notifications on this device</button>'}</div>`;
   $('#pushon')&&($('#pushon').onclick=async()=>{try{const perm=await Notification.requestPermission();if(perm!=='granted')return toast('Permission not granted');
@@ -968,11 +974,11 @@ async function loadActivity(){let r;try{r=await api('/api/activity'+(S.chat?.id?
   const p=$('#pact');p.hidden=!(sh.length+ag.length+mo.length);p.querySelector('.live').style.visibility=run?'visible':'hidden';
   const parts=[];if(sh.length)parts.push(`${sh.length} shell${sh.length>1?'s':''}`);if(ag.length)parts.push(`${ag.length} agent${ag.length>1?'s':''}`);if(mo.length)parts.push(`${mo.length} monitor${mo.length>1?'s':''}`);$('#pactv').textContent=parts.join(' · ');
   const pop=$('#popact'),open=!pop.hidden;
-  pop.innerHTML=(sh.length?'<div class="actsec">SHELLS</div>'+sh.map(x=>`<div class="acti"><div class="r1"><span>▸</span><b title="${esc(x.command)}">${esc(x.name)}</b><span class="st ${x.status==='running'?'run':''}">${esc(x.status)}</span>
-      <button class="ib" data-lg="${x.id}" title="Logs">≡</button>${x.status==='running'?`<button class="ib" data-ss="${x.id}" title="Stop">■</button>`:''}</div><div class="r2" id="al-${x.id}" hidden></div></div>`).join(''):'')+
-    (ag.length?'<div class="actsec">SUBAGENTS</div>'+ag.map(x=>`<div class="acti"><div class="r1"><span>⑂</span><b>${esc(x.name)}</b><span class="st ${x.status==='running'?'run':''}">${esc(x.status)} · ${ago(x.started)}</span>${x.status==='running'?`<button class="ib" data-as="${x.id}" title="Stop">■</button>`:''}</div>
-      <div class="r2">${esc(x.task.slice(0,140))}${x.events.length?'\n'+x.events.slice(-4).map(e=>'✓ '+(e.data.name||e.data.text||'')+' '+String(e.data.args||'').slice(0,60)).map(esc).join('\n'):''}</div></div>`).join(''):'')+
-    (mo.length?'<div class="actsec">MONITORS</div>'+mo.map(x=>`<div class="acti"><div class="r1"><span>🔔</span><b>${esc(x.name)}</b><span class="st ${x.status==='watching'?'run':''}">${esc(x.status)}${x.fired?' · fired '+x.fired+'×':''}</span>${x.status==='watching'?`<button class="ib" data-ms="${x.id}" title="Stop">■</button>`:''}</div>
+  pop.innerHTML=(sh.length?'<div class="actsec">SHELLS</div>'+sh.map(x=>`<div class="acti"><div class="r1"><span>${ico('term')}</span><b title="${esc(x.command)}">${esc(x.name)}</b><span class="st ${x.status==='running'?'run':''}">${esc(x.status)}</span>
+      <button class="ib" data-lg="${x.id}" title="Logs">${ico('list')}</button>${x.status==='running'?`<button class="ib" data-ss="${x.id}" title="Stop">${ico('stop',12)}</button>`:''}</div><div class="r2" id="al-${x.id}" hidden></div></div>`).join(''):'')+
+    (ag.length?'<div class="actsec">SUBAGENTS</div>'+ag.map(x=>`<div class="acti"><div class="r1"><span>${ico('branch')}</span><b>${esc(x.name)}</b><span class="st ${x.status==='running'?'run':''}">${esc(x.status)} · ${ago(x.started)}</span>${x.status==='running'?`<button class="ib" data-as="${x.id}" title="Stop">${ico('stop',12)}</button>`:''}</div>
+      <div class="r2">${esc(x.task.slice(0,140))}${x.events.length?'\n'+x.events.slice(-4).map(e=>'· '+(e.data.name||e.data.text||'')+' '+String(e.data.args||'').slice(0,60)).map(esc).join('\n'):''}</div></div>`).join(''):'')+
+    (mo.length?'<div class="actsec">MONITORS</div>'+mo.map(x=>`<div class="acti"><div class="r1"><span>${ico('bell')}</span><b>${esc(x.name)}</b><span class="st ${x.status==='watching'?'run':''}">${esc(x.status)}${x.fired?' · fired '+x.fired+'×':''}</span>${x.status==='watching'?`<button class="ib" data-ms="${x.id}" title="Stop">${ico('stop',12)}</button>`:''}</div>
       <div class="r2">${esc(x.process?'process '+x.process:x.command+' · every '+x.interval+'s')}${x.pattern?' · /'+esc(x.pattern)+'/':' · on '+esc(x.trigger)}${x.last_hit?'\nlast: '+esc(x.last_hit.text.slice(0,160)):''}</div></div>`).join(''):'')||'<div class="actsec">Nothing running</div>';
   pop.querySelectorAll('[data-lg]').forEach(b=>b.onclick=async e=>{e.stopPropagation();const el=$('#al-'+b.dataset.lg);el.hidden=!el.hidden;if(!el.hidden){el.textContent=(await api(`/api/bg/${b.dataset.lg}/logs?lines=40`)).text;el.scrollTop=el.scrollHeight;}});
   pop.querySelectorAll('[data-ss]').forEach(b=>b.onclick=async e=>{e.stopPropagation();await api(`/api/bg/${b.dataset.ss}/stop`,{method:'POST'});loadActivity();});
@@ -999,7 +1005,7 @@ async function loadBackups(){const fmt=t=>new Date(t*1000).toLocaleString([], {d
 $('#bknow').onclick=async()=>{toast('Backing up…');try{await api('/api/backups',{method:'POST'});toast('Backup done');loadBackups();}catch(e){toast(e.message);}};
 
 // ---------- settings ----------
-function projRow(a='',p=''){const d=document.createElement('div');d.className='prow';d.innerHTML=`<input placeholder="alias" value="${esc(a)}" aria-label="Alias"><input placeholder="~/projects/my-app" value="${esc(p)}" aria-label="Folder"><button class="ib" title="Remove" aria-label="Remove">✕</button>`;
+function projRow(a='',p=''){const d=document.createElement('div');d.className='prow';d.innerHTML=`<input placeholder="alias" value="${esc(a)}" aria-label="Alias"><input placeholder="~/projects/my-app" value="${esc(p)}" aria-label="Folder"><button class="ib" title="Remove" aria-label="Remove">${ico('x')}</button>`;
   d.querySelector('button').onclick=()=>d.remove();$('#plist').append(d);}
 $('#padd').onclick=()=>projRow();
 function fillSettings(){const c=S.cfg;if(!c)return;$('#v_speak').checked=!!(c.voice||{}).speak_replies;$('#v_send').checked=!!(c.voice||{}).autosend;$('#s_name').value=c.assistant_name||'Atenea';$('#s_ins').value=c.instructions||'';$('#s_url').value=c.model.url;
@@ -1015,10 +1021,10 @@ $('#save').onclick=async()=>{let mcp;try{mcp=JSON.parse($('#s_mcp').value||'{}')
     mcp_servers:mcp,confirm_tools:$('#s_conf').value.split(',').map(s=>s.trim()).filter(Boolean)};
   try{await api('/api/config',{method:'PUT',body:JSON.stringify(n)});toast('Settings saved');await loadCfg();}catch(e){toast('Could not save: '+e.message);}};
 async function loadMemory(){const r=await api('/api/memory');S.mem=r.facts;
-  $('#memlist').innerHTML=r.facts.length?r.facts.map((f,i)=>`<div class="memrow"><span>${esc(f)}</span><button class="ib" data-i="${i}" title="Forget" aria-label="Forget">✕</button></div>`).join(''):'<div class="d" style="font-size:13px;color:var(--muted)">Nothing yet.</div>';
+  $('#memlist').innerHTML=r.facts.length?r.facts.map((f,i)=>`<div class="memrow"><span>${esc(f)}</span><button class="ib" data-i="${i}" title="Forget" aria-label="Forget">${ico('x')}</button></div>`).join(''):'<div class="d" style="font-size:13px;color:var(--muted)">Nothing yet.</div>';
   $$('#memlist .ib').forEach(b=>b.onclick=async()=>{S.mem.splice(+b.dataset.i,1);await api('/api/memory',{method:'PUT',body:JSON.stringify({facts:S.mem})});loadMemory();});}
 $('#memadd').onclick=async()=>{const v=$('#memnew').value.trim();if(!v)return;S.mem=[...(S.mem||[]),v];await api('/api/memory',{method:'PUT',body:JSON.stringify({facts:S.mem})});$('#memnew').value='';loadMemory();toast('Remembered');};
-function renderRules(){const rs=S.cfg.allow_rules||[];$('#rules').innerHTML=rs.length?rs.map((r,i)=>`<div class="memrow"><span style="font-family:var(--mono);font-size:13px">${esc(r.tool)}${r.prefix?' · '+esc(r.prefix)+' …':''}</span><button class="ib" data-i="${i}" aria-label="Remove">✕</button></div>`).join(''):'<div style="font-size:13px;color:var(--muted)">None.</div>';
+function renderRules(){const rs=S.cfg.allow_rules||[];$('#rules').innerHTML=rs.length?rs.map((r,i)=>`<div class="memrow"><span style="font-family:var(--mono);font-size:13px">${esc(r.tool)}${r.prefix?' · '+esc(r.prefix)+' …':''}</span><button class="ib" data-i="${i}" aria-label="Remove">${ico('x')}</button></div>`).join(''):'<div style="font-size:13px;color:var(--muted)">None.</div>';
   $$('#rules .ib').forEach(b=>b.onclick=async()=>{const n=[...rs];n.splice(+b.dataset.i,1);await api('/api/config',{method:'PUT',body:JSON.stringify({allow_rules:n})});await loadCfg();renderRules();});}
 async function loadCfg(){S.cfg=await api('/api/config');const nm=S.cfg.assistant_name||'Atenea';$('#bname').textContent=nm;document.title=nm;
   $('#in').placeholder=`Ask ${nm} anything…`;let cur='';try{cur=localStorage.getItem('proj')||'';}catch(_){}

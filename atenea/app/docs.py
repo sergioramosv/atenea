@@ -224,7 +224,7 @@ def create_document(title: str, content: str, format: str = "pdf") -> str:
         return f"Error creating the document: {type(e).__name__}: {e}"
     if out.startswith("Error"):
         return out
-    return f"Document created ({os.path.getsize(out) // 1024} KB). Show it to the user with this markdown line:\n[📄 {os.path.basename(out)}]({out})"
+    return f"Document created ({os.path.getsize(out) // 1024} KB). Show it to the user with this markdown line:\n[{os.path.basename(out)}]({out})"
 
 
 INSTRUCTIONS = """- DOCUMENTS: create_document(title, content, format) makes a real file: "pdf" (nicely laid out report), "docx"

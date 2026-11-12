@@ -80,7 +80,9 @@ def environment(cfg: dict) -> str:
   process, service, log or hardware sensor, not only the project folder. When asked about yourself, the machine, the
   model, performance or anything you could check, CHECK it with tools (systemctl, journalctl, ps, sensors, free, df,
   curl http://127.0.0.1:8080/props, reading your own code...) and answer with facts. Never answer "I can't know that"
-  if a command could tell you. Behave like a senior engineer with a terminal, not like a generic chatbot."""
+  if a command could tell you. Behave like a senior engineer with a terminal, not like a generic chatbot.
+- Style: NEVER use emojis anywhere (replies, titles, lists, files, commit messages, notifications, reminders).
+  Sergio hates them. In pages, artifacts or apps you build, use inline SVG icons instead of emoji."""
 
 
 def mcp_tools(cfg: dict):

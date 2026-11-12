@@ -314,7 +314,7 @@ class Session:
             pass
 
     def _approval(self, jid: str, ap: dict, remote: bool):
-        print(AMBER("  ⏸ Allow ") + BOLD(ap["tool"]) + AMBER("?"))
+        print(AMBER("  ? Allow ") + BOLD(ap["tool"]) + AMBER("?"))
         if ap.get("diff"):
             print_diff(ap["diff"])
         else:
@@ -451,7 +451,7 @@ HELP = [("/help", "this list"), ("/mode", "ask · edits · auto · plan (or Shif
 def banner(s: Session, status: dict):
     w = min(shutil.get_terminal_size((90, 20)).columns, 92)
     print(GREEN("╭" + "─" * (w - 2) + "╮"))
-    print(GREEN("│ ") + BOLD("✻ Atenea Código") + GRAY(f"  ·  Ornith (local) on ZEUS  ·  {'🟢 online' if status.get('ornith') == 'active' else '🔴 model offline'}"))
+    print(GREEN("│ ") + BOLD("✻ Atenea Código") + GRAY(f"  ·  Ornith (local) on ZEUS  ·  {'online' if status.get('ornith') == 'active' else 'model offline'}"))
     print(GREEN("│ ") + GRAY("folder ") + s.cwd.replace(os.path.expanduser("~"), "~")
           + (GRAY("  (files & commands run on this computer)") if s.api.remote else ""))
     print(GREEN("│ ") + GRAY("mode   ") + MODE_COLOR[s.mode](MODE_LABEL[s.mode]) + GRAY("  (shift+tab to switch)"))
@@ -535,7 +535,7 @@ def interactive(s: Session, first: str | None):
             if os.environ.get("ATENEA_CLI_DEBUG"):
                 open("/tmp/atenea-cli-debug.log", "a").write(f"{time.strftime('%X')} watch job={jid} handled={jid in s.handled_jobs}\n")
             if jid and jid not in s.handled_jobs:
-                print("\n" + BLUE("📱 from the app: ") + BOLD(short(c.get("pending") or "", 200)))
+                print("\n" + BLUE("from the app: ") + BOLD(short(c.get("pending") or "", 200)))
                 s.stream(jid, remote=True)
     threading.Thread(target=watch, daemon=True).start()
 
@@ -626,12 +626,12 @@ def handle_command(s: Session, text: str):
             for x in r["agents"]:
                 print(f"  ⑂ agent {BOLD(x['name'])} {GRAY(x['status'])} {GRAY(short(x['task'], 60))}")
             for x in r["monitors"]:
-                print(f"  🔔 monitor {BOLD(x['name'])} {GRAY(x['status'])}")
+                print(f"  ▸ monitor {BOLD(x['name'])} {GRAY(x['status'])}")
             if not (r["shells"] or r["agents"] or r["monitors"]):
                 print(GRAY("  nothing running in the background"))
         elif cmd == "/doctor":
             for c in api.get("/api/doctor")["checks"]:
-                print(f"  {'🟢' if c['ok'] else '🔴'} {c['name']} {GRAY('· ' + c['detail'])}")
+                print(f"  {GREEN('●') if c['ok'] else RED('●')} {c['name']} {GRAY('· ' + c['detail'])}")
         elif cmd in ("/allow", "/always", "/deny"):
             jid = getattr(s, "pending_approval", None) or (api.get(f"/api/chats/{s.chat}").get("job"))
             if jid:

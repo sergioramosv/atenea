@@ -36,12 +36,15 @@ class Telegram:
             return None
 
     def send(self, chat, text, **kw):
-        out = None
+        from .notify import no_emoji
+        text, out = no_emoji(text), None
         for i in range(0, max(len(text), 1), 4000):            # Telegram allows ~4096 characters
             out = self.call("sendMessage", chat_id=chat, text=text[i:i + 4000] or "…", **kw)
         return out
 
     def edit(self, chat, msg_id, text, **kw):
+        from .notify import no_emoji
+        text = no_emoji(text)
         return self.call("editMessageText", chat_id=chat, message_id=msg_id, text=text[:4000] or "…", **kw)
 
 
@@ -75,7 +78,7 @@ class ChatSession:
     def on_event(self, kind, data):
         if self.cancel:
             raise KeyboardInterrupt("cancelled")
-        icon = {"tool_call": "🔧", "notice": "⚠️", "subagent": "👥"}.get(kind)
+        icon = {"tool_call": "·", "notice": "!", "subagent": "»"}.get(kind)
         if not icon:
             return
         if kind == "tool_call":
@@ -86,16 +89,16 @@ class ChatSession:
             self.lines.append(f"{icon} {str(data.get('text') or data.get('task'))[:90]}")
         if time.time() - self.last_edit > 2.5 and self.progress_id:
             self.last_edit = time.time()
-            self.bot.tg.edit(self.chat, self.progress_id, "⏳ Working…\n" + "\n".join(self.lines[-12:]))
+            self.bot.tg.edit(self.chat, self.progress_id, "Working…\n" + "\n".join(self.lines[-12:]))
 
     # --- confirmations ---
     def approve(self, tool, args) -> bool:
         key = f"{int(time.time() * 1000)}"
         ev = threading.Event()
         self.pending[key] = ev
-        txt = f"🔐 Allow `{tool.name}`?\n{json.dumps(args, ensure_ascii=False, indent=1)[:1500]}"
-        kb = {"inline_keyboard": [[{"text": "✅ Yes", "callback_data": f"ok:{key}"},
-                                   {"text": "❌ No", "callback_data": f"no:{key}"}]]}
+        txt = f"Allow `{tool.name}`?\n{json.dumps(args, ensure_ascii=False, indent=1)[:1500]}"
+        kb = {"inline_keyboard": [[{"text": "Yes", "callback_data": f"ok:{key}"},
+                                   {"text": "No", "callback_data": f"no:{key}"}]]}
         self.bot.tg.send(self.chat, txt, reply_markup=kb)
         ok = ev.wait(timeout=600) and self.answers.get(key, False)
         self.pending.pop(key, None)
@@ -103,7 +106,7 @@ class ChatSession:
 
     def run(self, text: str):
         self.busy, self.cancel, self.lines = True, False, []
-        m = self.bot.tg.send(self.chat, "⏳ Thinking…")
+        m = self.bot.tg.send(self.chat, "Thinking…")
         self.progress_id = m and m.get("message_id")
         t0 = time.time()
         try:
@@ -113,13 +116,13 @@ class ChatSession:
             os.makedirs(SESS, exist_ok=True)
             agent.save(self.path())
             self.bot.tg.edit(self.chat, self.progress_id,
-                             f"✅ Done in {time.time() - t0:.0f}s ({agent.stats.requests - s0} steps)\n"
+                             f"Done in {time.time() - t0:.0f}s ({agent.stats.requests - s0} steps)\n"
                              + "\n".join(self.lines[-6:]))
             self.bot.tg.send(self.chat, answer or "(no answer)")
         except KeyboardInterrupt:
-            self.bot.tg.send(self.chat, "⛔ Cancelled.")
+            self.bot.tg.send(self.chat, "Cancelled.")
         except Exception as e:
-            self.bot.tg.send(self.chat, f"❌ Error: {type(e).__name__}: {e}")
+            self.bot.tg.send(self.chat, f"Error: {type(e).__name__}: {e}")
         finally:
             self.busy = False
 
@@ -130,10 +133,10 @@ def zeus_status() -> str:
     ram = sh("free -g | awk '/Mem/{print $3\"/\"$2\" GB\"}'")
     temp = sh("sensors | awk '/edge/{print $2}'")
     watts = sh("sensors | awk '/PPT/{print $2, $3}'")
-    return f"🖥️ ZEUS\nModel: {sh('systemctl is-active ornith')} (ornith)\nRAM: {ram}\nGPU: {temp}  {watts}"
+    return f"ZEUS\nModel: {sh('systemctl is-active ornith')} (ornith)\nRAM: {ram}\nGPU: {temp}  {watts}"
 
 
-class Atenea Telegram:
+class TelegramBot:
     def __init__(self):
         cfg = C.load()
         tok = cfg["telegram"].get("token")
@@ -152,14 +155,14 @@ class Atenea Telegram:
         cmd, _, arg = text.partition(" ")
         cmd = cmd.split("@")[0]
         if cmd in ("/start", "/help"):
-            self.tg.send(s.chat, f"Hi, I'm {C.load().get('assistant_name', 'Atenea')} 🦉. Tell me what you need.\n"
+            self.tg.send(s.chat, f"Hi, I'm {C.load().get('assistant_name', 'Atenea')}. Tell me what you need.\n"
                                  "/new — start a new conversation\n/project <alias|path> — switch project\n"
                                  "/status — ZEUS status\n/cancel — stop the running task")
         elif cmd == "/new":
             s.agent = None
             if os.path.exists(s.path()):
                 os.remove(s.path())
-            self.tg.send(s.chat, "🆕 New conversation.")
+            self.tg.send(s.chat, "New conversation.")
         elif cmd == "/project":
             cfg = C.load()
             p = os.path.expanduser(cfg.get("projects", {}).get(arg.strip(), arg.strip()) or cfg["workspace"])
@@ -167,7 +170,7 @@ class Atenea Telegram:
                 self.tg.send(s.chat, f"{p} does not exist. Projects: {', '.join(cfg.get('projects', {})) or '(none)'}")
                 return
             s.cwd, s.agent = p, None
-            self.tg.send(s.chat, f"📁 Project: {p}")
+            self.tg.send(s.chat, f"Project: {p}")
         elif cmd == "/status":
             self.tg.send(s.chat, zeus_status())
         elif cmd == "/cancel":
@@ -212,4 +215,4 @@ class Atenea Telegram:
 
 
 if __name__ == "__main__":
-    Atenea Telegram().loop()
+    TelegramBot().loop()

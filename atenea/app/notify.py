@@ -59,6 +59,7 @@ def unsubscribe(endpoint: str):
 
 def webpush(title: str, body: str, url: str = "/", tag: str | None = None, force: bool = False) -> int:
     """Send to every subscribed device; drops subscriptions the browser has revoked. Returns how many were sent."""
+    title, body = no_emoji(title), no_emoji(body)
     if not force and time.time() - LAST_SEEN["t"] < 25:
         return 0
     try:
@@ -85,6 +86,18 @@ def webpush(title: str, body: str, url: str = "/", tag: str | None = None, force
     return sent
 
 
+_EMOJI = None
+
+
+def no_emoji(text: str) -> str:
+    """Sergio does not want emojis anywhere: strip them from anything sent out."""
+    global _EMOJI
+    import re
+    if _EMOJI is None:
+        _EMOJI = re.compile("[\U0001F000-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\u231A\u231B\u23E9-\u23FA\uFE0F\u200D]+ ?")
+    return _EMOJI.sub("", text or "")
+
+
 def send(text: str, url: str | None = None, title: str = "Atenea"):
     """Fire-and-forget: Web Push to subscribed devices and Telegram to allowed users (each only if set up)."""
     path = "/" + url.split("/", 3)[3] if url and url.count("/") >= 3 else "/"
@@ -94,6 +107,7 @@ def send(text: str, url: str | None = None, title: str = "Atenea"):
 
 def send_telegram(text: str, url: str | None = None):
     """Telegram message to every allowed user. No-op when Atenea Telegram is not set up."""
+    text = no_emoji(text)
     tg = C.load().get("telegram") or {}
     token, users = tg.get("token"), tg.get("allowed_users") or []
     if not token or not users:

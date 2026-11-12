@@ -559,7 +559,7 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False, origin: str | 
                                   "data": {"text": f"{tool.name} allowed by an 'always allow' rule"}})
             return True
         ag = holder.get("ag")
-        _notify_chat(cid, f"⏸ Atenea needs your OK to run {tool.name}")
+        _notify_chat(cid, f"Atenea needs your OK to run {tool.name}")
         job["approval"] = {"tool": tool.name, "args": str(args)[:1500], "answer": None,
                            "diff": _diff_for(tool.name, args, ag.cwd if ag else "/", cid if remote else None),
                            **_rule_for(tool.name, args)}
@@ -606,7 +606,7 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False, origin: str | 
         job["msg_start"] = len(ag.messages)
         def ask(question, options):
             job["question"] = {"question": question, "options": options, "answer": None}
-            _notify_chat(cid, f"❓ {question}")
+            _notify_chat(cid, f"Question: {question}")
             for _ in range(1800):
                 if job["cancel"]:
                     raise KeyboardInterrupt("cancelled")
@@ -677,7 +677,7 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False, origin: str | 
     job["done"] = True
     secs = time.time() - job["t0"]
     if job.get("scheduled") or (secs > 20 and not job["cancel"]):
-        _notify_chat(cid, ("⏰ " if job.get("scheduled") else "✅ ") + str(job["result"] or "")[:700])
+        _notify_chat(cid, str(job["result"] or "")[:700])
 
 
 def _start(cid: str, text: str, resume: bool = False, t0: float | None = None, origin: str | None = None,
@@ -758,7 +758,7 @@ def _monitor_fired(m: dict, text: str):
     _inject(m.get("chat"), f"[Monitor «{m['name']}» fired]\n{text}\n\nAct on this if needed and tell the user briefly "
                            "what happened.", "monitor", m["name"])
     if m.get("chat"):
-        _notify_chat(m["chat"], f"🔔 Monitor «{m['name']}» fired")
+        _notify_chat(m["chat"], f"Monitor «{m['name']}» fired")
 
 
 MON.on_fire = _monitor_fired
@@ -1585,9 +1585,9 @@ def run_schedule(item: dict) -> str | None:
     """A reminder is just a phone notification; a task is a run of Atenea in its own conversation (kind 'task',
     kept out of the Chat and Code lists and shown in the task's history)."""
     if item.get("kind") == "reminder":
-        threading.Thread(target=NOTIFY.webpush, args=("⏰ " + (item.get("name") or "Reminder"), item["prompt"], "/"),
+        threading.Thread(target=NOTIFY.webpush, args=("Reminder: " + (item.get("name") or "Atenea"), item["prompt"], "/"),
                          kwargs={"force": True}, daemon=True).start()
-        NOTIFY.send_telegram(f"⏰ {item['prompt']}")
+        NOTIFY.send_telegram(f"Recordatorio: {item['prompt']}")
         SCH.record(item["id"], {"t": time.time(), "kind": "reminder", "text": item["prompt"][:300]})
         return None
     with _lock:
@@ -1639,7 +1639,7 @@ def schedule_briefing(s_: ScheduleIn):
     for it in SCH.load():                                 # only one briefing
         if it.get("preset") == "briefing":
             SCH.remove(it["id"])
-    it = SCH.add("☀️ Resumen de la mañana", BRIEFING_PROMPT, when, "auto")
+    it = SCH.add("Resumen de la mañana", BRIEFING_PROMPT, when, "auto")
     SCH.update(it["id"], preset="briefing")
     return it
 
@@ -1809,7 +1809,7 @@ cat > "$HOME/.local/bin/atenea" <<EOS
 PYTHONPATH="\$HOME/.atenea/src" exec "\$HOME/.atenea/venv/bin/python" -m atenea.codigo.cli "\$@"
 EOS
 chmod +x "$HOME/.local/bin/atenea"
-echo "✓ Installed: ~/.local/bin/atenea"
+echo "Installed: ~/.local/bin/atenea"
 case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *)
   SHELLRC="$HOME/.zshrc"; [ -n "$BASH_VERSION" ] && [ ! -f "$HOME/.zshrc" ] && SHELLRC="$HOME/.bashrc"
   echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$SHELLRC"; echo "  (added ~/.local/bin to PATH in $SHELLRC — open a new terminal)";;
@@ -1863,7 +1863,7 @@ def push_unsubscribe(p: PushSub):
 
 @app.post("/api/push/test", dependencies=[Depends(auth)])
 def push_test():
-    n = NOTIFY.webpush("Atenea", "Notifications are working ✓", "/", force=True)
+    n = NOTIFY.webpush("Atenea", "Notifications are working.", "/", force=True)
     return {"sent": n}
 
 
