@@ -498,7 +498,7 @@ async function openTask(id,preset){S.task=id;S.chat=null;stopPoll();clearTimeout
     <div class="card"><div class="kindsel k3"><button data-k="reminder" class="${kind==='reminder'?'on':''}"><b>${ico('clock',15)} Reminder</b>A notification on your phone at that time.</button><button data-k="task" class="${kind==='task'?'on':''}"><b>${ico('repeat',15)} Task</b>Atenea does something on her own.</button><button data-k="flow" class="${kind==='flow'?'on':''}"><b>${ico('school',15)} Workflow</b>Logs into a site, checks what is new, then Atenea works on it.</button></div>
       <div class="f">
         <div id="t_flowbox" class="f" style="grid-column:1/-1;margin:0"${kind==='flow'?'':' hidden'}>
-          <label for="t_tpl">Site</label><select id="t_tpl"><option value="viu"${!t.flow||t.flow.connector==='viu'?' selected':''}>Campus VIU (Blackboard + Microsoft 365)</option></select>
+          <label for="t_tpl">Site</label><select id="t_tpl"><option value="viu"${!t.flow||t.flow.connector==='viu'?' selected':''}>Campus VIU (Blackboard)</option></select>
           <label for="t_user">Account</label><div><input id="t_user" autocomplete="off" placeholder="${acc&&acc.fields.includes('user')?'Saved · type to change':esc((tpl||{}).user_hint||'user')}" style="width:100%">
             <input id="t_pass" type="password" autocomplete="new-password" placeholder="${acc&&acc.fields.includes('password')?'Password saved · type to change':'Password'}" style="width:100%;margin-top:8px">
             <div class="d" style="font-size:12.5px;margin-top:6px">${ico('lock',12)} Saved encrypted in Atenea Bóveda on ZEUS. The model never sees it.</div></div>
