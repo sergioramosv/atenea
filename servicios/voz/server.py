@@ -17,18 +17,20 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 VOICES = os.environ.get("ATENEA_VOICES", os.path.join(HERE, "voices"))
 STT_MODEL = os.environ.get("ATENEA_STT_MODEL", "large-v3-turbo")
-_stt = {"model": None, "last": 0.0}
+STT_FAST = os.environ.get("ATENEA_STT_FAST", "small")         # for live partial transcripts while you speak
+_stt = {"model": None, "last": 0.0, "fast": None, "fast_last": 0.0}
 _tts: dict = {}
 _lock = threading.Lock()
 
 
-def stt_model():
+def stt_model(fast: bool = False):
     from faster_whisper import WhisperModel
+    key, name = ("fast", STT_FAST) if fast else ("model", STT_MODEL)
     with _lock:
-        if _stt["model"] is None:
-            _stt["model"] = WhisperModel(STT_MODEL, device="cpu", compute_type="int8", cpu_threads=12)
-        _stt["last"] = time.time()
-        return _stt["model"]
+        if _stt[key] is None:
+            _stt[key] = WhisperModel(name, device="cpu", compute_type="int8", cpu_threads=8 if fast else 12)
+        _stt["fast_last" if fast else "last"] = time.time()
+        return _stt[key]
 
 
 def reaper():
@@ -37,16 +39,18 @@ def reaper():
         with _lock:
             if _stt["model"] is not None and time.time() - _stt["last"] > 900:
                 _stt["model"] = None
+            if _stt["fast"] is not None and time.time() - _stt["fast_last"] > 900:
+                _stt["fast"] = None
 
 
-def transcribe(data: bytes) -> dict:
+def transcribe(data: bytes, fast: bool = False) -> dict:
     t0 = time.time()
     pcm = subprocess.run(["ffmpeg", "-v", "quiet", "-i", "pipe:0", "-f", "f32le", "-ac", "1", "-ar", "16000", "pipe:1"],
                          input=data, capture_output=True, timeout=120).stdout
     audio = np.frombuffer(pcm, dtype=np.float32)
     if audio.size < 1600:
         return {"text": "", "secs": 0}
-    segs, info = stt_model().transcribe(audio, language=os.environ.get("ATENEA_STT_LANG", "es") or None, beam_size=1, vad_filter=True,
+    segs, info = stt_model(fast).transcribe(audio, language=os.environ.get("ATENEA_STT_LANG", "es") or None, beam_size=1, vad_filter=True,
                                         initial_prompt="Atenea, ZEUS, Ornith, Sergio.")
     text = " ".join(s.text.strip() for s in segs).strip()
     _stt["last"] = time.time()
@@ -84,7 +88,7 @@ class H(BaseHTTPRequestHandler):
         data = self.rfile.read(int(self.headers.get("Content-Length") or 0))
         try:
             if self.path.startswith("/stt"):
-                return self._send(200, json.dumps(transcribe(data)).encode())
+                return self._send(200, json.dumps(transcribe(data, "fast=1" in self.path)).encode())
             if self.path.startswith("/tts"):
                 j = json.loads(data or b"{}")
                 return self._send(200, speak(j.get("text", "")[:3000], j.get("voice") or "es_ES-sharvard-medium",

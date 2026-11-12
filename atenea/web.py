@@ -1752,13 +1752,13 @@ VOICE = os.environ.get("ATENEA_VOICE_URL", "http://127.0.0.1:8083")
 
 
 @app.post("/api/stt", dependencies=[Depends(auth)])
-async def stt(request: Request):
+async def stt(request: Request, fast: int = 0):
     import urllib.request
     data = await request.body()
     if len(data) > 50 * 1024 * 1024:
         raise HTTPException(413, "Recording too long")
     try:
-        req = urllib.request.Request(VOICE + "/stt", data, {"Content-Type": "application/octet-stream"})
+        req = urllib.request.Request(VOICE + "/stt" + ("?fast=1" if fast else ""), data, {"Content-Type": "application/octet-stream"})
         return json.load(urllib.request.urlopen(req, timeout=180))
     except Exception as e:
         raise HTTPException(503, f"Voice service unavailable: {e}")

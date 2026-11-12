@@ -303,6 +303,9 @@ img.media,.uatt img{cursor:zoom-in}
         <div class="f"><label for="s_mcp">MCP servers</label><div><textarea class="code" id="s_mcp" spellcheck="false"></textarea><div class="err" id="mcperr"></div></div></div></div>
       <div class="card"><h2>Atenea Telegram</h2><p class="d">Talk to Atenea from your phone. Create a bot with @BotFather and get your user id from @userinfobot.</p>
         <div class="f"><label for="s_tok">Bot token</label><input id="s_tok" autocomplete="off"><label for="s_users">Allowed user ids</label><input id="s_users" placeholder="123456789, …"></div></div>
+      <div class="card"><h2>Atenea voz</h2><p class="d">Tap 🎙 to dictate: the words appear as you speak, and the full text stays in the box for you to review and send.</p>
+        <label style="display:flex;gap:10px;align-items:center;font-size:14px"><input type="checkbox" id="v_speak"> Read Atenea's answer aloud when I dictate</label>
+        <label style="display:flex;gap:10px;align-items:center;font-size:14px"><input type="checkbox" id="v_send"> Send automatically when I stop dictating</label></div>
       <div class="card"><h2>Atenea documentos</h2><p class="d">Atenea searches these folders, the files you upload, the documents she creates and all your past conversations (by meaning and by words). The index updates every 15 minutes.</p>
         <div class="f"><label for="kb_folders">Folders on ZEUS</label><textarea id="kb_folders" style="min-height:70px;font:13px var(--mono)" placeholder="~/Documentos"></textarea></div>
         <div id="kbstat" style="font-size:13.5px;color:var(--ink2)"></div>
@@ -549,7 +552,7 @@ async function poll(){const jid=S.job;if(!jid)return;let j;try{j=await api('/api
   $('#hstate').hidden=!j.approval&&!j.question;if(j.question&&!S.asked){S.asked=1;notice('❓ Question');}if(!j.question)S.asked=0;if(j.approval&&!S.noticed){S.noticed=1;notice('⏸ Needs you');}if(!j.approval)S.noticed=0;
   const na=(j.artifacts||[]).length;if(na>(S.lastArt||0)){const a=j.artifacts[na-1];S.lastArt=na;delete ART[a.id];openArt(a.id);}
   if(j.done){b.querySelector('.qa').innerHTML='';if(!j.next)notice('✓ Done');
-    if(S.voiceTurn&&!j.next){S.voiceTurn=false;setTimeout(()=>speakText(plainForSpeech(j.result),b.querySelector('.speak')),50);}S.lastArt=0;b.querySelector('.wk')?.remove();const th2=b.querySelector('.think');if(th2&&!th2.hidden){th2.open=false;th2.querySelector('.tl').textContent='Thought process';}
+    if(S.voiceTurn&&!j.next){S.voiceTurn=false;if((S.cfg?.voice||{}).speak_replies)setTimeout(()=>speakText(plainForSpeech(j.result),b.querySelector('.speak')),50);}S.lastArt=0;b.querySelector('.wk')?.remove();const th2=b.querySelector('.think');if(th2&&!th2.hidden){th2.open=false;th2.querySelector('.tl').textContent='Thought process';}
     if(j.meta?.mode==='plan'&&!j.next)planBar(b);b.classList.remove('live');b.querySelector('.out').innerHTML=md(j.result||'(no answer)');finishOut(b.querySelector('.out'),j.artifacts);st.open=false;if(!j.events.length)st.hidden=true;
     if(j.meta)b.querySelector('.st').textContent=`· ${j.meta.secs}s`;$('#hstate').hidden=true;
     if(j.next){const q=$('#msgs .q');if(!q){S.job=j.next;openChat(S.chat.id,false);return;}const live=liveEl();q.classList.remove('q');q.querySelector('.qtag')?.remove();q.after(live);
@@ -757,20 +760,30 @@ document.addEventListener('click',e=>{const b=e.target.closest('.speak');if(!b)r
 $('#mic').onclick=async()=>{
   if(REC){REC.stop();return;}
   if(!navigator.mediaDevices?.getUserMedia)return toast(isSecureContext?'This browser cannot record audio':'Dictation needs the HTTPS address (Tailscale)');
-  try{AUD.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';AUD.play().catch(()=>{});}catch(_){}   // unlock audio on iPhone
+  const v=S.cfg?.voice||{};
+  if(v.speak_replies){try{AUD.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';AUD.play().catch(()=>{});}catch(_){}}   // unlock audio on iPhone
   let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:true});}catch(e){return toast('Microphone permission denied');}
   const mime=['audio/webm;codecs=opus','audio/mp4','audio/webm'].find(m=>window.MediaRecorder&&MediaRecorder.isTypeSupported(m))||'';
-  const chunks=[];REC=new MediaRecorder(stream,mime?{mimeType:mime}:{});const t0=Date.now();const ph=$('#in').placeholder;
-  const tick=setInterval(()=>{$('#in').placeholder=`🎙 Listening… ${Math.round((Date.now()-t0)/1000)}s — tap the mic to stop`;},250);
+  const chunks=[],t=$('#in'),base=t.value?t.value.replace(/\s*$/,' '):'',ph=t.placeholder,t0=Date.now();
+  let busy=false,stopped=false,lastLen=0;
+  const show=txt=>{t.value=base+txt;grow();t.scrollTop=t.scrollHeight;};
+  async function partial(){                       // live words while you speak (fast model, whole audio so far)
+    if(busy||stopped||!chunks.length)return;const n=chunks.length;if(n===lastLen)return;busy=true;lastLen=n;
+    try{const r=await fetch('/api/stt?fast=1',{method:'POST',body:new Blob(chunks,{type:mime||'audio/webm'}),credentials:'same-origin'});
+      const j=await r.json();if(!stopped&&r.ok&&j.text)show(j.text+' …');}catch(_){}
+    busy=false;}
+  REC=new MediaRecorder(stream,mime?{mimeType:mime}:{});
+  const tick=setInterval(()=>{t.placeholder=`🎙 Listening… ${Math.round((Date.now()-t0)/1000)}s`;partial();},1200);
   REC.ondataavailable=e=>e.data.size&&chunks.push(e.data);
-  REC.onstop=async()=>{clearInterval(tick);stream.getTracks().forEach(t=>t.stop());REC=null;$('#mic').classList.remove('rec');$('#mic').classList.add('busy');$('#in').placeholder='Transcribing…';
-    try{const blob=new Blob(chunks,{type:mime||'audio/webm'});const r=await fetch('/api/stt',{method:'POST',body:blob,credentials:'same-origin'});const j=await r.json();
+  REC.onstop=async()=>{stopped=true;clearInterval(tick);stream.getTracks().forEach(x=>x.stop());REC=null;
+    $('#mic').classList.remove('rec');$('#mic').classList.add('busy');t.placeholder='Finishing transcription…';
+    try{const r=await fetch('/api/stt',{method:'POST',body:new Blob(chunks,{type:mime||'audio/webm'}),credentials:'same-origin'});const j=await r.json();
       if(!r.ok)throw new Error(j.detail||r.status);
-      if(j.text){const t=$('#in');t.value=(t.value?t.value+' ':'')+j.text;grow();S.voiceTurn=true;
-        if((S.cfg?.voice||{}).autosend!==false)send();}else toast("I didn't catch anything");}
-    catch(e){toast('Dictation failed: '+e.message);}
-    $('#mic').classList.remove('busy');$('#in').placeholder=ph;};
-  REC.start();$('#mic').classList.add('rec');};
+      if(j.text){show(j.text);S.voiceTurn=true;if(v.autosend)send();else t.focus();}
+      else{t.value=t.value.replace(/ …$/,'');grow();toast("I didn't catch anything");}}
+    catch(e){t.value=t.value.replace(/ …$/,'');grow();toast('Dictation failed: '+e.message);}
+    $('#mic').classList.remove('busy');t.placeholder=ph;};
+  REC.start(1000);$('#mic').classList.add('rec');};
 
 // ---------- attachments: + button, drag & drop, paste ----------
 S.atts=[];
@@ -874,7 +887,7 @@ $('#bknow').onclick=async()=>{toast('Backing up…');try{await api('/api/backups
 function projRow(a='',p=''){const d=document.createElement('div');d.className='prow';d.innerHTML=`<input placeholder="alias" value="${esc(a)}" aria-label="Alias"><input placeholder="~/projects/my-app" value="${esc(p)}" aria-label="Folder"><button class="ib" title="Remove" aria-label="Remove">✕</button>`;
   d.querySelector('button').onclick=()=>d.remove();$('#plist').append(d);}
 $('#padd').onclick=()=>projRow();
-function fillSettings(){const c=S.cfg;if(!c)return;$('#s_name').value=c.assistant_name||'Atenea';$('#s_ins').value=c.instructions||'';$('#s_url').value=c.model.url;
+function fillSettings(){const c=S.cfg;if(!c)return;$('#v_speak').checked=!!(c.voice||{}).speak_replies;$('#v_send').checked=!!(c.voice||{}).autosend;$('#s_name').value=c.assistant_name||'Atenea';$('#s_ins').value=c.instructions||'';$('#s_url').value=c.model.url;
   $('#s_model').value=c.model.model;$('#s_temp').value=c.model.temperature??1;$('#s_ws').value=c.workspace;$('#plist').innerHTML='';
   Object.entries(c.projects||{}).forEach(([a,p])=>projRow(a,p));$('#s_tok').value=c.telegram.token||'';$('#s_users').value=(c.telegram.allowed_users||[]).join(', ');
   $('#s_mcp').value=JSON.stringify(c.mcp_servers||{},null,2);$('#s_conf').value=(c.confirm_tools||[]).join(', ');$('#mcperr').textContent='';}
@@ -883,6 +896,7 @@ $('#save').onclick=async()=>{let mcp;try{mcp=JSON.parse($('#s_mcp').value||'{}')
   const projects={};$$('#plist .prow').forEach(r=>{const [a,p]=r.querySelectorAll('input');if(a.value.trim()&&p.value.trim())projects[a.value.trim()]=p.value.trim();});
   const c=S.cfg,n={assistant_name:$('#s_name').value.trim()||'Atenea',instructions:$('#s_ins').value,model:{...c.model,url:$('#s_url').value.trim(),model:$('#s_model').value.trim(),temperature:parseFloat($('#s_temp').value)||1},
     workspace:$('#s_ws').value.trim(),projects,telegram:{token:$('#s_tok').value.trim(),allowed_users:$('#s_users').value.split(',').map(s=>s.trim()).filter(Boolean).map(Number)},
+    voice:{...(c.voice||{}),speak_replies:$('#v_speak').checked,autosend:$('#v_send').checked},
     mcp_servers:mcp,confirm_tools:$('#s_conf').value.split(',').map(s=>s.trim()).filter(Boolean)};
   try{await api('/api/config',{method:'PUT',body:JSON.stringify(n)});toast('Settings saved');await loadCfg();}catch(e){toast('Could not save: '+e.message);}};
 async function loadMemory(){const r=await api('/api/memory');S.mem=r.facts;
