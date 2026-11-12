@@ -89,6 +89,11 @@ def send(text: str, url: str | None = None, title: str = "Atenea"):
     """Fire-and-forget: Web Push to subscribed devices and Telegram to allowed users (each only if set up)."""
     path = "/" + url.split("/", 3)[3] if url and url.count("/") >= 3 else "/"
     threading.Thread(target=webpush, args=(title, text, path), daemon=True).start()
+    return send_telegram(f"{title}\n{text}" if title and title != "Atenea" else text, url)
+
+
+def send_telegram(text: str, url: str | None = None):
+    """Telegram message to every allowed user. No-op when Atenea Telegram is not set up."""
     tg = C.load().get("telegram") or {}
     token, users = tg.get("token"), tg.get("allowed_users") or []
     if not token or not users:

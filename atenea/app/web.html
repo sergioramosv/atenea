@@ -96,8 +96,8 @@ header{height:56px;flex:none;border-bottom:1px solid var(--line);display:flex;al
 .mic.rec{background:#C0392B;color:#fff;animation:blink 1.2s infinite}.mic.busy{opacity:.5}
 .speak{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px 4px;border-radius:6px;margin-left:2px}.speak:hover{color:var(--ink);background:var(--hover)}
 .speak.on{color:var(--acc)}
-.space{display:grid;grid-template-columns:1fr 1fr;gap:3px;background:var(--hover);border-radius:10px;padding:3px}
-.space button{display:flex;align-items:center;justify-content:center;gap:7px;height:32px;border:0;border-radius:8px;background:transparent;color:var(--ink2);font-weight:500;font-size:14px}
+.space{display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;background:var(--hover);border-radius:10px;padding:3px}
+.space button{display:flex;align-items:center;justify-content:center;gap:5px;height:32px;padding:0 4px;border:0;border-radius:8px;background:transparent;color:var(--ink2);font-weight:500;font-size:14px}
 .space button.on{background:var(--sel);color:var(--ink);box-shadow:0 1px 2px rgba(17,19,21,.08)}
 .modal{position:fixed;inset:0;z-index:70;background:rgba(17,19,21,.35);display:flex;align-items:center;justify-content:center;padding:16px}.modal[hidden]{display:none}
 .mbox{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);width:min(560px,100%);max-height:min(640px,90dvh);display:flex;flex-direction:column}
@@ -107,6 +107,16 @@ header{height:56px;flex:none;border-bottom:1px solid var(--line);display:flex;al
 .prj:hover{background:var(--hover)}.prj b{font-weight:600;font-size:14.5px}.prj .pth{font:12px var(--mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .prj .tg{margin-left:auto;font-size:11px;padding:2px 7px;border-radius:6px;background:var(--hover);color:var(--muted);flex:none}
 .gitchip{cursor:pointer}.gitchip:hover{filter:brightness(.95)}
+.tk{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:8px;color:var(--ink2);text-decoration:none;cursor:pointer}
+.tk:hover{background:var(--hover)}.tk.on{background:var(--sel);color:var(--ink);box-shadow:0 1px 2px rgba(17,19,21,.06)}
+.tk .tn{font-size:14px;font-weight:500;display:flex;gap:6px;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tk .tw{font-size:12px;color:var(--muted)}
+.tk.off{opacity:.55}
+.kindsel{display:grid;grid-template-columns:1fr 1fr;gap:8px}.kindsel button{border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:10px 12px;text-align:left;font-size:13px;color:var(--ink2)}
+.kindsel button b{display:block;font-size:14.5px;color:var(--ink);margin-bottom:2px}.kindsel button.on{border-color:var(--acc);background:var(--acc-bg)}
+.whenrow [hidden]{display:none!important}.whenrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.whenrow select,.whenrow input{height:38px;border:1px solid var(--line);border-radius:9px;padding:0 10px;background:var(--bg);font-size:14px}
+.days{display:flex;gap:4px}.days button{width:36px;height:34px;border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:12.5px}.days button.on{background:var(--btn);color:var(--btn-ink);border-color:var(--btn)}
+.run{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--bg);display:flex;flex-direction:column;gap:4px;cursor:pointer}.run:hover{border-color:var(--acc)}
+.run .rh{display:flex;gap:8px;font-size:13px;color:var(--muted)}.run .ra{font-size:13.5px;color:var(--ink2);white-space:pre-wrap;max-height:4.5em;overflow:hidden}
 .u.q{opacity:.75;border-style:dashed}.qtag{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--muted);white-space:normal}
 .qtag button{border:0;background:transparent;color:var(--muted);text-decoration:underline;padding:0;font-size:12px}.qtag button:hover{color:var(--ink)}
 .u{align-self:flex-end;max-width:min(560px,85%);background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 15px;white-space:pre-wrap;word-wrap:break-word}
@@ -247,7 +257,7 @@ img.media,.uatt img{cursor:zoom-in}
 <div class="app">
 <aside id="side" aria-label="Conversations">
   <div class="brand"><img class="logo-l" src="/brand/atenea-mark.svg" alt=""><img class="logo-d" src="/brand/atenea-mark-dark.svg" alt=""><b id="bname">Atenea</b></div>
-  <div class="space" role="tablist"><button data-s="chat" role="tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Chat</button><button data-s="code" role="tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg>Code</button></div>
+  <div class="space" role="tablist"><button data-s="chat" role="tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Chat</button><button data-s="code" role="tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg>Code</button><button data-s="tasks" role="tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg>Tasks</button></div>
   <button class="newbtn" id="newchat"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New chat</button>
   <div class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
     <input id="q" type="search" placeholder="Search chats" aria-label="Search chats"></div>
@@ -301,6 +311,7 @@ img.media,.uatt img{cursor:zoom-in}
       <div class="hint">Atenea runs on ZEUS. Your conversations and files stay at home.</div>
     </div>
   </section>
+  <section class="view" id="v-task"><div class="set" id="taskbox"></div></section>
   <section class="view" id="v-settings">
     <div class="set">
       <h1>Settings</h1><p>Changes apply to new messages.</p>
@@ -330,14 +341,8 @@ img.media,.uatt img{cursor:zoom-in}
         <div id="pushbox" style="font-size:14px;line-height:1.55"></div></div>
       <div class="card"><h2>Memory</h2><p class="d">What Atenea remembers about you in every conversation (web and Telegram). Tell her “remember that…” in any chat, or add it here.</p>
         <div id="memlist"></div><div class="row"><input id="memnew" placeholder="E.g. My main client is Tribbu" style="flex:1;min-width:200px;border:1px solid var(--line);border-radius:9px;padding:8px 12px;background:var(--bg);outline:none;font-size:14px"><button class="btn" id="memadd">Add</button></div></div>
-      <div class="card"><h2>Scheduled tasks</h2><p class="d">Atenea runs these on her own; each run appears as a new chat (and on Telegram when set up). You can also ask her: “every weekday at 8 summarise my email”.</p>
-        <div id="schlist"></div>
-        <div class="f"><label for="sc_name">Name</label><input id="sc_name" placeholder="Morning briefing">
-          <label for="sc_when">When</label><input id="sc_when" placeholder="weekdays 08:00 · daily 21:30 · weekly mon 09:00 · every 2h · once 2026-12-01 10:00" style="font-family:var(--mono);font-size:13px">
-          <label for="sc_prompt">Instruction</label><textarea id="sc_prompt" placeholder="Summarise my important emails and today's meetings."></textarea></div>
-        <div class="row"><button class="btn" id="scadd">Add scheduled task</button>
-          <span style="margin-left:auto;display:flex;gap:6px;align-items:center"><select id="brwhen" class="btn" style="height:36px"><option value="weekdays">Weekdays</option><option value="daily">Every day</option></select>
-          <input id="brtime" type="time" value="08:00" class="btn" style="height:36px;width:110px"><button class="btn pri" id="bradd">☀️ Morning briefing</button></span></div></div>
+      <div class="card"><h2>Reminders &amp; scheduled tasks</h2><p class="d">They now have their own space: <b>Tasks</b>, at the top of the sidebar, next to Chat and Code.</p>
+        <div class="row"><button class="btn" id="gotasks">Open Tasks</button></div></div>
       <div class="card"><h2>Background processes</h2><p class="d">Long-running commands Atenea started (dev servers, watchers, long scripts).</p><div id="bglist"></div></div>
       <div class="card"><h2>Permissions</h2><p class="d">Tools that always ask before running (for example send_email, delete_event). Commands that change files outside the project already ask.</p>
         <div class="f"><label for="s_conf">Ask before</label><input id="s_conf" placeholder="send_email, create_event"></div>
@@ -425,7 +430,7 @@ function groupOf(ts){const d=new Date(ts*1000),n=new Date();const day=x=>new Dat
 async function loadList(){const q=$('#q').value.trim();let r;try{r=await api('/api/chats?q='+encodeURIComponent(q));}catch(e){return;}S.chats=r.chats;renderList();
   clearTimeout(loadList._t);loadList._t=setTimeout(loadList,S.chats.some(c=>c.running)?4000:30000);}
 const pname=p=>String(p||'').split('/').filter(Boolean).pop()||p;
-function renderList(){const L=$('#list');const code=S.space==='code';const items=S.chats.filter(c=>(c.kind||'chat')===S.space);
+function renderList(){if(S.space==='tasks')return renderTasks();const L=$('#list');const code=S.space==='code';const items=S.chats.filter(c=>(c.kind||'chat')===S.space);
   if(!items.length){L.innerHTML=`<div class="nolist">${$('#q').value?'Nothing matches your search.':code?'Your coding sessions will appear here, grouped by project. Start one with “New session” or run <code>atenea</code> in a folder.':'Your conversations will appear here.'}</div>`;return;}
   if(code){const by={};for(const c of items)(by[c.project||'']=by[c.project||'']||[]).push(c);
     var ordered=Object.entries(by).sort((a,b)=>Math.max(...b[1].map(x=>x.updated))-Math.max(...a[1].map(x=>x.updated))).flatMap(([p,cs])=>cs.map(c=>({...c,_g:p})));}
@@ -441,14 +446,69 @@ $('#list').addEventListener('click',async e=>{const a=e.target.closest('.it');if
 let qt;$('#q').addEventListener('input',()=>{clearTimeout(qt);qt=setTimeout(loadList,250);});
 function side(open){$('#side').classList.toggle('open',open);$('#scrim').classList.toggle('on',open);}
 $('#menu').onclick=()=>side(true);$('#scrim').onclick=()=>side(false);
+// ---------- Tasks space: reminders and recurring tasks ----------
+const DAYS=['mon','tue','wed','thu','fri','sat','sun'],DAYL={mon:'Mon',tue:'Tue',wed:'Wed',thu:'Thu',fri:'Fri',sat:'Sat',sun:'Sun'};
+function humanWhen(w){w=String(w||'').trim();let m;
+  if(m=w.match(/^once (\d{4}-\d{2}-\d{2}) (\d{1,2}:\d{2})$/))return `Once · ${new Date(m[1]+'T'+m[2].padStart(5,'0')).toLocaleDateString([], {weekday:'short',day:'numeric',month:'short'})} ${m[2]}`;
+  if(m=w.match(/^daily (\S+)$/))return `Every day at ${m[1]}`;if(m=w.match(/^weekdays (\S+)$/))return `Weekdays at ${m[1]}`;
+  if(m=w.match(/^weekly (\w+) (\S+)$/))return `Every ${DAYL[m[1]]||m[1]} at ${m[2]}`;if(m=w.match(/^monthly (\d+) (\S+)$/))return `Monthly, day ${m[1]} at ${m[2]}`;
+  if(m=w.match(/^every (\d+)\s*(m|min|h)/))return `Every ${m[1]} ${m[2].startsWith('h')?'h':'min'}`;return w;}
+const fmtT=t=>t?new Date(t*1000).toLocaleString([], {weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'—';
+async function loadTasks(){let r;try{r=await api('/api/schedules');}catch(e){return;}S.tasks=r.items;if(S.space==='tasks')renderTasks();}
+function renderTasks(){const q=$('#q').value.trim().toLowerCase();const L=$('#list');const items=(S.tasks||[]).filter(t=>!q||(t.name+' '+t.prompt).toLowerCase().includes(q));
+  if(!items.length){L.innerHTML=`<div class="nolist">${q?'Nothing matches.':'Reminders and recurring tasks live here. Create one with “New task”, or tell Atenea “recuérdame…” in a chat.'}</div>`;return;}
+  const grp=k=>items.filter(t=>(t.kind||'task')===k);let h='';
+  for(const [k,label] of [['reminder','REMINDERS'],['task','RECURRING TASKS']]){const g=grp(k);if(!g.length)continue;h+=`<div class="grp">${label}</div>`;
+    h+=g.map(t=>`<a class="tk${t.id===S.task?' on':''}${t.enabled?'':' off'}" data-t="${t.id}"><span class="tn">${k==='reminder'?'⏰':'🔁'} ${esc(t.name)}</span><span class="tw">${esc(humanWhen(t.when))} · ${t.enabled?(t.next?'next '+fmtT(t.next):'done'):'paused'}</span></a>`).join('');}
+  L.innerHTML=h;L.querySelectorAll('[data-t]').forEach(a=>a.onclick=()=>openTask(a.dataset.t));}
+function whenEditor(w){const now=new Date(Date.now()+3600e3);const d0=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`,t0=String(now.getHours()).padStart(2,'0')+':00';
+  let rep='once',date=d0,time=t0,days=['mon'],md=1,n=30,unit='m',m;w=String(w||'');
+  if(m=w.match(/^once (\S+) (\S+)/)){rep='once';date=m[1];time=m[2];}else if(m=w.match(/^daily (\S+)/)){rep='daily';time=m[1];}else if(m=w.match(/^weekdays (\S+)/)){rep='weekdays';time=m[1];}
+  else if(m=w.match(/^weekly (\w+) (\S+)/)){rep='weekly';days=[m[1]];time=m[2];}else if(m=w.match(/^monthly (\d+) (\S+)/)){rep='monthly';md=+m[1];time=m[2];}else if(m=w.match(/^every (\d+)\s*(m|min|h)/)){rep='every';n=+m[1];unit=m[2].startsWith('h')?'h':'m';}
+  return `<div class="whenrow"><select id="w_rep">${[['once','Once'],['daily','Every day'],['weekdays','Weekdays (Mon–Fri)'],['weekly','Every week'],['monthly','Every month'],['every','Every X minutes / hours']].map(([v,l])=>`<option value="${v}"${v===rep?' selected':''}>${l}</option>`).join('')}</select>
+    <input type="date" id="w_date" value="${date}"><span class="days" id="w_days">${DAYS.map(d=>`<button type="button" data-d="${d}" class="${days.includes(d)?'on':''}">${DAYL[d]}</button>`).join('')}</span>
+    <span id="w_md">day <input type="number" id="w_mdn" min="1" max="31" value="${md}" style="width:70px"></span>
+    <span id="w_every">every <input type="number" id="w_n" min="5" value="${n}" style="width:80px"> <select id="w_unit"><option value="m"${unit==='m'?' selected':''}>minutes</option><option value="h"${unit==='h'?' selected':''}>hours</option></select></span>
+    <span id="w_at">at <input type="time" id="w_time" value="${time}"></span></div>`;}
+function wireWhen(){const upd=()=>{const r=$('#w_rep').value;$('#w_date').hidden=r!=='once';$('#w_days').hidden=r!=='weekly';$('#w_md').hidden=r!=='monthly';$('#w_every').hidden=r!=='every';$('#w_at').hidden=r==='every';};
+  $('#w_rep').onchange=upd;$$('#w_days button').forEach(b=>b.onclick=()=>{$$('#w_days button').forEach(x=>x.classList.remove('on'));b.classList.add('on');});upd();}
+function readWhen(){const r=$('#w_rep').value,t=$('#w_time').value||'09:00';
+  return r==='once'?`once ${$('#w_date').value} ${t}`:r==='daily'?`daily ${t}`:r==='weekdays'?`weekdays ${t}`:r==='weekly'?`weekly ${($('#w_days .on')||{dataset:{d:'mon'}}).dataset.d} ${t}`:r==='monthly'?`monthly ${$('#w_mdn').value||1} ${t}`:`every ${Math.max(5,+$('#w_n').value||30)}${$('#w_unit').value}`;}
+async function openTask(id){S.task=id;S.chat=null;stopPoll();show('task');renderTasks();const B=$('#taskbox');
+  const t=id?await api('/api/schedules/'+id):{kind:'reminder',name:'',prompt:'',when:'',enabled:true,mode:'auto',runs:[]};
+  $('#title').textContent=id?t.name:'New task';const rem=t.kind==='reminder';
+  B.innerHTML=`<h1>${id?esc(t.name):'New task'}</h1>
+    <div class="card"><div class="kindsel"><button data-k="reminder" class="${rem?'on':''}"><b>⏰ Reminder</b>A notification on your phone at that time.</button><button data-k="task" class="${rem?'':'on'}"><b>🔁 Task</b>Atenea does something on her own (search, summarise, check…).</button></div>
+      <div class="f"><label for="t_name">Name</label><input id="t_name" value="${esc(t.name)}" placeholder="${rem?'Call Marta':'Morning briefing'}">
+        <label for="t_prompt" id="t_plabel">${rem?'What to remind':'What Atenea should do'}</label><textarea id="t_prompt" placeholder="${rem?'Call Marta about the October report':'Summarise my important emails and today\'s meetings'}">${esc(t.prompt)}</textarea>
+        <label>When</label><div>${whenEditor(t.when)}</div></div>
+      <div class="row"><button class="btn pri" id="t_save">${id?'Save':'Create'}</button>${id?`<button class="btn" id="t_run">Run now</button><button class="btn" id="t_toggle">${t.enabled?'Pause':'Resume'}</button><button class="btn ghost" id="t_del" style="color:var(--bad)">Delete</button>`:''}
+        ${id&&t.next?`<span style="margin-left:auto;color:var(--muted);font-size:13px;align-self:center">Next: ${fmtT(t.next)}</span>`:''}</div></div>
+    ${id?`<div class="card"><h2>History</h2>${t.runs.length?t.runs.map(r=>`<div class="run" ${r.chat&&!r.gone?`data-c="${r.chat}"`:''}><div class="rh"><span>${fmtT(r.t)}</span>${r.running?'<span class="run" style="padding:0;border:0;background:none">⏳ running…</span>':''}${r.secs?`<span>· ${r.secs}s</span>`:''}${r.kind==='reminder'?'<span>· notification sent</span>':''}</div>
+      ${r.answer?`<div class="ra">${esc(r.answer.replace(/\*\*|__|^#+ /gm,''))}</div>`:r.text?`<div class="ra">${esc(r.text)}</div>`:''}</div>`).join(''):'<div style="color:var(--muted);font-size:13.5px">Not run yet.</div>'}</div>`:''}
+    ${!id?`<div class="card"><h2>Ready-made</h2><div class="row"><button class="btn" id="t_brief">☀️ Morning briefing (weekdays 08:00)</button></div></div>`:''}`;
+  wireWhen();let kind=t.kind||'task';
+  B.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{kind=b.dataset.k;B.querySelectorAll('[data-k]').forEach(x=>x.classList.toggle('on',x===b));$('#t_plabel').textContent=kind==='reminder'?'What to remind':'What Atenea should do';});
+  $('#t_save').onclick=async()=>{const body={name:$('#t_name').value.trim()||($('#t_prompt').value.trim().slice(0,50)||'Task'),prompt:$('#t_prompt').value.trim(),when:readWhen(),kind};
+    if(!body.prompt)return toast(kind==='reminder'?'Write what to remind':'Write what Atenea should do');
+    try{const r=id?await api('/api/schedules/'+id,{method:'PATCH',body:JSON.stringify(body)}):await api('/api/schedules',{method:'POST',body:JSON.stringify(body)});
+      toast(id?'Saved':'Created');await loadTasks();openTask(r.id||id);}catch(e){toast(e.message);}};
+  if(id){$('#t_run').onclick=async()=>{const r=await api(`/api/schedules/${id}/run`,{method:'POST'});toast(r.kind==='reminder'?'Notification sent':'Running…');setTimeout(()=>openTask(id),1200);};
+    $('#t_toggle').onclick=async()=>{await api('/api/schedules/'+id,{method:'PATCH',body:JSON.stringify({enabled:!t.enabled})});await loadTasks();openTask(id);};
+    $('#t_del').onclick=async()=>{if(!confirm('Delete this task?'))return;await api('/api/schedules/'+id,{method:'DELETE'});S.task=null;await loadTasks();openTask(null);};
+    B.querySelectorAll('[data-c]').forEach(x=>x.onclick=()=>openChat(x.dataset.c));}
+  else $('#t_brief').onclick=async()=>{const it=await api('/api/schedules/briefing',{method:'POST',body:JSON.stringify({when:'weekdays 08:00'})});await loadTasks();openTask(it.id);};}
+
 // ---------- spaces: Chat and Code ----------
-function setSpace(sp,keep){S.space=sp==='code'?'code':'chat';try{localStorage.setItem('space',S.space);}catch(_){}
+function setSpace(sp,keep){S.space=['code','tasks'].includes(sp)?sp:'chat';try{localStorage.setItem('space',S.space);}catch(_){}
   $$('.space button').forEach(b=>b.classList.toggle('on',b.dataset.s===S.space));
-  $('#newchat').lastChild.textContent=S.space==='code'?'New session':'New chat';$('#q').placeholder=S.space==='code'?'Search sessions':'Search chats';
+  $('#newchat').lastChild.textContent=S.space==='code'?'New session':S.space==='tasks'?'New task':'New chat';$('#q').placeholder=S.space==='code'?'Search sessions':S.space==='tasks'?'Search tasks':'Search chats';
+  if(S.space==='tasks'){loadTasks();if(!keep||S.view!=='task')openTask(S.task||null);return;}
+  if(S.view==='task')show('chat');
   if(!S.chat){S.mode=S.space==='code'?'edits':defMode();renderMode();$('#title').textContent=S.space==='code'?'New session':'New chat';}
   $('#in').placeholder=S.space==='code'?'Describe the change, or ask about the code…':`Ask ${S.cfg?.assistant_name||'Atenea'} anything…`;
   renderList();if(!keep&&!S.chat)empty();}
-$$('.space button').forEach(b=>b.onclick=()=>{if(S.space===b.dataset.s)return;setSpace(b.dataset.s,true);if(S.chat&&(S.chat.kind||'chat')!==S.space){S.codeProject=null;newChat(true);}else if(!S.chat)empty();});
+$$('.space button').forEach(b=>b.onclick=()=>{if(S.space===b.dataset.s)return;const was=S.space;setSpace(b.dataset.s,true);if(S.space==='tasks')return;if(was==='tasks'){S.chat=null;newChat(true);return;}if(S.chat&&(S.chat.kind||'chat')!==S.space){S.codeProject=null;newChat(true);}else if(!S.chat)empty();});
 // project picker for Code sessions
 let PICK='proj';
 async function pickTab(t){PICK=t;$$('.mtabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));const B=$('#pickbody');
@@ -480,7 +540,7 @@ async function showChanges(){if(!S.chat?.id)return;const r=await api(`/api/chats
 
 // ---------- views ----------
 function show(v){S.view=v;$$('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));$('#nav-settings').classList.toggle('on',v==='settings');side(false);
-  if(v==='settings'){$('#title').textContent='Settings';$('#hproj').hidden=$('#hstate').hidden=true;fillSettings();loadStatus();loadMemory();renderRules();loadSched();loadBg();renderPush();loadBackups();loadKb();}
+  if(v==='settings'){$('#title').textContent='Settings';$('#hproj').hidden=$('#hstate').hidden=true;fillSettings();loadStatus();loadMemory();renderRules();loadBg();renderPush();loadBackups();loadKb();}
   else{$('#title').textContent=S.chat?.title||'New chat';headerProj();}}
 $('#nav-settings').onclick=()=>show(S.view==='settings'?'chat':'settings');
 $('#logout').onclick=async()=>{await api('/api/logout',{method:'POST'});location.href='/login';};
@@ -563,7 +623,7 @@ function closeArt(){document.body.classList.remove('art-on');S.art=null;$('#apfr
 function scrollEnd(force){const t=$('#thread');if(force||t.scrollHeight-t.scrollTop-t.clientHeight<200)t.scrollTop=t.scrollHeight;}
 function newChat(keepProject){if(S.space==='code'&&!keepProject){S.codeProject=null;}loadCommands();stopPoll();S.chat=null;S.job=null;S.mode=S.space==='code'?'edits':defMode();$('#hgit').hidden=true;renderMode();renderUsage(null);history.pushState({}, '', '/');$('#title').textContent=S.space==='code'?'New session':'New chat';$('#hstate').hidden=true;empty();headerProj();setBusy(false);show('chat');renderList();$('#in').focus();}
 async function openChat(id,push=true){stopPoll();let c;try{c=await api('/api/chats/'+id);}catch(e){toast('Conversation not found');return newChat();}
-  S.chat=c;S.job=c.job;loadCommands();if((c.kind||'chat')!==S.space)setSpace(c.kind||'chat',true);if(c.kind==='code')S.codeProject=c.project;loadGit();S.mode=c.mode||defMode();renderMode();renderUsage(c.usage);if(push)history.pushState({}, '', '/c/'+id);show('chat');$('#title').textContent=c.title;
+  S.chat=c;S.job=c.job;loadCommands();if(c.kind!=='task'&&(c.kind||'chat')!==S.space)setSpace(c.kind||'chat',true);if(c.kind==='code')S.codeProject=c.project;loadGit();S.mode=c.mode||defMode();renderMode();renderUsage(c.usage);if(push)history.pushState({}, '', '/c/'+id);show('chat');$('#title').textContent=c.title;
   const M=$('#msgs');M.innerHTML='';for(const e of c.log){M.append(e.origin?sysEl(e.q,e.origin,e.label):userEl(e.q));M.append(botEl(e));}
   const le=c.log[c.log.length-1];if(le?.meta?.mode==='plan'&&!c.job&&!c.pending)planBar(M.lastElementChild);
   if(c.job){if(c.pending)M.append(c.pending_origin?sysEl(c.pending,c.pending_origin,c.pending_label):userEl(c.pending));M.append(liveEl());
@@ -631,7 +691,7 @@ $('#in').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isCo
 $('#send').onclick=async()=>{if(S.job&&!$('#in').value.trim()){const r=await api(`/api/jobs/${S.job}/stop`,{method:'POST'}).catch(()=>({queued:[]}));
     $$('.u.q').forEach(e=>e.remove());if(r.queued?.length){$('#in').value=r.queued.join('\n\n');grow();toast('Stopping… queued messages are back in the box');}else toast('Stopping…');}
   else send();};
-$('#newchat').onclick=()=>{if(S.space==='code'){newChat();openPicker();}else newChat();};
+$('#newchat').onclick=()=>{if(S.space==='tasks'){S.task=null;openTask(null);return;}if(S.space==='code'){newChat();openPicker();}else newChat();};
 $('#apclose').onclick=closeArt;$('#hgit').onclick=showChanges;
 $('#apview').onclick=async()=>{const code=$('#apcode');if(code.hidden){const t=await fetch(`/a/${S.art}`,{credentials:'same-origin'}).then(r=>r.text()).catch(()=>'');
   code.textContent=t;code.hidden=false;$('#apframe').hidden=true;$('#apview').textContent='Preview';}else{code.hidden=true;$('#apframe').hidden=false;$('#apview').textContent='Code';}};
@@ -731,7 +791,7 @@ async function slash(text){const [cmd,...rest]=text.trim().split(/\s+/);const ar
     case '/export':if(!need())return true;location.href=`/api/chats/${S.chat.id}/export?fmt=md`;return true;
     case '/remember':if(!arg){toast('Usage: /remember something about you');return true;}{const r=await api('/api/memory');await api('/api/memory',{method:'PUT',body:JSON.stringify({facts:[...r.facts,arg]})});toast('Remembered');}return true;
     case '/memory':show('settings');setTimeout(()=>$('#memlist').scrollIntoView({block:'center'}),100);return true;
-    case '/schedule':show('settings');setTimeout(()=>$('#schlist').scrollIntoView({block:'center'}),100);return true;
+    case '/schedule':case '/tasks':setSpace('tasks');return true;
     case '/notifications':show('settings');setTimeout(()=>$('#pushbox').scrollIntoView({block:'center'}),100);return true;
     case '/tasks':case '/monitors':loadActivity().then(()=>{if($('#pact').hidden)localNote('Nothing running in the background.');else $('#pact').click();});return true;
     case '/bg':case '/bashes':show('settings');setTimeout(()=>$('#bglist').scrollIntoView({block:'center'}),100);return true;
@@ -768,17 +828,7 @@ async function slash(text){const [cmd,...rest]=text.trim().split(/\s+/);const ar
   const cu=CUSTOM.find(x=>'/'+x.name===c);if(cu){$('#in').value=cu.body.replaceAll('$ARGUMENTS',arg);grow();send();return true;}
   return false;}
 // ---------- scheduled tasks & background processes ----------
-async function loadSched(){const r=await api('/api/schedules');const fmt=t=>t?new Date(t*1000).toLocaleString([], {weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'—';
-  $('#schlist').innerHTML=r.items.length?r.items.map(i=>`<div class="sched"><span><b>${esc(i.name)}</b> <span class="w">· ${esc(i.when)}</span></span>
-    <span class="acts"><button class="btn" style="height:30px;padding:0 10px" data-r="${i.id}">Run now</button><button class="btn" style="height:30px;padding:0 10px" data-t="${i.id}" data-e="${i.enabled?0:1}">${i.enabled?'Pause':'Resume'}</button><button class="ib" data-d="${i.id}" aria-label="Delete">✕</button></span>
-    <span class="w">${i.enabled?'next '+fmt(i.next):'paused'}${i.last?' · last '+fmt(i.last):''}${i.last_chat?` · <a href="/c/${i.last_chat}">last result</a>`:''}</span></div>`).join(''):'<div style="font-size:13px;color:var(--muted)">None yet.</div>';
-  $$('#schlist [data-r]').forEach(b=>b.onclick=async()=>{const x=await api(`/api/schedules/${b.dataset.r}/run`,{method:'POST'});toast('Running…');loadList();openChat(x.chat);});
-  $$('#schlist [data-t]').forEach(b=>b.onclick=async()=>{await api(`/api/schedules/${b.dataset.t}`,{method:'PATCH',body:JSON.stringify({enabled:b.dataset.e==='1'})});loadSched();});
-  $$('#schlist [data-d]').forEach(b=>b.onclick=async()=>{if(!confirm('Delete this scheduled task?'))return;await api(`/api/schedules/${b.dataset.d}`,{method:'DELETE'});loadSched();});}
-$('#bradd').onclick=async()=>{try{const it=await api('/api/schedules/briefing',{method:'POST',body:JSON.stringify({when:`${$('#brwhen').value} ${$('#brtime').value||'08:00'}`})});
-  toast('Morning briefing scheduled');loadSched();if(confirm('Do you want to see one now?')){const x=await api(`/api/schedules/${it.id}/run`,{method:'POST'});loadList();openChat(x.chat);}}catch(e){toast(e.message);}};
-$('#scadd').onclick=async()=>{try{await api('/api/schedules',{method:'POST',body:JSON.stringify({name:$('#sc_name').value.trim()||'Task',when:$('#sc_when').value.trim(),prompt:$('#sc_prompt').value.trim()})});
-  $('#sc_name').value=$('#sc_when').value=$('#sc_prompt').value='';toast('Scheduled');loadSched();}catch(e){toast(e.message);}};
+$('#gotasks').onclick=()=>setSpace('tasks');
 async function loadBg(){const r=await api('/api/bg');$('#bglist').innerHTML=r.procs.length?r.procs.map(p=>`<div class="sched"><span><b>${esc(p.name)}</b> <span class="w">· ${esc(p.status)} · pid ${p.pid}</span></span>
   <span class="acts"><button class="btn" style="height:30px;padding:0 10px" data-l="${p.id}">Logs</button>${p.status==='running'?`<button class="btn" style="height:30px;padding:0 10px" data-s="${p.id}">Stop</button>`:''}</span><span class="w">${esc(p.command)}</span><pre class="logbox" id="lg-${p.id}" hidden></pre></div>`).join(''):'<div style="font-size:13px;color:var(--muted)">None running.</div>';
   $$('#bglist [data-l]').forEach(b=>b.onclick=async()=>{const el=$('#lg-'+b.dataset.l);el.hidden=!el.hidden;if(!el.hidden){el.textContent=(await api(`/api/bg/${b.dataset.l}/logs`)).text;el.scrollTop=el.scrollHeight;}});

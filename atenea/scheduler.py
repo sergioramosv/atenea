@@ -84,10 +84,12 @@ def next_run(when: str, after: float) -> float | None:
                      "monthly 1 HH:MM · every 30m · every 2h · once YYYY-MM-DD HH:MM")
 
 
-def add(name: str, prompt: str, when: str, mode: str = "auto", chat: str | None = None) -> dict:
+def add(name: str, prompt: str, when: str, mode: str = "auto", chat: str | None = None, kind: str = "task") -> dict:
+    """kind: "task" (Atenea runs `prompt`) or "reminder" (just a notification with `prompt` as text)."""
     nr = next_run(when, time.time())
     item = {"id": uuid.uuid4().hex[:8], "name": name[:80], "prompt": prompt, "when": when, "mode": mode,
-            "chat": chat, "enabled": True, "next": nr, "last": None, "last_chat": None, "created": time.time()}
+            "kind": "reminder" if kind == "reminder" else "task", "chat": chat, "enabled": True, "next": nr,
+            "last": None, "last_chat": None, "history": [], "created": time.time()}
     with _lock:
         items = load()
         items.append(item)
@@ -136,6 +138,19 @@ def due(now: float) -> list[dict]:
     return out
 
 
+def record(sid: str, entry: dict):
+    """Append a run to the item's history (last 50)."""
+    with _lock:
+        items = load()
+        for it in items:
+            if it["id"] == sid:
+                it["history"] = ([entry] + (it.get("history") or []))[:50]
+                if entry.get("chat"):
+                    it["last_chat"] = entry["chat"]
+                save(items)
+                return
+
+
 def describe(it: dict) -> str:
     nxt = time.strftime("%a %d %b %H:%M", time.localtime(it["next"])) if it.get("next") else "—"
     return f"{it['id']}  {'on ' if it.get('enabled') else 'off'}  {it['when']:<18} next {nxt}  · {it['name']}"
@@ -147,7 +162,14 @@ def tools() -> list[Tool]:
             it = add(name, prompt, when)
         except ValueError as e:
             return f"Error: {e}"
-        return f"Scheduled: {describe(it)}\nThe result will appear as a new chat in the panel (and on Telegram if set up)."
+        return f"Scheduled: {describe(it)}\nIt appears in the Tasks space of the panel, where each run is kept (and on Telegram if set up)."
+
+    def set_reminder(text: str, when: str) -> str:
+        try:
+            it = add(text[:60], text, when, kind="reminder")
+        except ValueError as e:
+            return f"Error: {e}"
+        return f"Reminder set: {describe(it)}\nThe user will get a notification on their phone at that time."
 
     def list_scheduled() -> str:
         return "\n".join(describe(i) for i in load()) or "No scheduled tasks."
@@ -163,7 +185,13 @@ def tools() -> list[Tool]:
              {"type": "object", "properties": {"name": {"type": "string"}, "prompt": {"type": "string"},
                                                "when": {"type": "string"}}, "required": ["name", "prompt", "when"]},
              schedule_task),
-        Tool("list_scheduled", "List scheduled tasks.", {"type": "object", "properties": {}}, list_scheduled),
+        Tool("set_reminder", "Remind the user of something with a phone notification at a given time (no work for you "
+             "then). `text`: what to remind, in the user's language. `when`: 'once 2026-11-20 09:00' for a single "
+             "reminder (compute the date from today), or recurring like 'daily 08:00', 'weekdays 08:30', "
+             "'weekly mon 09:00', 'monthly 1 09:00', 'every 2h'. Use it for 'recuérdame…'.",
+             {"type": "object", "properties": {"text": {"type": "string"}, "when": {"type": "string"}},
+              "required": ["text", "when"]}, set_reminder),
+        Tool("list_scheduled", "List scheduled tasks and reminders.", {"type": "object", "properties": {}}, list_scheduled),
         Tool("cancel_scheduled", "Delete a scheduled task by id.",
              {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]}, cancel_scheduled),
     ]

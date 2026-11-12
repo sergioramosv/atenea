@@ -361,7 +361,7 @@ def _kind(c: dict) -> str:
 
 def _new_chat(project: str | None, mode: str | None = None, kind: str | None = None) -> dict:
     now = time.time()
-    kind = kind if kind in ("chat", "code") else ("code" if project else "chat")
+    kind = kind if kind in ("chat", "code", "task") else ("code" if project else "chat")
     if mode is None and kind == "code":
         mode = "edits"
     chat = {"id": uuid.uuid4().hex[:12], "title": "New chat", "project": project or "", "mode": _mode(mode), "kind": kind,
@@ -1581,24 +1581,23 @@ def _notify_chat(cid: str, text: str):
     NOTIFY.send(text, f"{_panel_url()}/c/{cid}", title=title)
 
 
-def run_schedule(item: dict) -> str:
+def run_schedule(item: dict) -> str | None:
+    """A reminder is just a phone notification; a task is a run of Atenea in its own conversation (kind 'task',
+    kept out of the Chat and Code lists and shown in the task's history)."""
+    if item.get("kind") == "reminder":
+        threading.Thread(target=NOTIFY.webpush, args=("⏰ " + (item.get("name") or "Reminder"), item["prompt"], "/"),
+                         kwargs={"force": True}, daemon=True).start()
+        NOTIFY.send_telegram(f"⏰ {item['prompt']}")
+        SCH.record(item["id"], {"t": time.time(), "kind": "reminder", "text": item["prompt"][:300]})
+        return None
     with _lock:
-        if item.get("chat"):
-            try:
-                c = _read(item["chat"])
-            except HTTPException:
-                c = _new_chat(None, item.get("mode"))
-        else:
-            c = _new_chat(None, item.get("mode"))
-            c["title"] = f"⏰ {item['name']} · {time.strftime('%d %b %H:%M')}"
-            _write(c)
-        if _running(c["id"]):
-            QUEUES.setdefault(c["id"], []).append({"id": uuid.uuid4().hex[:8], "text": item["prompt"]})
-            _save_queue(c["id"])
-            return c["id"]
+        c = _new_chat(None, item.get("mode"), "task")
+        c["title"] = f"{item['name']} · {time.strftime('%d %b %H:%M')}"
+        c["task"] = item["id"]
+        _write(c)
         jid = _start(c["id"], item["prompt"])
         JOBS[jid]["scheduled"] = True
-    SCH.update(item["id"], last_chat=c["id"])
+    SCH.record(item["id"], {"t": time.time(), "kind": "task", "chat": c["id"]})
     return c["id"]
 
 
@@ -1619,6 +1618,7 @@ class ScheduleIn(BaseModel):
     when: str | None = None
     mode: str | None = None
     enabled: bool | None = None
+    kind: str | None = None
 
 
 BRIEFING_PROMPT = """Prepara mi resumen de la mañana, en español, breve y fácil de leer en el móvil (máx. ~200 palabras):
@@ -1644,6 +1644,26 @@ def schedule_briefing(s_: ScheduleIn):
     return it
 
 
+@app.get("/api/schedules/{sid}", dependencies=[Depends(auth)])
+def schedule_get(sid: str):
+    it = next((i for i in SCH.load() if i["id"] == sid), None)
+    if not it:
+        raise HTTPException(404, "No such task")
+    runs = []
+    for h in it.get("history") or []:
+        r = dict(h)
+        if h.get("chat"):
+            try:
+                c = _read(h["chat"])
+                last = c["log"][-1] if c["log"] else None
+                r.update(title=c["title"], answer=(last or {}).get("a", "")[:600], running=bool(_running(h["chat"])),
+                         secs=((last or {}).get("meta") or {}).get("secs"))
+            except HTTPException:
+                r.update(gone=True)
+        runs.append(r)
+    return {**it, "runs": runs}
+
+
 @app.get("/api/schedules", dependencies=[Depends(auth)])
 def schedules():
     return {"items": SCH.load()}
@@ -1652,7 +1672,8 @@ def schedules():
 @app.post("/api/schedules", dependencies=[Depends(auth)])
 def schedule_add(s_: ScheduleIn):
     try:
-        return SCH.add(s_.name or "Task", s_.prompt or "", s_.when or "", _mode(s_.mode))
+        return SCH.add(s_.name or ("Reminder" if s_.kind == "reminder" else "Task"), s_.prompt or "", s_.when or "",
+                       _mode(s_.mode), kind=s_.kind or "task")
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -1678,7 +1699,7 @@ def schedule_run(sid: str):
     it = next((i for i in SCH.load() if i["id"] == sid), None)
     if not it:
         raise HTTPException(404)
-    return {"chat": run_schedule(it)}
+    return {"chat": run_schedule(it), "kind": it.get("kind", "task")}
 
 
 # ---------------- runners (tools executed on another machine) ----------------
