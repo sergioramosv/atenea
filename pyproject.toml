@@ -1,7 +1,7 @@
 [project]
 name = "atenea-sdk"
 version = "0.3.0"
-description = "Lightweight agent SDK for local models, with a Telegram bot (Hermes) and a web panel"
+description = "Atenea SDK: agentes para modelos locales. Incluye Atenea (asistente) y Atenea Código (CLI)."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []
@@ -11,8 +11,10 @@ atenea = "atenea.codigo.cli:main"
 
 [project.optional-dependencies]
 mcp = ["mcp<2"]
-web = ["fastapi", "uvicorn[standard]", "pywebpush"]
-cli = ["prompt_toolkit", "qrcode"]
+app = ["fastapi", "uvicorn[standard]", "pywebpush", "python-docx", "openpyxl", "markdown", "numpy", "pillow"]
+codigo = ["prompt_toolkit", "qrcode"]
+web = ["atenea-sdk[app]"]
+cli = ["atenea-sdk[codigo]"]
 
 [build-system]
 requires = ["setuptools>=68"]
