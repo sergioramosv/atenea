@@ -298,6 +298,10 @@ img.media,.uatt img{cursor:zoom-in}
         <div class="f"><label for="s_mcp">MCP servers</label><div><textarea class="code" id="s_mcp" spellcheck="false"></textarea><div class="err" id="mcperr"></div></div></div></div>
       <div class="card"><h2>Telegram · Hermes</h2><p class="d">Talk to Atenea from your phone. Create a bot with @BotFather and get your user id from @userinfobot.</p>
         <div class="f"><label for="s_tok">Bot token</label><input id="s_tok" autocomplete="off"><label for="s_users">Allowed user ids</label><input id="s_users" placeholder="123456789, …"></div></div>
+      <div class="card"><h2>Atenea documentos</h2><p class="d">Atenea searches these folders, the files you upload, the documents she creates and all your past conversations (by meaning and by words). The index updates every 15 minutes.</p>
+        <div class="f"><label for="kb_folders">Folders on ZEUS</label><textarea id="kb_folders" style="min-height:70px;font:13px var(--mono)" placeholder="~/Documentos"></textarea></div>
+        <div id="kbstat" style="font-size:13.5px;color:var(--ink2)"></div>
+        <div class="row"><button class="btn" id="kbsave">Save folders</button><button class="btn ghost" id="kbre">Re-index now</button></div></div>
       <div class="card"><h2>Backups and trash</h2><p class="d">A copy of your chats, memory, settings, artifacts and images is made every night at 03:17 on the second disk (the last 30 are kept). Deleted chats stay in the trash for 30 days.</p>
         <div id="bkbox" style="font-size:14px"></div><div class="row"><button class="btn" id="bknow">Back up now</button></div>
         <div style="font-size:13.5px;color:var(--ink2);margin-top:6px">Trash</div><div id="trashbox"></div></div>
@@ -408,7 +412,7 @@ function side(open){$('#side').classList.toggle('open',open);$('#scrim').classLi
 $('#menu').onclick=()=>side(true);$('#scrim').onclick=()=>side(false);
 // ---------- views ----------
 function show(v){S.view=v;$$('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));$('#nav-settings').classList.toggle('on',v==='settings');side(false);
-  if(v==='settings'){$('#title').textContent='Settings';$('#hproj').hidden=$('#hstate').hidden=true;fillSettings();loadStatus();loadMemory();renderRules();loadSched();loadBg();renderPush();loadBackups();}
+  if(v==='settings'){$('#title').textContent='Settings';$('#hproj').hidden=$('#hstate').hidden=true;fillSettings();loadStatus();loadMemory();renderRules();loadSched();loadBg();renderPush();loadBackups();loadKb();}
   else{$('#title').textContent=S.chat?.title||'New chat';headerProj();}}
 $('#nav-settings').onclick=()=>show(S.view==='settings'?'chat':'settings');
 $('#logout').onclick=async()=>{await api('/api/logout',{method:'POST'});location.href='/login';};
@@ -812,6 +816,13 @@ async function loadActivity(){let r;try{r=await api('/api/activity'+(S.chat?.id?
 }
 setInterval(()=>{if(!document.hidden)loadActivity();},4000);
 $('#popact').addEventListener('click',e=>e.stopPropagation());
+
+// ---------- knowledge base ----------
+async function loadKb(){const r=await api('/api/knowledge');$('#kb_folders').value=(r.configured||[]).join('\n');
+  $('#kbstat').innerHTML=`${r.files} files · ${r.chats} conversations · ${r.chunks} passages indexed${r.running?` · <b>indexing ${r.done}/${r.total}…</b>`:''}${r.error?` · <span style="color:var(--bad)">${esc(r.error)}</span>`:''}`;
+  if(r.running)setTimeout(()=>{if(S.view==='settings')loadKb();},3000);}
+$('#kbsave').onclick=async()=>{await api('/api/knowledge',{method:'PUT',body:JSON.stringify({folders:$('#kb_folders').value.split('\n')})});toast('Saved — indexing');loadKb();};
+$('#kbre').onclick=async()=>{await api('/api/knowledge/reindex',{method:'POST'});toast('Indexing…');setTimeout(loadKb,800);};
 
 // ---------- backups & trash ----------
 async function loadBackups(){const fmt=t=>new Date(t*1000).toLocaleString([], {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});

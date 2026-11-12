@@ -60,6 +60,8 @@ step-by-step style. On a modest local GPU every token and every step costs secon
   /export /remember /memory /init /review /schedule /bg /usage /rewind /help`…) and custom commands
   (`~/.config/atenea/commands/*.md`, `$ARGUMENTS`); `@file` mentions attach project files.
 - Images, videos and files from ZEUS in the chat; artifacts in a sandboxed side panel.
+- **Atenea documentos**: `search_documents` searches your folders, uploads, created files and all past chats (FTS5 + Qwen3-Embedding).
+- **Documents**: `create_document` makes PDF, Word and Excel files.
 - **Images**: `generate_image` / `edit_image` (FLUX.2 klein 4B on stable-diffusion.cpp Vulkan, ~35 s at 1024 px) and
   `look_at_image` (Qwen3-VL-8B on a llama.cpp server started on demand, stops after 10 idle minutes).
 - **Activity tray** above the box: background shells, background subagents (`delegate(background=true)`) and

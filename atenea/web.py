@@ -29,6 +29,7 @@ from pydantic import BaseModel
 from . import artifacts as A
 from . import background as BG
 from . import docs as DOCS
+from . import knowledge as KB
 from . import media as MEDIA
 from . import monitors as MON
 from . import notify as NOTIFY
@@ -400,7 +401,7 @@ def _agent(chat: dict):
             ag.messages = [ag.messages[0]] + [m for m in chat["messages"] if m["role"] != "system"]
         # keep the context meter right before the first model call of this process (it reports 0 until then)
         ag.context_tokens = (chat.get("usage") or {}).get("ctx") or _est(ag.messages) + _est(ag.schemas())
-        ag.messages[0]["content"] += "\n" + A.INSTRUCTIONS + "\n" + ACTIVITY_INSTR + "\n" + MEDIA.INSTRUCTIONS + "\n" + DOCS.INSTRUCTIONS
+        ag.messages[0]["content"] += "\n" + A.INSTRUCTIONS + "\n" + ACTIVITY_INSTR + "\n" + MEDIA.INSTRUCTIONS + "\n" + DOCS.INSTRUCTIONS + "\n" + KB.INSTRUCTIONS
         for t in BG.tools(lambda: ag.cwd, chat["id"]) + MON.tools(lambda: ag.cwd, chat["id"]):
             ag._tools[t.name] = t
         ag.spawn_bg = lambda sub, task, name, _cid=chat["id"]: _spawn_bg(_cid, sub, task, name)
@@ -449,6 +450,10 @@ def _agent(chat: dict):
                   {"type": "object", "properties": {"prompt": {"type": "string"}, "width": {"type": "integer"},
                    "height": {"type": "integer"}, "seed": {"type": "integer"}}, "required": ["prompt"]},
                   lambda prompt, width=1024, height=1024, seed=-1: MEDIA.generate_image(prompt, width, height, seed)),
+            _Tool("search_documents", "Search the user's documents (their folders, uploads, files you created) and all "
+                  "past conversations, by meaning and words. Returns the most relevant passages with their source.",
+                  {"type": "object", "properties": {"query": {"type": "string"}, "k": {"type": "integer"}},
+                   "required": ["query"]}, lambda query, k=6: KB.search_tool(query, k)),
             _Tool("create_document", "Create a real PDF, Word (docx) or Excel (xlsx) file from Markdown (tables become "
                   "Excel sheets). Returns a markdown link to show it.",
                   {"type": "object", "properties": {"title": {"type": "string"}, "content": {"type": "string"},
@@ -1402,6 +1407,43 @@ def monitor_stop(mid: str):
     return {"text": MON.stop(mid)}
 
 
+# ---------------- Atenea documentos (knowledge base) ----------------
+class KbIn(BaseModel):
+    folders: list[str]
+
+
+@app.get("/api/knowledge", dependencies=[Depends(auth)])
+def kb_stats():
+    st = KB.stats()
+    st["configured"] = (C.load().get("knowledge") or {}).get("folders", ["~/Documentos"])
+    return st
+
+
+@app.put("/api/knowledge", dependencies=[Depends(auth)])
+def kb_folders(k: KbIn):
+    cfg = C.load()
+    cfg.setdefault("knowledge", {})["folders"] = [f.strip() for f in k.folders if f.strip()]
+    C.save(cfg)
+    KB.reindex()
+    return {"ok": True}
+
+
+@app.post("/api/knowledge/reindex", dependencies=[Depends(auth)])
+def kb_reindex():
+    KB.reindex()
+    return {"ok": True}
+
+
+def _kb_loop():
+    time.sleep(60)
+    while True:
+        try:
+            KB.reindex(wait=True)                        # incremental: only new or changed files and chats
+        except Exception as e:
+            print(f"[knowledge] {e}", flush=True)
+        time.sleep(900)
+
+
 # ---------------- background processes ----------------
 @app.get("/api/bg", dependencies=[Depends(auth)])
 def bg_list():
@@ -1861,6 +1903,7 @@ def main():
     _secret()
     resume_interrupted()
     threading.Thread(target=_scheduler_loop, daemon=True).start()
+    threading.Thread(target=_kb_loop, daemon=True).start()
     import uvicorn
     uvicorn.run(app, host=cfg["web"]["host"], port=int(cfg["web"]["port"]), log_level="warning")
 
