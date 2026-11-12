@@ -242,6 +242,9 @@ body.art-on #artpane{display:flex}
 .lbnav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:64px;border:0;border-radius:12px;background:rgba(255,255,255,.08);color:#ECEDEF;font-size:34px;line-height:1;cursor:pointer}
 #lbprev{left:12px}#lbnext{right:12px}.lbnav[hidden]{display:none}
 img.media,.uatt img{cursor:zoom-in}
+.pv{align-items:stretch}#pvname{flex:1;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#pvcount{font:12px var(--mono);color:#9AA0A8}
+.pvstage{position:absolute;inset:0;overflow:auto;-webkit-overflow-scrolling:touch;padding:72px 12px 32px;padding-top:calc(72px + env(safe-area-inset-top));display:flex;flex-direction:column;align-items:center;gap:12px;box-sizing:border-box}
+.pvstage canvas{width:min(100%,900px);height:auto;background:#fff;border-radius:4px;box-shadow:0 6px 30px rgba(0,0,0,.45)}.pvstage .pvmsg{color:#9AA0A8;margin-top:30vh;font-size:14px}
 @media (max-width:820px){.lbb span{display:none}.lbnav{display:none}}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--btn);color:var(--btn-ink);padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:.2s;pointer-events:none;z-index:50}
 .toast.on{opacity:1;transform:translateX(-50%)}
@@ -377,6 +380,11 @@ img.media,.uatt img{cursor:zoom-in}
   <button class="opt" data-h="md"><span class="tx"><b style="color:var(--ink)">Export as Markdown</b></span></button>
   <button class="opt" data-h="json"><span class="tx"><b style="color:var(--ink)">Export as JSON</b></span></button>
   <button class="opt" data-h="del"><span class="tx"><b style="color:var(--bad)">Delete chat</b></span></button></div>
+<div class="lb pv" id="pv" hidden role="dialog" aria-label="PDF viewer">
+  <div class="lbbar"><button class="lbb" id="pvback" aria-label="Back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button><span id="pvname"></span><span id="pvcount"></span>
+    <button class="lbb" id="pvshare" aria-label="Share"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v13"/></svg><span>Share</span></button>
+    <a class="lbb" id="pvdl" aria-label="Download"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Download</span></a></div>
+  <div class="pvstage" id="pvstage"></div></div>
 <div class="lb" id="lb" hidden role="dialog" aria-label="Image viewer">
   <div class="lbbar"><span id="lbname"></span><span id="lbcount"></span>
     <button class="lbb" id="lbshare" aria-label="Share"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v13"/></svg><span>Share</span></button>
@@ -735,7 +743,7 @@ $('#title').addEventListener('blur',async()=>{const t=$('#title');if(t.contentEd
 let hiddenAt=0;document.addEventListener('visibilitychange',()=>{if(document.hidden){hiddenAt=Date.now();return;}
   if(Date.now()-hiddenAt<1500)return;loadList();mini();if(S.view==='chat'&&S.chat?.id){const keep=$('#in').value;openChat(S.chat.id,false).then(()=>{if(keep){$('#in').value=keep;grow();}});}});
 window.addEventListener('pageshow',e=>{if(e.persisted&&S.chat?.id)openChat(S.chat.id,false);});
-window.addEventListener('popstate',()=>{const m=location.pathname.match(/^\/c\/(\w+)/);m?openChat(m[1],false):newChat();});
+window.addEventListener('popstate',()=>{if(!$('#pv').hidden){pvClose(true);return;}const m=location.pathname.match(/^\/c\/(\w+)/);m?openChat(m[1],false):newChat();});
 // ---------- floating bar: mode, context, speed, model ----------
 const IC={ask:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/></svg>',
   edits:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
@@ -892,6 +900,27 @@ $('#lbshare').onclick=async()=>{const src=LB.list[LB.i];
     if(navigator.share){await navigator.share({title:lbName(src),url:new URL(src,location.href).href});return;}
     await navigator.clipboard.writeText(new URL(src,location.href).href);toast('Link copied');}
   catch(err){if(err.name!=='AbortError')toast('Could not share: '+err.message);}};
+
+// ---------- PDF viewer: inside the app, with back, download and share ----------
+const PV={src:null,file:null,doc:null};
+function pvIsPdf(href){try{const u=new URL(href,location.href);if(u.origin!==location.origin||u.searchParams.get('download'))return false;return /\.pdf$/i.test(decodeURIComponent(u.searchParams.get('path')||u.pathname));}catch(_){return false;}}
+function pdfjs(){return window.pdfjsLib?Promise.resolve(window.pdfjsLib):new Promise((ok,bad)=>{const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+  sc.onload=()=>{pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';ok(pdfjsLib);};sc.onerror=()=>bad(new Error('pdf.js'));document.head.appendChild(sc);});}
+async function pvOpen(href){const name=lbName(href);PV.src=href;PV.file=null;$('#pvname').textContent=name;$('#pvcount').textContent='';const st=$('#pvstage');st.innerHTML='<div class="pvmsg">Opening…</div>';
+  const dl=href+(href.includes('?')?'&':'?')+'download=1';$('#pvdl').href=dl;$('#pvdl').setAttribute('download',name);
+  $('#pv').hidden=false;document.body.style.overflow='hidden';history.pushState({pv:1},'',location.href);
+  try{const b=await (await fetch(href,{credentials:'same-origin'})).blob();PV.file=new File([b],name,{type:'application/pdf'});
+    const lib=await pdfjs();const doc=await lib.getDocument({data:await b.arrayBuffer()}).promise;if(PV.src!==href)return;PV.doc=doc;st.innerHTML='';$('#pvcount').textContent=doc.numPages+' p.';
+    const w=Math.min(st.clientWidth-24,900),dpr=Math.min(window.devicePixelRatio||1,2);
+    for(let i=1;i<=doc.numPages;i++){if(PV.src!==href)return;const pg=await doc.getPage(i),v0=pg.getViewport({scale:1}),v=pg.getViewport({scale:w/v0.width*dpr});
+      const c=document.createElement('canvas');c.width=v.width;c.height=v.height;st.appendChild(c);await pg.render({canvasContext:c.getContext('2d'),viewport:v}).promise;}}
+  catch(e){st.innerHTML=`<div class="pvmsg">Could not show it here. <a class="lbb" style="display:inline-flex;margin-top:12px" href="${esc(href)}" target="_blank">Open in Safari</a></div>`;}}
+function pvClose(fromPop){if($('#pv').hidden)return;$('#pv').hidden=true;document.body.style.overflow='';$('#pvstage').innerHTML='';PV.src=null;PV.doc=null;if(!fromPop&&history.state&&history.state.pv)history.back();}
+document.addEventListener('click',e=>{const a=e.target.closest('#msgs a[href], #taskbox a[href]');if(!a||!pvIsPdf(a.getAttribute('href')))return;e.preventDefault();e.stopPropagation();pvOpen(a.getAttribute('href'));},true);
+$('#pvback').onclick=()=>pvClose();document.addEventListener('keydown',e=>{if(!$('#pv').hidden&&e.key==='Escape')pvClose();});
+$('#pvshare').onclick=async()=>{try{if(PV.file&&navigator.canShare&&navigator.canShare({files:[PV.file]})){await navigator.share({files:[PV.file],title:PV.file.name});return;}
+    if(navigator.share){await navigator.share({title:$('#pvname').textContent,url:new URL(PV.src,location.href).href});return;}
+    await navigator.clipboard.writeText(new URL(PV.src,location.href).href);toast('Link copied');}catch(err){if(err.name!=='AbortError')toast('Could not share: '+err.message);}};
 
 // ---------- voice: dictation and spoken answers ----------
 const AUD=new Audio();let REC=null;

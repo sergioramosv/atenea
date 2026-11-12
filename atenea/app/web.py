@@ -1639,7 +1639,10 @@ def _run_flow(item: dict):
             pend = sum(1 for i in r["items"] if not i.get("entregada"))
             SCH.record(sid, {**base, "text": f"Sin novedades · {pend} pendientes"})
             return
-        data = json.dumps([{k: v for k, v in i.items() if k != "id"} for i in r["new"]], ensure_ascii=False, indent=1)
+        new_ids = {i["id"] for i in r["new"]}
+        pend = [{**{k: v for k, v in i.items() if k not in ("id", "archivos") and (k != "enunciado" or i["id"] in new_ids)},
+                 "nueva": i["id"] in new_ids} for i in r["items"] if not i.get("entregada")]
+        data = json.dumps({**(r.get("data") or {}), "actividades_sin_entregar": pend}, ensure_ascii=False, indent=1)
         with _lock:
             c = _new_chat(None, item.get("mode") or "auto", "task")
             c["title"] = f"{item['name']} · {time.strftime('%d %b %H:%M')}"
