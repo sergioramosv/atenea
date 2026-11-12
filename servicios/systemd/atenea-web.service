@@ -8,7 +8,7 @@ User=sergio
 Group=sergio
 SupplementaryGroups=video render
 WorkingDirectory=/mnt/models/atenea
-ExecStart=/mnt/models/atenea/.venv/bin/python -m atenea.web
+ExecStart=/mnt/models/atenea/.venv/bin/python -m atenea.app.web
 Restart=on-failure
 RestartSec=15
 

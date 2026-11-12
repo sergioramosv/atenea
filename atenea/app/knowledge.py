@@ -16,7 +16,7 @@ import threading
 import time
 import urllib.request
 
-from . import config as C
+from .. import config as C
 
 DB = os.path.join(os.path.dirname(C.PATH), "knowledge.db")
 STOP = set("""que qué cual cuál cuales como cómo donde dónde cuando cuándo quien quién por para con sin sobre entre desde hasta

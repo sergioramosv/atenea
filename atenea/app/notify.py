@@ -8,7 +8,7 @@ import threading
 import time
 import urllib.request
 
-from . import config as C
+from .. import config as C
 
 SUBS = os.path.join(os.path.dirname(C.PATH), "push.json")
 LAST_SEEN = {"t": 0.0}          # last time a panel tab reported it was visible: skip pushes while you are looking

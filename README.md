@@ -2,11 +2,14 @@
 
 **Atenea** is a personal AI assistant that runs 100% on your own machine, built on **atenea-sdk**, a lightweight agent SDK for **local models**.
 
-| Product | What it is |
-|---|---|
-| **atenea-sdk** (`import atenea`) | The engine: agent loop, tools, permission modes, hooks, subagents, MCP, memory, prompt-cache friendly context |
-| **Atenea** | The assistant: web app / iPhone app + Atenea Telegram. Email, calendar, research, artifacts, reminders |
-| **Atenea Code** | *(next)* the coding agent: terminal CLI + code mode, repo-aware, with Hephaestus pipelines |
+| Producto | Qué es | Dónde |
+|---|---|---|
+| **Atenea SDK** (`atenea-sdk`, `import atenea`) | El motor: bucle del agente, herramientas, modos de permiso, hooks, subagentes, MCP, memoria, tareas programadas, Atenea Equipo | `atenea/` |
+| **Atenea** | El asistente: app web/iPhone, Atenea Telegram, Atenea voz, imágenes, documentos, Atenea documentos, Atenea buscador, notificaciones, copias | `atenea/app/` (`pip install "atenea-sdk[app]"`) |
+| **Atenea Código** | El agente de programación en la terminal (`atenea`), también desde el Mac | `atenea/codigo/` (`pip install "atenea-sdk[codigo]"`) |
+
+Servicios en ZEUS: `ornith` (modelo), `atenea-web` (panel), `atenea-telegram`, `atenea-voz` (dictado y voz),
+`atenea-buscador` (SearXNG privado), `atenea-backup.timer` (copia diaria). Unidades en `servicios/systemd/`.
 
 Atenea runs an agent loop against any OpenAI-compatible endpoint (llama.cpp's `llama-server`, vLLM, Ollama…).
 It was designed on a small AMD mini PC (**ZEUS**: Ryzen AI 9 HX 370, Radeon 890M, 64 GB) where every token
@@ -70,7 +73,7 @@ step-by-step style. On a modest local GPU every token and every step costs secon
 - Settings: model, projects, MCP connections, Telegram, permissions, memory, scheduled tasks, background
   processes, system status. Telegram notifications when long tasks finish or need approval.
 
-## Atenea Code (terminal)
+## Atenea Código (terminal)
 
 ```bash
 atenea                       # interactive session in the current folder (like Claude Code)

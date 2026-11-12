@@ -20,7 +20,7 @@ import time
 import urllib.request
 import uuid
 
-from . import config as C
+from .. import config as C
 
 _gen_lock = threading.Lock()
 _vis_lock = threading.Lock()

@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 import time
 
-from . import config as C
+from .. import config as C
 
 
 def _out(title: str, ext: str) -> str:

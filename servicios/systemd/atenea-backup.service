@@ -5,4 +5,4 @@ Description=Atenea - copia de seguridad diaria
 Type=oneshot
 User=sergio
 WorkingDirectory=/mnt/models/atenea
-ExecStart=/mnt/models/atenea/.venv/bin/python -m atenea.backup
+ExecStart=/mnt/models/atenea/.venv/bin/python -m atenea.app.backup

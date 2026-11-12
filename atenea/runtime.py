@@ -72,7 +72,7 @@ def environment(cfg: dict) -> str:
   ({e['os']}; {e['cpu']}; {e['ram']} RAM; GPU {e['gpu']}; it also has an AMD NPU).
 - Your model: {e['model_file']} (Ornith 1.5, 35B-parameter Mixture-of-Experts with ~3B active, Q4_K_M quantisation),
   served by {e['server']}. Context window: {e['per_slot']}. Model file: {e['model_path']}.
-- Your own code is the Atenea SDK (atenea-sdk) in {e['code']} (web panel atenea/web.py, Atenea Telegram atenea/telegram.py,
+- Your own code is the Atenea SDK (atenea-sdk) in {e['code']} (Atenea SDK in atenea/, the app (panel, Telegram, voice…) in atenea/app/, Atenea Código CLI in atenea/codigo/,
   agent loop atenea/agent.py). Config: ~/.config/atenea/config.json. Conversations: ~/.config/atenea/chats/.
 - Other services on {e['host']}: atenea-web (this panel, port 8787), atenea-telegram (Telegram), ornith (the model).
 - The current date and time are given in brackets at the end of each user message (or run `date`).

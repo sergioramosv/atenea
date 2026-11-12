@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 dependencies = []
 
 [project.scripts]
-atenea = "atenea.cli:main"
+atenea = "atenea.codigo.cli:main"
 
 [project.optional-dependencies]
 mcp = ["mcp<2"]
@@ -19,7 +19,8 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["atenea"]
+packages = ["atenea", "atenea.app", "atenea.codigo"]
 
 [tool.setuptools.package-data]
-atenea = ["web.html", "login.html", "brand/*.svg", "brand/*.png", "agents/*.md", "sw.js"]
+atenea = ["agents/*.md"]
+"atenea.app" = ["web.html", "login.html", "sw.js", "brand/*.svg", "brand/*.png"]

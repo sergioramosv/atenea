@@ -7,7 +7,7 @@ import sys
 import tarfile
 import time
 
-from . import config as C
+from .. import config as C
 
 DEST = os.environ.get("ATENEA_BACKUP_DIR", "/mnt/models/backups/atenea")
 KEEP = 30

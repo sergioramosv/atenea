@@ -85,7 +85,7 @@ json.dump({"model": {"url": MODEL.base + "/v1/chat/completions", "model": "fake"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from atenea import web  # noqa: E402
+from atenea.app import web  # noqa: E402
 
 web._llama_key = lambda: ""                      # the fake server needs no key
 
@@ -193,7 +193,7 @@ class WebTest(unittest.TestCase):
         self.assertEqual(self.c.get("/api/file", params={"path": os.environ["ATENEA_CONFIG"]}).status_code, 403)
 
     def test_artifact_is_sandboxed(self):
-        from atenea import artifacts as A
+        from atenea.app import artifacts as A
         m = A.save("Test", "<html><body>hi</body></html>")
         r = self.c.get(f"/a/{m['id']}")
         self.assertEqual(r.status_code, 200)

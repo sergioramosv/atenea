@@ -16,8 +16,8 @@ import time
 import urllib.parse
 import urllib.request
 
-from . import config as C
-from .runtime import build_agent
+from .. import config as C
+from ..runtime import build_agent
 
 SESS = os.path.expanduser("~/.config/atenea/sessions")
 

@@ -7,7 +7,7 @@ Wants=network-online.target
 User=sergio
 Group=sergio
 WorkingDirectory=/mnt/models/atenea
-ExecStart=/mnt/models/atenea/.venv/bin/python -m atenea.telegram
+ExecStart=/mnt/models/atenea/.venv/bin/python -m atenea.app.telegram
 Restart=on-failure
 RestartSec=15
 

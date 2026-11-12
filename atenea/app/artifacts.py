@@ -10,8 +10,8 @@ import re
 import time
 import uuid
 
-from . import config as C
-from .registry import Tool
+from .. import config as C
+from ..registry import Tool
 
 DIR = os.path.join(os.path.dirname(C.PATH), "artifacts")
 
