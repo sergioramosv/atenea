@@ -167,6 +167,11 @@ body.art-on #artpane{display:flex}
 .aph{height:56px;flex:none;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:0 10px 0 18px}
 .aph #apt{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #apframe{flex:1;border:0;width:100%;background:#fff}#apcode{flex:1;margin:0;overflow:auto;padding:16px;font:12.5px/1.55 var(--mono);background:var(--code);white-space:pre-wrap}
+.ac-i{display:flex;gap:10px;align-items:baseline;width:100%;text-align:left;border:0;background:transparent;border-radius:8px;padding:7px 10px;font-size:14px}
+.ac-i.on,.ac-i:hover{background:var(--hover)}.ac-i b{font-family:var(--mono);font-size:13px;font-weight:500}.ac-i span{color:var(--muted);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sched{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:10px 0;border-bottom:1px solid var(--line2);font-size:14px}.sched .w{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.sched .acts{grid-row:1/3;grid-column:2;display:flex;gap:4px;align-items:center}
+.logbox{white-space:pre-wrap;font:12px/1.5 var(--mono);background:var(--code);border:1px solid var(--line);border-radius:10px;padding:10px;max-height:240px;overflow:auto;margin:6px 0 0}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--btn);color:var(--btn-ink);padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:.2s;pointer-events:none;z-index:50}
 .toast.on{opacity:1;transform:translateX(-50%)}
 .scrim{display:none}
@@ -219,7 +224,8 @@ body.art-on #artpane{display:flex}
         <div class="pop" id="popspeed" hidden></div>
         <div class="pop" id="popmodel" hidden></div>
       </div>
-      <div class="cbox">
+      <div class="cbox" style="position:relative">
+        <div class="pop" id="ac" hidden style="bottom:calc(100% + 8px);left:0;right:0;max-width:none;max-height:300px;overflow:auto"></div>
         <textarea id="in" rows="1" placeholder="Ask Atenea anything…" aria-label="Message"></textarea>
         <div class="cbar">
           <label class="sel" id="projsel" title="Folder Atenea works in"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span id="projname">Default folder</span><select id="proj" aria-label="Project folder"></select></label>
@@ -246,6 +252,13 @@ body.art-on #artpane{display:flex}
         <div class="f"><label for="s_tok">Bot token</label><input id="s_tok" autocomplete="off"><label for="s_users">Allowed user ids</label><input id="s_users" placeholder="123456789, …"></div></div>
       <div class="card"><h2>Memory</h2><p class="d">What Atenea remembers about you in every conversation (web and Telegram). Tell her “remember that…” in any chat, or add it here.</p>
         <div id="memlist"></div><div class="row"><input id="memnew" placeholder="E.g. My main client is Tribbu" style="flex:1;min-width:200px;border:1px solid var(--line);border-radius:9px;padding:8px 12px;background:var(--bg);outline:none;font-size:14px"><button class="btn" id="memadd">Add</button></div></div>
+      <div class="card"><h2>Scheduled tasks</h2><p class="d">Atenea runs these on her own; each run appears as a new chat (and on Telegram when set up). You can also ask her: “every weekday at 8 summarise my email”.</p>
+        <div id="schlist"></div>
+        <div class="f"><label for="sc_name">Name</label><input id="sc_name" placeholder="Morning briefing">
+          <label for="sc_when">When</label><input id="sc_when" placeholder="weekdays 08:00 · daily 21:30 · weekly mon 09:00 · every 2h · once 2026-12-01 10:00" style="font-family:var(--mono);font-size:13px">
+          <label for="sc_prompt">Instruction</label><textarea id="sc_prompt" placeholder="Summarise my important emails and today's meetings."></textarea></div>
+        <div><button class="btn" id="scadd">Add scheduled task</button></div></div>
+      <div class="card"><h2>Background processes</h2><p class="d">Long-running commands Atenea started (dev servers, watchers, long scripts).</p><div id="bglist"></div></div>
       <div class="card"><h2>Permissions</h2><p class="d">Tools that always ask before running (for example send_email, delete_event). Commands that change files outside the project already ask.</p>
         <div class="f"><label for="s_conf">Ask before</label><input id="s_conf" placeholder="send_email, create_event"></div>
         <div><div style="font-size:13.5px;color:var(--ink2);margin-bottom:6px">Always allowed (from “Always allow” buttons)</div><div id="rules"></div></div></div>
@@ -333,7 +346,7 @@ function side(open){$('#side').classList.toggle('open',open);$('#scrim').classLi
 $('#menu').onclick=()=>side(true);$('#scrim').onclick=()=>side(false);
 // ---------- views ----------
 function show(v){S.view=v;$$('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));$('#nav-settings').classList.toggle('on',v==='settings');side(false);
-  if(v==='settings'){$('#title').textContent='Settings';$('#hproj').hidden=$('#hstate').hidden=true;fillSettings();loadStatus();loadMemory();renderRules();}
+  if(v==='settings'){$('#title').textContent='Settings';$('#hproj').hidden=$('#hstate').hidden=true;fillSettings();loadStatus();loadMemory();renderRules();loadSched();loadBg();}
   else{$('#title').textContent=S.chat?.title||'New chat';headerProj();}}
 $('#nav-settings').onclick=()=>show(S.view==='settings'?'chat':'settings');
 $('#logout').onclick=async()=>{await api('/api/logout',{method:'POST'});location.href='/login';};
@@ -398,9 +411,9 @@ async function openArt(id,ver){const m=await artMeta(id);if(!m)return toast('Art
   document.body.classList.add('art-on');$$('.acard').forEach(e=>e.classList.toggle('on',e.dataset.a===id));}
 function closeArt(){document.body.classList.remove('art-on');S.art=null;$('#apframe').src='about:blank';$$('.acard').forEach(e=>e.classList.remove('on'));}
 function scrollEnd(force){const t=$('#thread');if(force||t.scrollHeight-t.scrollTop-t.clientHeight<200)t.scrollTop=t.scrollHeight;}
-function newChat(){stopPoll();S.chat=null;S.job=null;S.mode=defMode();renderMode();renderUsage(null);history.pushState({}, '', '/');$('#title').textContent='New chat';$('#hstate').hidden=true;empty();headerProj();setBusy(false);show('chat');renderList();$('#in').focus();}
+function newChat(){loadCommands();stopPoll();S.chat=null;S.job=null;S.mode=defMode();renderMode();renderUsage(null);history.pushState({}, '', '/');$('#title').textContent='New chat';$('#hstate').hidden=true;empty();headerProj();setBusy(false);show('chat');renderList();$('#in').focus();}
 async function openChat(id,push=true){stopPoll();let c;try{c=await api('/api/chats/'+id);}catch(e){toast('Conversation not found');return newChat();}
-  S.chat=c;S.job=c.job;S.mode=c.mode||defMode();renderMode();renderUsage(c.usage);if(push)history.pushState({}, '', '/c/'+id);show('chat');$('#title').textContent=c.title;
+  S.chat=c;S.job=c.job;loadCommands();S.mode=c.mode||defMode();renderMode();renderUsage(c.usage);if(push)history.pushState({}, '', '/c/'+id);show('chat');$('#title').textContent=c.title;
   const M=$('#msgs');M.innerHTML='';for(const e of c.log){M.append(userEl(e.q));M.append(botEl(e));}
   const le=c.log[c.log.length-1];if(le?.meta?.mode==='plan'&&!c.job&&!c.pending)planBar(M.lastElementChild);
   if(c.job){if(c.pending)M.append(userEl(c.pending));M.append(liveEl());for(const q of c.queue||[])M.append(queuedEl(q.text,q.id));S.lastEv=0;poll();}
@@ -417,7 +430,9 @@ function btnState(){const s=$('#send'),busy=!!S.job,has=!!$('#in').value.trim(),
   s.innerHTML=stop?'<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>':'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
   s.disabled=!busy&&!has;const nm=S.cfg?.assistant_name||'Atenea';$('#in').placeholder=busy?'Queue another message…':`Ask ${nm} anything…`;}
 function setBusy(b){btnState();}
-async function send(){const t=$('#in').value.trim();if(!t)return;$('#in').value='';grow();
+async function send(){const t=$('#in').value.trim();if(!t)return;
+  if(t.startsWith('/')&&!S.job){$('#in').value='';grow();if(await slash(t))return;$('#in').value=t;grow();}
+  $('#in').value='';grow();
   if(S.job&&S.chat){const el=queuedEl(t);$('#msgs').append(el);scrollEnd(true);
     try{const r=await api('/api/chat',{method:'POST',body:JSON.stringify({text:t,chat:S.chat.id})});
       if(r.queued){el.dataset.q=r.queued;}else{el.remove();openChat(S.chat.id,false);}}
@@ -441,9 +456,9 @@ async function poll(){const jid=S.job;if(!jid)return;let j;try{j=await api('/api
   if(ap.dataset.k!==key){ap.dataset.k=key;ap.innerHTML=j.approval?`<div class="appr"><h4><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>Allow this action?<small>${esc(j.approval.tool)}</small></h4>${j.approval.diff?diffHtml(j.approval.diff):`<pre>${esc(j.approval.args)}</pre>`}
       <div class="row"><button class="btn pri" data-a="yes">Allow</button>${j.approval.always?`<button class="btn" data-a="always">${esc(j.approval.always)}</button>`:''}<button class="btn ghost" data-a="no">Deny</button></div></div>`:'';
     ap.querySelectorAll('button').forEach(x=>x.onclick=()=>{api(`/api/jobs/${jid}/approve/${x.dataset.a}`,{method:'POST'});ap.innerHTML='';});}
-  $('#hstate').hidden=!j.approval;
+  $('#hstate').hidden=!j.approval;if(j.approval&&!S.noticed){S.noticed=1;notice('⏸ Needs you');}if(!j.approval)S.noticed=0;
   const na=(j.artifacts||[]).length;if(na>(S.lastArt||0)){const a=j.artifacts[na-1];S.lastArt=na;delete ART[a.id];openArt(a.id);}
-  if(j.done){S.lastArt=0;b.querySelector('.wk')?.remove();const th2=b.querySelector('.think');if(th2&&!th2.hidden){th2.open=false;th2.querySelector('.tl').textContent='Thought process';}
+  if(j.done){if(!j.next)notice('✓ Done');S.lastArt=0;b.querySelector('.wk')?.remove();const th2=b.querySelector('.think');if(th2&&!th2.hidden){th2.open=false;th2.querySelector('.tl').textContent='Thought process';}
     if(j.meta?.mode==='plan'&&!j.next)planBar(b);b.classList.remove('live');b.querySelector('.out').innerHTML=md(j.result||'(no answer)');finishOut(b.querySelector('.out'),j.artifacts);st.open=false;if(!j.events.length)st.hidden=true;
     if(j.meta)b.querySelector('.st').textContent=`· ${j.meta.secs}s`;$('#hstate').hidden=true;
     if(j.next){const q=$('.u.q');const live=liveEl();if(q){q.classList.remove('q');q.querySelector('.qtag')?.remove();q.after(live);}else $('#msgs').append(live);
@@ -514,6 +529,70 @@ $$('#hmenu .opt').forEach(o=>o.onclick=async e=>{e.stopPropagation();$('#hmenu')
   if(h==='fork'){const r=await api(`/api/chats/${id}/fork`,{method:'POST'});toast('Duplicated');openChat(r.id);}
   else if(h==='md'||h==='json')location.href=`/api/chats/${id}/export?fmt=${h}`;
   else if(h==='del'&&confirm('Delete this conversation?')){await api('/api/chats/'+id,{method:'DELETE'});newChat();loadList();}});
+
+// ---------- slash commands and @files ----------
+const BUILTIN=[['/new','Start a new chat'],['/clear','Start a new chat'],['/plan','Plan mode (read-only)'],['/ask','Ask before edits and commands'],['/edits','Accept edits'],['/auto','Auto mode'],
+  ['/compact','Summarise the chat to free context'],['/fork','Duplicate this chat'],['/export','Download this chat as Markdown'],['/remember','Remember something: /remember my client is Tribbu'],
+  ['/memory','See what Atenea remembers'],['/init','Create ATENEA.md for this project'],['/schedule','Scheduled tasks'],['/bg','Background processes'],['/status','Model and ZEUS status'],['/help','All commands']];
+let CUSTOM=[],AC={items:[],i:0,kind:null,start:0};
+async function loadCommands(){try{CUSTOM=(await api('/api/commands'+(S.chat?.id?'?chat='+S.chat.id:''))).commands;}catch(_){CUSTOM=[];}}
+function acClose(){$('#ac').hidden=true;AC.items=[];AC.kind=null;}
+function acRender(){const el=$('#ac');if(!AC.items.length){acClose();return;}el.hidden=false;
+  el.innerHTML=AC.items.map((it,i)=>`<button class="ac-i${i===AC.i?' on':''}" data-i="${i}"><b>${esc(it[0])}</b><span>${esc(it[1]||'')}</span></button>`).join('');
+  el.querySelectorAll('.ac-i').forEach(b=>b.onmousedown=e=>{e.preventDefault();AC.i=+b.dataset.i;acPick();});
+  el.querySelector('.on')?.scrollIntoView({block:'nearest'});}
+function acPick(){const it=AC.items[AC.i];if(!it)return;const t=$('#in'),v=t.value,pos=t.selectionStart;
+  if(AC.kind==='cmd'){t.value=it[0]+' ';}else{t.value=v.slice(0,AC.start)+'@'+it[0]+' '+v.slice(pos);t.selectionStart=t.selectionEnd=AC.start+it[0].length+2;}
+  acClose();grow();t.focus();}
+let acT;async function acUpdate(){const t=$('#in'),v=t.value,pos=t.selectionStart;
+  if(/^\/\S*$/.test(v)){const q=v.toLowerCase();AC.kind='cmd';AC.items=[...BUILTIN,...CUSTOM.map(c=>['/'+c.name,c.description])].filter(c=>c[0].startsWith(q));AC.i=0;acRender();return;}
+  const m=v.slice(0,pos).match(/(^|\s)@([^\s@]*)$/);if(!m){acClose();return;}
+  AC.kind='file';AC.start=pos-m[2].length-1;clearTimeout(acT);acT=setTimeout(async()=>{
+    const qs=new URLSearchParams({q:m[2]});if(S.chat?.id)qs.set('chat',S.chat.id);else if($('#proj').value)qs.set('project',$('#proj').value);
+    try{const r=await api('/api/files?'+qs);AC.items=r.files.map(f=>[f,'']);AC.i=0;acRender();}catch(_){acClose();}},150);}
+$('#in').addEventListener('input',acUpdate);
+$('#in').addEventListener('keydown',e=>{if($('#ac').hidden)return;
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();e.stopImmediatePropagation();AC.i=(AC.i+(e.key==='ArrowDown'?1:-1)+AC.items.length)%AC.items.length;acRender();}
+  else if(e.key==='Enter'||e.key==='Tab'){if(AC.kind==='cmd'&&e.key==='Enter'&&AC.items[AC.i]?.[0]===$('#in').value.trim()){acClose();return;}e.preventDefault();e.stopImmediatePropagation();acPick();}
+  else if(e.key==='Escape'){e.stopImmediatePropagation();acClose();}},true);
+$('#in').addEventListener('blur',()=>setTimeout(acClose,150));
+function localNote(html){$('.empty')?.remove();const d=document.createElement('div');d.className='b';d.innerHTML=`<div class="md" style="color:var(--ink2)">${html}</div>`;$('#msgs').append(d);scrollEnd(true);}
+async function slash(text){const [cmd,...rest]=text.trim().split(/\s+/);const arg=text.trim().slice(cmd.length).trim();const c=cmd.toLowerCase();
+  const need=()=>{if(!S.chat?.id){toast('Send a message first');return false;}return true;};
+  switch(c){
+    case '/new':case '/clear':newChat();return true;
+    case '/plan':case '/ask':case '/edits':case '/auto':await setMode(c.slice(1));if(arg){$('#in').value=arg;grow();send();}return true;
+    case '/compact':if(!need())return true;toast('Compacting…');try{const r=await api(`/api/chats/${S.chat.id}/compact`,{method:'POST'});await openChat(S.chat.id,false);localNote('<b>Conversation compacted.</b> Summary kept:<br>'+md(r.summary));}catch(e){toast(e.message);}return true;
+    case '/fork':if(!need())return true;{const r=await api(`/api/chats/${S.chat.id}/fork`,{method:'POST'});openChat(r.id);toast('Duplicated');}return true;
+    case '/export':if(!need())return true;location.href=`/api/chats/${S.chat.id}/export?fmt=md`;return true;
+    case '/remember':if(!arg){toast('Usage: /remember something about you');return true;}{const r=await api('/api/memory');await api('/api/memory',{method:'PUT',body:JSON.stringify({facts:[...r.facts,arg]})});toast('Remembered');}return true;
+    case '/memory':show('settings');setTimeout(()=>$('#memlist').scrollIntoView({block:'center'}),100);return true;
+    case '/schedule':show('settings');setTimeout(()=>$('#schlist').scrollIntoView({block:'center'}),100);return true;
+    case '/bg':show('settings');setTimeout(()=>$('#bglist').scrollIntoView({block:'center'}),100);return true;
+    case '/status':$('#pmodel').click();return true;
+    case '/init':$('#in').value='Explore this project and create (or update) ATENEA.md at its root: what it is, how to install, build, run and test it, the folder structure, and the conventions to follow. Keep it concise and accurate.';grow();send();return true;
+    case '/help':localNote('<b>Commands</b><ul>'+[...BUILTIN,...CUSTOM.map(x=>['/'+x.name,x.description+' (custom)'])].map(x=>`<li><code>${esc(x[0])}</code> — ${esc(x[1])}</li>`).join('')+'</ul>Type <code>@</code> to attach a file from the project. Add your own commands as <code>.md</code> files in <code>~/.config/athena/commands/</code> or <code>.atenea/commands/</code> in a project (use <code>$ARGUMENTS</code>).');return true;}
+  const cu=CUSTOM.find(x=>'/'+x.name===c);if(cu){$('#in').value=cu.body.replaceAll('$ARGUMENTS',arg);grow();send();return true;}
+  return false;}
+// ---------- scheduled tasks & background processes ----------
+async function loadSched(){const r=await api('/api/schedules');const fmt=t=>t?new Date(t*1000).toLocaleString([], {weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'—';
+  $('#schlist').innerHTML=r.items.length?r.items.map(i=>`<div class="sched"><span><b>${esc(i.name)}</b> <span class="w">· ${esc(i.when)}</span></span>
+    <span class="acts"><button class="btn" style="height:30px;padding:0 10px" data-r="${i.id}">Run now</button><button class="btn" style="height:30px;padding:0 10px" data-t="${i.id}" data-e="${i.enabled?0:1}">${i.enabled?'Pause':'Resume'}</button><button class="ib" data-d="${i.id}" aria-label="Delete">✕</button></span>
+    <span class="w">${i.enabled?'next '+fmt(i.next):'paused'}${i.last?' · last '+fmt(i.last):''}${i.last_chat?` · <a href="/c/${i.last_chat}">last result</a>`:''}</span></div>`).join(''):'<div style="font-size:13px;color:var(--muted)">None yet.</div>';
+  $$('#schlist [data-r]').forEach(b=>b.onclick=async()=>{const x=await api(`/api/schedules/${b.dataset.r}/run`,{method:'POST'});toast('Running…');loadList();openChat(x.chat);});
+  $$('#schlist [data-t]').forEach(b=>b.onclick=async()=>{await api(`/api/schedules/${b.dataset.t}`,{method:'PATCH',body:JSON.stringify({enabled:b.dataset.e==='1'})});loadSched();});
+  $$('#schlist [data-d]').forEach(b=>b.onclick=async()=>{if(!confirm('Delete this scheduled task?'))return;await api(`/api/schedules/${b.dataset.d}`,{method:'DELETE'});loadSched();});}
+$('#scadd').onclick=async()=>{try{await api('/api/schedules',{method:'POST',body:JSON.stringify({name:$('#sc_name').value.trim()||'Task',when:$('#sc_when').value.trim(),prompt:$('#sc_prompt').value.trim()})});
+  $('#sc_name').value=$('#sc_when').value=$('#sc_prompt').value='';toast('Scheduled');loadSched();}catch(e){toast(e.message);}};
+async function loadBg(){const r=await api('/api/bg');$('#bglist').innerHTML=r.procs.length?r.procs.map(p=>`<div class="sched"><span><b>${esc(p.name)}</b> <span class="w">· ${esc(p.status)} · pid ${p.pid}</span></span>
+  <span class="acts"><button class="btn" style="height:30px;padding:0 10px" data-l="${p.id}">Logs</button>${p.status==='running'?`<button class="btn" style="height:30px;padding:0 10px" data-s="${p.id}">Stop</button>`:''}</span><span class="w">${esc(p.command)}</span><pre class="logbox" id="lg-${p.id}" hidden></pre></div>`).join(''):'<div style="font-size:13px;color:var(--muted)">None running.</div>';
+  $$('#bglist [data-l]').forEach(b=>b.onclick=async()=>{const el=$('#lg-'+b.dataset.l);el.hidden=!el.hidden;if(!el.hidden){el.textContent=(await api(`/api/bg/${b.dataset.l}/logs`)).text;el.scrollTop=el.scrollHeight;}});
+  $$('#bglist [data-s]').forEach(b=>b.onclick=async()=>{await api(`/api/bg/${b.dataset.s}/stop`,{method:'POST'});loadBg();});}
+// ---------- tab notices (title + soft chime) when the tab is in the background ----------
+const BASE_TITLE=()=>S.cfg?.assistant_name||'Atenea';
+function notice(t){if(!document.hidden)return;document.title=t+' · '+BASE_TITLE();try{const a=new (window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator(),g=a.createGain();
+  o.frequency.value=880;g.gain.setValueAtTime(.06,a.currentTime);g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+.4);o.connect(g).connect(a.destination);o.start();o.stop(a.currentTime+.4);}catch(_){}}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)document.title=BASE_TITLE();});
 
 // ---------- settings ----------
 function projRow(a='',p=''){const d=document.createElement('div');d.className='prow';d.innerHTML=`<input placeholder="alias" value="${esc(a)}" aria-label="Alias"><input placeholder="~/projects/my-app" value="${esc(p)}" aria-label="Folder"><button class="ib" title="Remove" aria-label="Remove">✕</button>`;

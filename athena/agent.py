@@ -212,7 +212,8 @@ class Agent:
         """Decide from the permission mode whether a tool call needs approval (True), runs freely (False)
         or is refused because plan mode only allows reading ("block")."""
         name = t.name
-        builtin = name in READ_ONLY or name in EDIT_TOOLS or name == "bash"
+        exec_ = name in ("bash", "bg_start")
+        builtin = name in READ_ONLY or name in EDIT_TOOLS or exec_
         if self.mode == "plan":                         # read-only: built-in readers and safe (non-dangerous) extras
             return "block" if t.dangerous or (builtin and name not in READ_ONLY) else False
         if t.dangerous:
@@ -222,7 +223,7 @@ class Agent:
         if self.mode == "ask":
             return True                                 # edits and commands
         if self.mode == "edits":
-            return name == "bash"
+            return exec_
         return False                                    # auto
 
     def _delegate(self, args: dict) -> str:

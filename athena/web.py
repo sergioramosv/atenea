@@ -27,6 +27,9 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 
 from . import artifacts as A
+from . import background as BG
+from . import notify as NOTIFY
+from . import scheduler as SCH
 from . import config as C
 from . import memory as MEM
 from .runtime import build_agent
@@ -157,7 +160,9 @@ def _title(text: str) -> str:
 
 def _cwd(project: str | None) -> str:
     cfg = C.load()
-    return os.path.expanduser(cfg.get("projects", {}).get(project or "", project or "") or cfg["workspace"])
+    ws = os.path.expanduser(cfg["workspace"])
+    p = os.path.expanduser(cfg.get("projects", {}).get(project or "", project or "") or ws)
+    return p if os.path.isabs(p) else os.path.join(ws, p)
 
 
 def _agent(chat: dict):
@@ -240,6 +245,7 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False):
                                   "data": {"text": f"{tool.name} allowed by an 'always allow' rule"}})
             return True
         ag = holder.get("ag")
+        _notify_chat(cid, f"⏸ Atenea needs your OK to run {tool.name}")
         job["approval"] = {"tool": tool.name, "args": str(args)[:1500], "answer": None,
                            "diff": _diff_for(tool.name, args, ag.cwd if ag else "/"), **_rule_for(tool.name, args)}
         for _ in range(600):
@@ -278,9 +284,10 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False):
         s0, t0 = ag.stats.requests, time.time()
         job["mode"] = ag.mode
         job["base"] = (ag.stats.completion_tokens, ag.stats.secs_model)
+        text_for_model = _expand_mentions(text, ag.cwd)
         if getattr(ag, "_sys_tmpl", None):              # always the latest memory, even if saved in another chat
             ag.messages[0]["content"] = ag._sys_tmpl.replace("<<MEMORY>>", MEM.block())
-        job["result"] = ag.run(RESUME_NOTE + text if resume else text)
+        job["result"] = ag.run(RESUME_NOTE + text_for_model if resume else text_for_model)
         job["meta"] = {"steps": ag.stats.requests - s0, "secs": round(time.time() - t0), "mode": job.get("mode")}
     except KeyboardInterrupt:
         job["result"] = "_Stopped._"
@@ -321,6 +328,9 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False):
             QUEUES.pop(cid, None)
     job["next"] = nxt
     job["done"] = True
+    secs = time.time() - job["t0"]
+    if job.get("scheduled") or (secs > 90 and not job["cancel"]):
+        _notify_chat(cid, ("⏰ " if job.get("scheduled") else "✅ ") + str(job["result"] or "")[:700])
 
 
 def _start(cid: str, text: str, resume: bool = False, t0: float | None = None) -> str:
@@ -679,6 +689,206 @@ def put_memory(m: MemoryIn):
     return {"ok": True}
 
 
+# ---------------- @files, commands, compact ----------------
+SKIP_DIRS = {".git", "node_modules", ".venv", "venv", "__pycache__", ".next", "dist", "build", ".cache", "target"}
+
+
+def _expand_mentions(text: str, cwd: str) -> str:
+    """`@path` in a message attaches that file (like Claude Code). The log keeps the original text."""
+    extra = []
+    for m in re.finditer(r"(?<![\w@])@([\w./~-][^\s,;:!?()]*)", text):
+        rel = m.group(1).rstrip(".")
+        p = os.path.realpath(os.path.join(cwd, os.path.expanduser(rel)))
+        if os.path.isfile(p) and os.path.getsize(p) < 150_000:
+            try:
+                extra.append(f'<file path="{rel}">\n{open(p, encoding="utf-8").read()}\n</file>')
+            except (OSError, UnicodeDecodeError):
+                pass
+        elif os.path.isdir(p):
+            try:
+                extra.append(f'<directory path="{rel}">\n' + "\n".join(sorted(os.listdir(p))[:300]) + "\n</directory>")
+            except OSError:
+                pass
+    return text + ("\n\n" + "\n\n".join(extra[:10]) if extra else "")
+
+
+@app.get("/api/files", dependencies=[Depends(auth)])
+def files(q: str = "", chat: str | None = None, project: str | None = None):
+    cwd = _cwd(_read(chat).get("project") if chat else project)
+    q = q.lower()
+    out = []
+    for root, dirs, fs in os.walk(cwd):
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not d.startswith(".")]
+        rel_root = os.path.relpath(root, cwd)
+        for name in [*dirs, *fs]:
+            rel = name if rel_root == "." else os.path.join(rel_root, name)
+            if not q or q in rel.lower():
+                out.append(rel + ("/" if name in dirs else ""))
+        if len(out) > 400 or len(out) + 1 > 20000:
+            break
+    out.sort(key=lambda r: (len(r), r))
+    return {"cwd": cwd, "files": out[:50]}
+
+
+def _command_dirs(cwd: str) -> list[str]:
+    return [os.path.join(os.path.dirname(C.PATH), "commands"), os.path.join(cwd, ".atenea", "commands")]
+
+
+@app.get("/api/commands", dependencies=[Depends(auth)])
+def commands(chat: str | None = None):
+    """Custom slash commands: markdown files in ~/.config/athena/commands or <project>/.atenea/commands.
+    $ARGUMENTS in the file is replaced by whatever follows the command."""
+    cwd = _cwd(_read(chat).get("project") if chat else None)
+    out = {}
+    for d in _command_dirs(cwd):
+        if os.path.isdir(d):
+            for f in sorted(os.listdir(d)):
+                if f.endswith(".md"):
+                    body = open(os.path.join(d, f), encoding="utf-8").read()
+                    first = next((ln.strip("# ").strip() for ln in body.splitlines() if ln.strip()), "")
+                    out[f[:-3]] = {"name": f[:-3], "description": first[:100], "body": body}
+    return {"commands": list(out.values())}
+
+
+@app.post("/api/chats/{cid}/compact", dependencies=[Depends(auth)])
+def compact(cid: str):
+    """Summarise the conversation and continue from the summary (frees context, like /compact)."""
+    if _running(cid):
+        raise HTTPException(409, "Wait until Atenea finishes")
+    c = _read(cid)
+    convo = "\n\n".join(f"USER: {e['q']}\nATENEA: {e.get('a') or ''}" for e in c["log"])[-60000:]
+    if not convo.strip():
+        return {"ok": True, "summary": ""}
+    from .llm import LLM
+    ag = _agent(c)
+    r = LLM(ag.profile).chat([{"role": "system", "content": "You write compact, faithful summaries of conversations."},
+                              {"role": "user", "content": "Summarise this conversation so we can continue it later: "
+                               "goals, decisions, files and commands involved, current state and pending work. "
+                               "Be specific and brief (max ~400 words), same language as the user.\n\n" + convo}])
+    summary = (r["message"].get("content") or "").strip()
+    with _lock:
+        c = _read(cid)
+        c["messages"] = [{"role": "user", "content": "Summary of our conversation so far (it was compacted):\n" + summary},
+                         {"role": "assistant", "content": "Understood, I have the context. Let's continue."}]
+        for e in c["log"]:
+            e["msg_start"] = None
+        c["usage"] = None
+        c["compacted"] = time.time()
+        _write(c)
+    AGENTS.pop(cid, None)
+    return {"ok": True, "summary": summary}
+
+
+# ---------------- background processes ----------------
+@app.get("/api/bg", dependencies=[Depends(auth)])
+def bg_list():
+    return {"procs": BG.listing()}
+
+
+@app.get("/api/bg/{pid}/logs", dependencies=[Depends(auth)])
+def bg_logs(pid: str, lines: int = 200):
+    return {"text": BG.tail(pid, lines)}
+
+
+@app.post("/api/bg/{pid}/stop", dependencies=[Depends(auth)])
+def bg_stop(pid: str):
+    return {"text": BG.stop(pid)}
+
+
+# ---------------- scheduled tasks & notifications ----------------
+def _panel_url() -> str:
+    cfg = C.load()
+    if cfg["web"].get("public_url"):
+        return cfg["web"]["public_url"].rstrip("/")
+    ip = subprocess.run("hostname -I", shell=True, capture_output=True, text=True).stdout.split()
+    return f"http://{ip[0] if ip else 'zeus'}:{cfg['web']['port']}"
+
+
+def _notify_chat(cid: str, text: str):
+    try:
+        title = _read(cid)["title"]
+    except Exception:
+        title = "Atenea"
+    NOTIFY.send(f"{title}\n{text}", f"{_panel_url()}/c/{cid}")
+
+
+def run_schedule(item: dict) -> str:
+    with _lock:
+        if item.get("chat"):
+            try:
+                c = _read(item["chat"])
+            except HTTPException:
+                c = _new_chat(None, item.get("mode"))
+        else:
+            c = _new_chat(None, item.get("mode"))
+            c["title"] = f"⏰ {item['name']} · {time.strftime('%d %b %H:%M')}"
+            _write(c)
+        if _running(c["id"]):
+            QUEUES.setdefault(c["id"], []).append({"id": uuid.uuid4().hex[:8], "text": item["prompt"]})
+            _save_queue(c["id"])
+            return c["id"]
+        jid = _start(c["id"], item["prompt"])
+        JOBS[jid]["scheduled"] = True
+    SCH.update(item["id"], last_chat=c["id"])
+    return c["id"]
+
+
+def _scheduler_loop():
+    while True:
+        try:
+            for item in SCH.due(time.time()):
+                print(f"[web] running scheduled task {item['name']!r}", flush=True)
+                run_schedule(item)
+        except Exception as e:
+            print(f"[web] scheduler error: {e}", flush=True)
+        time.sleep(20)
+
+
+class ScheduleIn(BaseModel):
+    name: str | None = None
+    prompt: str | None = None
+    when: str | None = None
+    mode: str | None = None
+    enabled: bool | None = None
+
+
+@app.get("/api/schedules", dependencies=[Depends(auth)])
+def schedules():
+    return {"items": SCH.load()}
+
+
+@app.post("/api/schedules", dependencies=[Depends(auth)])
+def schedule_add(s_: ScheduleIn):
+    try:
+        return SCH.add(s_.name or "Task", s_.prompt or "", s_.when or "", _mode(s_.mode))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.patch("/api/schedules/{sid}", dependencies=[Depends(auth)])
+def schedule_patch(sid: str, s_: ScheduleIn):
+    try:
+        it = SCH.update(sid, **s_.model_dump())
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if not it:
+        raise HTTPException(404)
+    return it
+
+
+@app.delete("/api/schedules/{sid}", dependencies=[Depends(auth)])
+def schedule_del(sid: str):
+    return {"ok": SCH.remove(sid)}
+
+
+@app.post("/api/schedules/{sid}/run", dependencies=[Depends(auth)])
+def schedule_run(sid: str):
+    it = next((i for i in SCH.load() if i["id"] == sid), None)
+    if not it:
+        raise HTTPException(404)
+    return {"chat": run_schedule(it)}
+
+
 # ---------------- artifacts & media ----------------
 SANDBOX = {"Content-Security-Policy": "sandbox allow-scripts allow-popups allow-forms allow-modals allow-downloads",
            "Cache-Control": "no-store"}
@@ -809,6 +1019,7 @@ def main():
         print(f"[web] generated password: {cfg['web']['password']}", flush=True)
     _secret()
     resume_interrupted()
+    threading.Thread(target=_scheduler_loop, daemon=True).start()
     import uvicorn
     uvicorn.run(app, host=cfg["web"]["host"], port=int(cfg["web"]["port"]), log_level="warning")
 
