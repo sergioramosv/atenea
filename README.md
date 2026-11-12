@@ -75,6 +75,16 @@ atenea -p "summarise this repo"     # print mode for scripts; also: cat log.txt 
 atenea -c                    # continue the last conversation of this folder · atenea -r to pick one
 ```
 
+**On another computer (e.g. your Mac, through Tailscale):**
+
+```bash
+curl -fsSL https://zeus.tailbf0b1c.ts.net/install.sh | bash     # needs Python 3.10+ (brew install python)
+cd ~/my-project && atenea
+```
+
+The model and the agent stay on ZEUS; the file and shell tools run on the Mac, in that folder ("runner").
+`atenea login` / `atenea logout` / `atenea update`.
+
 Shift+Tab switches the permission mode, Ctrl+C stops the task, `/help` lists commands, `@file` attaches a file.
 The conversation lives in the Atenea server, so it also shows up in the web / iPhone app (marked `>_`):
 follow it, approve actions or write from the phone and the terminal shows it live. `/remote` prints the link and a QR.

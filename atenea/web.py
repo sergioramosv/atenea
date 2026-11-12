@@ -40,6 +40,10 @@ JOBS: dict[str, dict] = {}
 AGENTS: dict[str, object] = {}          # live agents, one per conversation id
 QUEUES: dict[str, list[dict]] = {}      # messages sent while a conversation is busy: run in order afterwards
 BGAGENTS: dict[str, dict] = {}          # subagents running in the background
+# Runners: another machine (e.g. the Mac running `atenea`) executes the file/shell tools of a conversation, while
+# the agent and the model stay here. The runner long-polls for tool calls and posts the results back.
+RUNNERS: dict[str, dict] = {}           # runner id -> {name, platform, cwd, seen, calls: Queue, results: {}}
+RUNNER_TOOLS = ("bash", "read_file", "write_file", "edit_file", "list_files", "grep")
 ACTIVITY_INSTR = """- BACKGROUND WORK: you can keep the user unblocked. bg_start runs commands in the background;
   monitor_start watches a command, process or log and wakes you up in this chat when something happens
   ("tell me when the build ends", "watch the log for errors", "check every 5 minutes if the site is up");
@@ -346,6 +350,18 @@ def _agent(chat: dict):
                                       {"type": "object", "properties": {"question": {"type": "string"},
                                        "options": {"type": "array", "items": {"type": "string"}}},
                                        "required": ["question"]}, ask_user)
+        if chat.get("runner"):                           # file & shell tools run on the user's computer
+            ag.cwd = chat.get("project") or ag.cwd
+            for name in RUNNER_TOOLS:
+                if name in ag._tools:
+                    ag._tools[name].fn = (lambda n, _cid=chat["id"]: (lambda **kw: _runner_call(_cid, n, kw)))(name)
+            for name in ("bg_start", "bg_logs", "bg_stop", "bg_list", "monitor_start", "monitor_list", "monitor_stop"):
+                ag._tools.pop(name, None)
+            where = f"{chat.get('runner_name') or 'the user’s computer'} ({chat.get('runner_platform') or 'remote'})"
+            ag.messages[0]["content"] += (f"\n- IMPORTANT: in this conversation your file and shell tools (bash, read_file, "
+                f"write_file, edit_file, list_files, grep) run on {where}, in the folder {ag.cwd} — NOT on ZEUS. "
+                "Use that platform's commands (e.g. macOS: brew, BSD sed/grep). web_search, memory and the rest still run "
+                "on ZEUS. Background shells and monitors are not available here.")
         ag._tools["create_artifact"] = A.make_tool(lambda: ag.cwd, chat["id"],
                                                    on_create=lambda m: getattr(ag, "_on_artifact", lambda _: None)(m))
         AGENTS[chat["id"]] = ag
@@ -410,6 +426,7 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False, origin: str | 
             _save_progress(cid, holder["ag"], job)
 
     def approve(tool, args):
+        remote = bool(holder.get("remote"))
         if _allowed_by_rule(tool.name, args):
             job["events"].append({"t": round(time.time() - job["t0"], 1), "kind": "notice",
                                   "data": {"text": f"{tool.name} allowed by an 'always allow' rule"}})
@@ -417,7 +434,8 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False, origin: str | 
         ag = holder.get("ag")
         _notify_chat(cid, f"⏸ Atenea needs your OK to run {tool.name}")
         job["approval"] = {"tool": tool.name, "args": str(args)[:1500], "answer": None,
-                           "diff": _diff_for(tool.name, args, ag.cwd if ag else "/"), **_rule_for(tool.name, args)}
+                           "diff": _diff_for(tool.name, args, ag.cwd if ag else "/", cid if remote else None),
+                           **_rule_for(tool.name, args)}
         for _ in range(600):
             if job["cancel"]:
                 break
@@ -438,7 +456,16 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False, origin: str | 
         holder["ag"] = ag
         ag.on_event, ag.approve = ev, approve
 
+        remote = bool(chat.get("runner"))
+        holder["remote"] = remote
+
         def before(t, a):
+            if remote and t.name in EDIT_TOOLS and a.get("path"):
+                p = os.path.join(ag.cwd, a["path"]) if not a["path"].startswith(("/", "~")) else a["path"]
+                if p not in job["ckpt"]:
+                    raw = _runner_call(cid, "read_raw", {"path": p}, timeout=60)
+                    job["ckpt"][p] = None if raw.startswith("\0missing") else ("\0skip" if raw.startswith("Error") else raw)
+                return
             if t.name in EDIT_TOOLS and a.get("path"):
                 p = os.path.realpath(os.path.join(ag.cwd, os.path.expanduser(a["path"])))
                 if p not in job["ckpt"]:
@@ -468,7 +495,7 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False, origin: str | 
         s0, t0 = ag.stats.requests, time.time()
         job["mode"] = ag.mode
         job["base"] = (ag.stats.completion_tokens, ag.stats.secs_model)
-        text_for_model = _expand_mentions(text, ag.cwd)
+        text_for_model = text if chat.get("runner") else _expand_mentions(text, ag.cwd)   # the CLI expands @files
         ag.note = _turn_note(ag)
         slot = _slot_acquire(cid, ag)
         try:
@@ -812,14 +839,18 @@ def unqueue(cid: str, qid: str):
 
 
 # ---------------- permissions: diffs and "always allow" rules ----------------
-def _diff_for(name: str, args: dict, cwd: str) -> str | None:
+def _diff_for(name: str, args: dict, cwd: str, remote_chat: str | None = None) -> str | None:
     if name not in EDIT_TOOLS or not args.get("path"):
         return None
-    p = os.path.join(cwd, os.path.expanduser(args["path"]))
-    try:
-        cur = open(p, encoding="utf-8").read()
-    except (OSError, UnicodeDecodeError):
-        cur = ""
+    if remote_chat:
+        raw = _runner_call(remote_chat, "read_raw", {"path": args["path"]}, timeout=60)
+        cur = "" if raw.startswith(("\0missing", "Error")) else raw
+    else:
+        p = os.path.join(cwd, os.path.expanduser(args["path"]))
+        try:
+            cur = open(p, encoding="utf-8").read()
+        except (OSError, UnicodeDecodeError):
+            cur = ""
     new = args.get("content", "") if name == "write_file" else cur.replace(args.get("old", ""), args.get("new", ""), 1)
     lines = list(difflib.unified_diff(cur.splitlines(), new.splitlines(), fromfile=args["path"], tofile=args["path"],
                                       lineterm="", n=2))
@@ -898,6 +929,11 @@ def rewind(cid: str, r: RewindIn):
                 if not os.path.isfile(f):
                     continue
                 for path, content in json.load(open(f, encoding="utf-8")).items():
+                    if c.get("runner"):
+                        out = _runner_call(cid, "restore_raw", {"path": path, "content": content}, timeout=60)
+                        if not out.startswith("Error"):
+                            restored.append(path)
+                        continue
                     try:
                         if content is None:
                             if os.path.exists(path):
@@ -1304,6 +1340,136 @@ def schedule_run(sid: str):
     if not it:
         raise HTTPException(404)
     return {"chat": run_schedule(it)}
+
+
+# ---------------- runners (tools executed on another machine) ----------------
+import queue as _queue
+
+
+class RunnerIn(BaseModel):
+    name: str = "computer"
+    platform: str = ""
+    cwd: str
+    chat: str | None = None
+
+
+class RunnerResult(BaseModel):
+    id: str
+    output: str
+
+
+def _runner_online(rid: str | None) -> bool:
+    r = RUNNERS.get(rid or "")
+    return bool(r) and time.time() - r["seen"] < 60
+
+
+def _runner_call(cid: str, tool: str, args: dict, timeout: int = 1800) -> str:
+    try:
+        rid = _read(cid).get("runner")
+    except HTTPException:
+        rid = None
+    if not _runner_online(rid):
+        return ("Error: the computer that runs this conversation's files and commands is offline. "
+                "Tell the user to open `atenea` again in that folder (atenea -c).")
+    r, call_id = RUNNERS[rid], uuid.uuid4().hex[:10]
+    r["results"][call_id] = None
+    r["calls"].put({"id": call_id, "tool": tool, "args": args})
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        if r["results"].get(call_id) is not None:
+            return r["results"].pop(call_id)
+        if not _runner_online(rid):
+            break
+        time.sleep(0.1)
+    r["results"].pop(call_id, None)
+    return f"Error: no answer from {r['name']} (it went offline or the command took too long)."
+
+
+@app.post("/api/runners", dependencies=[Depends(auth)])
+def runner_register(ri: RunnerIn):
+    rid = uuid.uuid4().hex[:10]
+    RUNNERS[rid] = {"id": rid, "name": ri.name[:60], "platform": ri.platform[:40], "cwd": ri.cwd, "seen": time.time(),
+                    "calls": _queue.Queue(), "results": {}}
+    with _lock:
+        if ri.chat:
+            c = _read(ri.chat)
+        else:
+            c = _new_chat(ri.cwd, "edits")
+        c.update(runner=rid, runner_name=ri.name[:60], runner_platform=ri.platform[:40], project=ri.cwd, client="cli")
+        _write(c)
+    AGENTS.pop(c["id"], None)                             # rebuild with remote tools
+    return {"runner": rid, "chat": c["id"], "url": f"{_panel_url()}/c/{c['id']}"}
+
+
+@app.get("/api/runners/{rid}/next", dependencies=[Depends(auth)])
+def runner_next(rid: str, wait: int = 25):
+    r = RUNNERS.get(rid)
+    if not r:
+        raise HTTPException(404, "Unknown runner (the server restarted): register again")
+    r["seen"] = time.time()
+    try:
+        call = r["calls"].get(timeout=max(1, min(wait, 50)))
+    except _queue.Empty:
+        return {}
+    r["seen"] = time.time()
+    return {"call": call}
+
+
+@app.post("/api/runners/{rid}/result", dependencies=[Depends(auth)])
+def runner_result(rid: str, res: RunnerResult):
+    r = RUNNERS.get(rid)
+    if not r:
+        raise HTTPException(404, "Unknown runner")
+    r["seen"] = time.time()
+    if res.id in r["results"]:
+        r["results"][res.id] = res.output
+    return {"ok": True}
+
+
+# ---------------- installer for other computers (Mac / Linux) ----------------
+INSTALL_SH = r"""#!/bin/bash
+# Atenea Code for this computer: `curl -fsSL __SERVER__/install.sh | bash`
+set -e
+SERVER="${ATENEA_SERVER:-__SERVER__}"
+PY=""
+for p in python3.14 python3.13 python3.12 python3.11 python3.10 python3; do
+  if command -v "$p" >/dev/null 2>&1 && "$p" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)'; then PY="$(command -v $p)"; break; fi
+done
+if [ -z "$PY" ]; then echo "Atenea needs Python 3.10 or newer. On a Mac: brew install python   (then run this again)"; exit 1; fi
+echo "→ Installing Atenea Code with $($PY --version) into ~/.atenea"
+mkdir -p "$HOME/.atenea" "$HOME/.local/bin"
+[ -x "$HOME/.atenea/venv/bin/python" ] || "$PY" -m venv "$HOME/.atenea/venv"
+"$HOME/.atenea/venv/bin/pip" install -q --upgrade pip prompt_toolkit qrcode >/dev/null
+rm -rf "$HOME/.atenea/src.new" && mkdir -p "$HOME/.atenea/src.new"
+curl -fsSL "$SERVER/dist/atenea.tar.gz" | tar xz -C "$HOME/.atenea/src.new"
+rm -rf "$HOME/.atenea/src" && mv "$HOME/.atenea/src.new" "$HOME/.atenea/src"
+cat > "$HOME/.local/bin/atenea" <<EOS
+#!/bin/bash
+PYTHONPATH="\$HOME/.atenea/src" exec "\$HOME/.atenea/venv/bin/python" -m atenea.cli "\$@"
+EOS
+chmod +x "$HOME/.local/bin/atenea"
+echo "✓ Installed: ~/.local/bin/atenea"
+case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *)
+  SHELLRC="$HOME/.zshrc"; [ -n "$BASH_VERSION" ] && [ ! -f "$HOME/.zshrc" ] && SHELLRC="$HOME/.bashrc"
+  echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$SHELLRC"; echo "  (added ~/.local/bin to PATH in $SHELLRC — open a new terminal)";;
+esac
+if [ -z "$ATENEA_SKIP_LOGIN" ]; then "$HOME/.local/bin/atenea" login "$SERVER" < /dev/tty; fi
+"""
+
+
+@app.get("/install.sh")
+def install_sh():
+    return Response(INSTALL_SH.replace("__SERVER__", _panel_url()), media_type="text/x-shellscript")
+
+
+@app.get("/dist/atenea.tar.gz")
+def dist():
+    import io
+    import tarfile
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        tar.add(HERE, arcname="atenea", filter=lambda ti: None if "__pycache__" in ti.name else ti)
+    return Response(buf.getvalue(), media_type="application/gzip")
 
 
 # ---------------- push notifications ----------------

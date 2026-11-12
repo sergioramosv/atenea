@@ -39,19 +39,39 @@ SPIN = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 
 
 # ---------- API client ----------
+CLI_FILE = os.path.expanduser("~/.config/atenea/cli.json")    # remote mode: {"server": ..., "cookie": ...}
+
+
+def _remote_conf() -> dict:
+    try:
+        return json.load(open(CLI_FILE))
+    except (OSError, ValueError):
+        return {}
+
+
 class Api:
+    """Local mode (on the server machine): token from the shared config. Remote mode (e.g. a Mac): the server URL
+    and session cookie saved by `atenea login`; then this machine also runs the file/shell tools (a "runner")."""
+
     def __init__(self):
-        cfg = C.load()
-        if not cfg["web"].get("cli_token"):                 # same token the server accepts (shared config file)
-            cfg["web"]["cli_token"] = secrets.token_hex(24)
-            C.save(cfg)
-        self.token = cfg["web"]["cli_token"]
-        self.base = os.environ.get("ATENEA_SERVER") or f"http://127.0.0.1:{cfg['web'].get('port', 8787)}"
+        rc = _remote_conf()
+        self.remote = bool(os.environ.get("ATENEA_SERVER") or rc.get("server"))
+        self.headers = {"Content-Type": "application/json"}
+        if self.remote:
+            self.base = (os.environ.get("ATENEA_SERVER") or rc["server"]).rstrip("/")
+            if rc.get("cookie"):
+                self.headers["Cookie"] = rc["cookie"]
+        else:
+            cfg = C.load()
+            if not cfg["web"].get("cli_token"):             # same token the server accepts (shared config file)
+                cfg["web"]["cli_token"] = secrets.token_hex(24)
+                C.save(cfg)
+            self.headers["Authorization"] = f"Bearer {cfg['web']['cli_token']}"
+            self.base = f"http://127.0.0.1:{cfg['web'].get('port', 8787)}"
 
     def call(self, method: str, path: str, body=None, timeout=30):
         req = urllib.request.Request(self.base + path, json.dumps(body).encode() if body is not None else None,
-                                     {"Content-Type": "application/json", "Authorization": f"Bearer {self.token}"},
-                                     method=method)
+                                     self.headers, method=method)
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 return json.load(r)
@@ -60,6 +80,8 @@ class Api:
                 detail = json.load(e).get("detail")
             except Exception:
                 detail = None
+            if e.code == 401 and self.remote:
+                detail = "not signed in to Atenea: run `atenea login`"
             raise RuntimeError(detail or f"HTTP {e.code}") from None
 
     get = lambda self, p: self.call("GET", p)
@@ -144,6 +166,16 @@ class Session:
 
     # chat lifecycle
     def ensure_chat(self):
+        if self.api.remote:
+            if not getattr(self, "runner", None):
+                import platform as _pf
+                r = self.api.post("/api/runners", {"name": _pf.node().split(".")[0] or "computer", "cwd": self.cwd,
+                                                   "platform": f"{_pf.system()} {_pf.release()}", "chat": self.chat})
+                self.runner, self.chat, self.url = r["runner"], r["chat"], r["url"]
+                if self.mode:
+                    self.set_mode(self.mode)
+                threading.Thread(target=run_tools, args=(self,), daemon=True).start()
+            return
         if not self.chat:
             r = self.api.post("/api/chats", {"project": self.cwd, "mode": self.mode, "client": "cli"})
             self.chat, self.url = r["id"], r["url"]
@@ -160,6 +192,8 @@ class Session:
 
     def send(self, text: str) -> str | None:
         self.ensure_chat()
+        if self.api.remote:
+            text = expand_mentions(text, self.cwd)           # @files live on this computer
         r = self.api.post("/api/chat", {"text": text, "chat": self.chat, "mode": self.mode, "client": "cli"})
         if r.get("queued"):
             print(GRAY(f"  queued (#{r.get('position')}) — it runs when the current task ends"))
@@ -314,6 +348,91 @@ class Session:
         self.api.post(f"/api/jobs/{jid}/answer", {"answer": ans or "(no answer)"})
 
 
+# ---------- runner: execute Atenea's file & shell tools on this computer ----------
+def run_tools(s: "Session"):
+    from . import tools as T
+    while True:
+        try:
+            r = s.api.call("GET", f"/api/runners/{s.runner}/next?wait=25", timeout=40)
+        except RuntimeError as e:
+            if "Unknown runner" in str(e):                 # the server restarted: register again, same chat
+                s.runner = None
+                try:
+                    s.ensure_chat()
+                except Exception:
+                    time.sleep(5)
+                return
+            time.sleep(3)
+            continue
+        except Exception:
+            time.sleep(3)
+            continue
+        call = r.get("call")
+        if not call:
+            continue
+        tool, args = call["tool"], call.get("args") or {}
+        try:
+            if tool == "read_raw":
+                p = os.path.join(s.cwd, os.path.expanduser(args["path"]))
+                out = open(p, encoding="utf-8").read() if os.path.exists(p) else "\0missing"
+            elif tool == "restore_raw":
+                p = os.path.join(s.cwd, os.path.expanduser(args["path"]))
+                if args.get("content") is None:
+                    if os.path.exists(p):
+                        os.remove(p)
+                else:
+                    os.makedirs(os.path.dirname(p) or ".", exist_ok=True)
+                    open(p, "w", encoding="utf-8").write(args["content"])
+                out = "ok"
+            else:
+                out = T.run(tool, args, s.cwd)
+        except Exception as e:
+            out = f"Error: {type(e).__name__}: {e}"
+        try:
+            s.api.post(f"/api/runners/{s.runner}/result", {"id": call["id"], "output": str(out)})
+        except Exception:
+            pass
+
+
+def expand_mentions(text: str, cwd: str) -> str:
+    """`@path` attaches that file from this computer (same as the server does for local chats)."""
+    extra = []
+    for m in re.finditer(r"(?<![\w@])@([\w./~-][^\s,;:!?()]*)", text):
+        rel = m.group(1).rstrip(".")
+        p = os.path.realpath(os.path.join(cwd, os.path.expanduser(rel)))
+        try:
+            if os.path.isfile(p) and os.path.getsize(p) < 150_000:
+                extra.append(f'<file path="{rel}">\n{open(p, encoding="utf-8").read()}\n</file>')
+            elif os.path.isdir(p):
+                extra.append(f'<directory path="{rel}">\n' + "\n".join(sorted(os.listdir(p))[:300]) + "\n</directory>")
+        except (OSError, UnicodeDecodeError):
+            pass
+    return text + ("\n\n" + "\n\n".join(extra[:10]) if extra else "")
+
+
+def login(server: str | None):
+    import getpass
+    server = (server or input("Atenea server [https://zeus.tailbf0b1c.ts.net]: ").strip()
+              or "https://zeus.tailbf0b1c.ts.net").rstrip("/")
+    pw = getpass.getpass("Password: ")
+    req = urllib.request.Request(server + "/api/login", json.dumps({"password": pw}).encode(),
+                                 {"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            cookie = (r.headers.get("set-cookie") or "").split(";")[0]
+    except urllib.error.HTTPError as e:
+        print(RED(f"Login failed: {e.code}"))
+        return 1
+    except urllib.error.URLError as e:
+        print(RED(f"Cannot reach {server}: {e.reason}. Is Tailscale on?"))
+        return 1
+    os.makedirs(os.path.dirname(CLI_FILE), exist_ok=True)
+    json.dump({"server": server, "cookie": cookie}, open(CLI_FILE, "w"))
+    os.chmod(CLI_FILE, 0o600)
+    print(GREEN("✓ Signed in.") + " Now run " + BOLD("atenea") + " in any folder.")
+    return 0
+
+
 # ---------- interactive loop ----------
 HELP = [("/help", "this list"), ("/mode", "ask · edits · auto · plan (or Shift+Tab)"), ("/plan /ask /edits /auto", "switch mode"),
         ("/new", "new conversation in this folder"), ("/resume", "pick an earlier conversation"),
@@ -328,7 +447,8 @@ def banner(s: Session, status: dict):
     w = min(shutil.get_terminal_size((90, 20)).columns, 92)
     print(GREEN("╭" + "─" * (w - 2) + "╮"))
     print(GREEN("│ ") + BOLD("✻ Atenea Code") + GRAY(f"  ·  Ornith (local) on ZEUS  ·  {'🟢 online' if status.get('ornith') == 'active' else '🔴 model offline'}"))
-    print(GREEN("│ ") + GRAY("folder ") + s.cwd.replace(os.path.expanduser("~"), "~"))
+    print(GREEN("│ ") + GRAY("folder ") + s.cwd.replace(os.path.expanduser("~"), "~")
+          + (GRAY("  (files & commands run on this computer)") if s.api.remote else ""))
     print(GREEN("│ ") + GRAY("mode   ") + MODE_COLOR[s.mode](MODE_LABEL[s.mode]) + GRAY("  (shift+tab to switch)"))
     if s.url:
         print(GREEN("│ ") + GRAY("app    ") + BLUE(s.url) + GRAY("  (/remote for a QR)"))
@@ -543,6 +663,17 @@ def pick_chat(s: Session):
 
 
 def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["login"]:
+        return login(argv[1] if len(argv) > 1 else None)
+    if argv[:1] == ["logout"]:
+        if os.path.exists(CLI_FILE):
+            os.remove(CLI_FILE)
+        print("Signed out.")
+        return 0
+    if argv[:1] == ["update"]:
+        server = (_remote_conf().get("server") or "https://zeus.tailbf0b1c.ts.net")
+        return os.system(f"curl -fsSL {server}/install.sh | ATENEA_SKIP_LOGIN=1 bash")
     ap = argparse.ArgumentParser(prog="atenea", description="Atenea Code: your local coding agent in the terminal.")
     ap.add_argument("prompt", nargs="*", help="first message (optional)")
     ap.add_argument("-p", "--print", action="store_true", help="answer and exit (non-interactive)")
@@ -551,6 +682,9 @@ def main(argv=None):
     ap.add_argument("--mode", choices=MODES, default=None, help="permission mode (default: edits)")
     ap.add_argument("--cwd", default=os.getcwd())
     a = ap.parse_args(argv)
+    if not _remote_conf() and not os.path.exists(C.PATH) and not os.environ.get("ATENEA_SERVER"):
+        print("This computer is not connected to an Atenea server yet. Run: " + BOLD("atenea login"))
+        return 1
     api = Api()
     cwd = os.path.realpath(a.cwd)
     chat = None
