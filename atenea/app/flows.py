@@ -1,4 +1,4 @@
-"""Atenea Flujos: scheduled multi-step jobs that log into a site, collect data, compare it with the last run and only
+"""Atenea Workflows: scheduled multi-step jobs that log into a site, collect data, compare it with the last run and only
 then hand the new items to Atenea (research + report) in a task conversation.
 
 A flow is a scheduler item with kind "flow" and  flow = {"connector": "viu", "vault": "viu"}.
