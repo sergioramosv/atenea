@@ -630,7 +630,7 @@ const BUILTIN=[['/new','Start a new chat'],['/clear','Start a new chat'],['/plan
   ['/compact','Summarise the chat to free context'],['/fork','Duplicate this chat'],['/export','Download this chat as Markdown'],['/remember','Remember something: /remember my client is Tribbu'],
   ['/memory','See what Atenea remembers'],['/init','Create ATENEA.md for this project'],['/schedule','Scheduled tasks'],['/bg','Background processes'],['/status','Model and ZEUS status'],
   ['/context','What fills the context window'],['/mcp','MCP servers: status and tools'],['/skills','Installed skills'],['/tools','Tools and which ones ask permission'],['/agents','Specialised subagents'],
-  ['/equipo','Atenea Equipo: plan → code → review → test for a big task'],['/hooks','Configured hooks'],['/notifications','Push notifications on this device'],['/tasks','Background shells, subagents and monitors'],['/doctor','Check that everything works'],['/model','Model information'],['/usage','Tokens and speed of this chat'],['/permissions','Permission mode and always-allow rules'],
+  ['/team','Atenea Team: plan → code → review → test for a big task'],['/hooks','Configured hooks'],['/notifications','Push notifications on this device'],['/tasks','Background shells, subagents and monitors'],['/doctor','Check that everything works'],['/model','Model information'],['/usage','Tokens and speed of this chat'],['/permissions','Permission mode and always-allow rules'],
   ['/config','Open settings'],['/rename','Rename this chat: /rename new title'],['/resume','Find an earlier chat'],['/todos','Current task list'],['/rewind','Rewind the last message'],
   ['/review','Review recent code changes with the revisor subagent'],['/security-review','Security review of recent changes'],['/theme','Switch light / dark'],['/logout','Sign out'],['/help','All commands']];
 let CUSTOM=[],AC={items:[],i:0,kind:null,start:0};
@@ -694,7 +694,7 @@ async function slash(text){const [cmd,...rest]=text.trim().split(/\s+/);const ar
     case '/resume':side(true);$('#q').focus();return true;
     case '/todos':{const t=[...$$('.b')].reverse().find(b=>!b.querySelector('.todo').hidden);if(t)t.querySelector('.todo').scrollIntoView({block:'center'});else localNote('No task list in this chat yet.');}return true;
     case '/rewind':{const us=[...$$('#msgs .u:not(.q)')];if(!us.length){toast('Nothing to rewind');return true;}if(S.job){toast('Wait until Atenea finishes');return true;}const last=us[us.length-1];rewindMenu(last.querySelector('[data-u=rewind]'),msgIndex(last));}return true;
-    case '/equipo':if(!arg){toast('Usage: /equipo what to build or fix');return true;}$('#in').value='Usa Atenea Equipo (la herramienta equipo) para esta tarea: '+arg;grow();send();return true;
+    case '/team':case '/equipo':if(!arg){toast('Usage: /team what to build or fix');return true;}$('#in').value='Usa Atenea Team (la herramienta team) para esta tarea: '+arg;grow();send();return true;
     case '/review':$('#in').value='Use the revisor subagent to review the recent changes in this project (git diff, or the files we touched in this chat'+(arg?': '+arg:'')+'). Then summarise the findings for me, most severe first.';grow();send();return true;
     case '/security-review':$('#in').value='Do a security review of the recent changes in this project (git diff'+(arg?', focus: '+arg:'')+'): injection, secrets, auth, unsafe input, dangerous commands. Use the revisor subagent and report only real, concrete issues.';grow();send();return true;
     case '/theme':$('#theme').click();return true;

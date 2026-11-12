@@ -4,7 +4,7 @@
 
 | Producto | Qué es | Dónde |
 |---|---|---|
-| **Atenea SDK** (`atenea-sdk`, `import atenea`) | El motor: bucle del agente, herramientas, modos de permiso, hooks, subagentes, MCP, memoria, tareas programadas, Atenea Equipo | `atenea/` |
+| **Atenea SDK** (`atenea-sdk`, `import atenea`) | El motor: bucle del agente, herramientas, modos de permiso, hooks, subagentes, MCP, memoria, tareas programadas, Atenea Team | `atenea/` |
 | **Atenea** | El asistente: app web/iPhone, Atenea Telegram, Atenea voz, imágenes, documentos, Atenea documentos, Atenea buscador, notificaciones, copias | `atenea/app/` (`pip install "atenea-sdk[app]"`) |
 | **Atenea Código** | El agente de programación en la terminal (`atenea`), también desde el Mac | `atenea/codigo/` (`pip install "atenea-sdk[codigo]"`) |
 

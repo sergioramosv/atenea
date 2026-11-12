@@ -8,7 +8,7 @@ import time
 
 from . import config as C
 from . import background as BG
-from . import equipo as EQ
+from . import team as EQ
 from . import memory as MEM
 from . import scheduler as SCH
 from . import subagents as SUB
@@ -146,5 +146,5 @@ def build_agent(cwd: str | None = None, on_event=None, approve=None, verify: str
                  verify=verify or cfg.get("verify_default") or None, on_event=on_event, approve=approve)
     for t in BG.tools(lambda: ag.cwd):
         ag._tools[t.name] = t
-    ag._tools["equipo"] = EQ.tool(ag)
+    ag._tools["team"] = EQ.tool(ag)
     return ag
