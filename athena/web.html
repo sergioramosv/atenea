@@ -286,6 +286,8 @@ body.art-on #artpane{display:flex}
         <div class="f"><label for="s_mcp">MCP servers</label><div><textarea class="code" id="s_mcp" spellcheck="false"></textarea><div class="err" id="mcperr"></div></div></div></div>
       <div class="card"><h2>Telegram · Hermes</h2><p class="d">Talk to Atenea from your phone. Create a bot with @BotFather and get your user id from @userinfobot.</p>
         <div class="f"><label for="s_tok">Bot token</label><input id="s_tok" autocomplete="off"><label for="s_users">Allowed user ids</label><input id="s_users" placeholder="123456789, …"></div></div>
+      <div class="card"><h2>Notifications</h2><p class="d">Push notifications on this phone or computer when Atenea finishes something while you are not looking, needs your OK, asks you a question, or a monitor or scheduled task fires.</p>
+        <div id="pushbox" style="font-size:14px;line-height:1.55"></div></div>
       <div class="card"><h2>Memory</h2><p class="d">What Atenea remembers about you in every conversation (web and Telegram). Tell her “remember that…” in any chat, or add it here.</p>
         <div id="memlist"></div><div class="row"><input id="memnew" placeholder="E.g. My main client is Tribbu" style="flex:1;min-width:200px;border:1px solid var(--line);border-radius:9px;padding:8px 12px;background:var(--bg);outline:none;font-size:14px"><button class="btn" id="memadd">Add</button></div></div>
       <div class="card"><h2>Scheduled tasks</h2><p class="d">Atenea runs these on her own; each run appears as a new chat (and on Telegram when set up). You can also ask her: “every weekday at 8 summarise my email”.</p>
@@ -382,7 +384,7 @@ function side(open){$('#side').classList.toggle('open',open);$('#scrim').classLi
 $('#menu').onclick=()=>side(true);$('#scrim').onclick=()=>side(false);
 // ---------- views ----------
 function show(v){S.view=v;$$('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));$('#nav-settings').classList.toggle('on',v==='settings');side(false);
-  if(v==='settings'){$('#title').textContent='Settings';$('#hproj').hidden=$('#hstate').hidden=true;fillSettings();loadStatus();loadMemory();renderRules();loadSched();loadBg();}
+  if(v==='settings'){$('#title').textContent='Settings';$('#hproj').hidden=$('#hstate').hidden=true;fillSettings();loadStatus();loadMemory();renderRules();loadSched();loadBg();renderPush();}
   else{$('#title').textContent=S.chat?.title||'New chat';headerProj();}}
 $('#nav-settings').onclick=()=>show(S.view==='settings'?'chat':'settings');
 $('#logout').onclick=async()=>{await api('/api/logout',{method:'POST'});location.href='/login';};
@@ -589,7 +591,7 @@ const BUILTIN=[['/new','Start a new chat'],['/clear','Start a new chat'],['/plan
   ['/compact','Summarise the chat to free context'],['/fork','Duplicate this chat'],['/export','Download this chat as Markdown'],['/remember','Remember something: /remember my client is Tribbu'],
   ['/memory','See what Atenea remembers'],['/init','Create ATENEA.md for this project'],['/schedule','Scheduled tasks'],['/bg','Background processes'],['/status','Model and ZEUS status'],
   ['/context','What fills the context window'],['/mcp','MCP servers: status and tools'],['/skills','Installed skills'],['/tools','Tools and which ones ask permission'],['/agents','Specialised subagents'],
-  ['/hooks','Configured hooks'],['/tasks','Background shells, subagents and monitors'],['/doctor','Check that everything works'],['/model','Model information'],['/usage','Tokens and speed of this chat'],['/permissions','Permission mode and always-allow rules'],
+  ['/hooks','Configured hooks'],['/notifications','Push notifications on this device'],['/tasks','Background shells, subagents and monitors'],['/doctor','Check that everything works'],['/model','Model information'],['/usage','Tokens and speed of this chat'],['/permissions','Permission mode and always-allow rules'],
   ['/config','Open settings'],['/rename','Rename this chat: /rename new title'],['/resume','Find an earlier chat'],['/todos','Current task list'],['/rewind','Rewind the last message'],
   ['/review','Review recent code changes with the reviewer subagent'],['/security-review','Security review of recent changes'],['/theme','Switch light / dark'],['/logout','Sign out'],['/help','All commands']];
 let CUSTOM=[],AC={items:[],i:0,kind:null,start:0};
@@ -626,6 +628,7 @@ async function slash(text){const [cmd,...rest]=text.trim().split(/\s+/);const ar
     case '/remember':if(!arg){toast('Usage: /remember something about you');return true;}{const r=await api('/api/memory');await api('/api/memory',{method:'PUT',body:JSON.stringify({facts:[...r.facts,arg]})});toast('Remembered');}return true;
     case '/memory':show('settings');setTimeout(()=>$('#memlist').scrollIntoView({block:'center'}),100);return true;
     case '/schedule':show('settings');setTimeout(()=>$('#schlist').scrollIntoView({block:'center'}),100);return true;
+    case '/notifications':show('settings');setTimeout(()=>$('#pushbox').scrollIntoView({block:'center'}),100);return true;
     case '/tasks':case '/monitors':loadActivity().then(()=>{if($('#pact').hidden)localNote('Nothing running in the background.');else $('#pact').click();});return true;
     case '/bg':case '/bashes':show('settings');setTimeout(()=>$('#bglist').scrollIntoView({block:'center'}),100);return true;
     case '/status':$('#pmodel').click();return true;
@@ -717,6 +720,28 @@ async function loadCtxPop(){const pop=$('#popctx');let r;try{r=await api('/api/c
     <div class="row"><button class="btn" id="ctxcompact"${S.chat?.id?'':' disabled'}>Compact</button><button class="btn" id="ctxnew">New chat</button></div></div>`;
   $('#ctxnew').onclick=()=>{closePops();newChat();};$('#ctxcompact').onclick=()=>{closePops();slash('/compact');};}
 $('#pctx').addEventListener('click',()=>{if(!$('#popctx').hidden){$('#popctx').innerHTML='<div class="hd"><span>Context</span><span>…</span></div>';loadCtxPop();}});
+
+// ---------- push notifications (service worker + Web Push) ----------
+const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+let SWREG=null;if('serviceWorker' in navigator&&isSecureContext){navigator.serviceWorker.register('/sw.js',{scope:'/'}).then(r=>SWREG=r).catch(()=>{});}
+const b64u=s=>{const p='='.repeat((4-s.length%4)%4),b=atob((s+p).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(b,c=>c.charCodeAt(0));};
+async function renderPush(){const box=$('#pushbox');const httpsUrl='https://zeus.tailbf0b1c.ts.net';
+  if(!isSecureContext){box.innerHTML=`Push notifications need a secure (HTTPS) address, and this page is <code>${esc(location.origin)}</code>.<br>Open Atenea at <a href="${httpsUrl}">${httpsUrl}</a> (through Tailscale)${isIOS?', add it to the Home Screen from there (Share → Add to Home Screen) and open it from the icon':''}, then come back here.`;return;}
+  if(isIOS&&!standalone){box.innerHTML='On iPhone, notifications only work in the installed app: tap <b>Share → Add to Home Screen</b>, open Atenea from the new icon and come back to this page.';return;}
+  if(!('PushManager' in window)||!('Notification' in window)){box.textContent='This browser does not support push notifications.';return;}
+  const r=await api('/api/push/key');const sub=SWREG?await SWREG.pushManager.getSubscription():null;
+  box.innerHTML=`${sub?'✅ <b>Enabled on this device.</b>':Notification.permission==='denied'?'🚫 Notifications are blocked for this site in the browser/iOS settings.':'This device is not receiving notifications yet.'}
+    <div style="color:var(--muted);font-size:13px;margin:4px 0 10px">${r.devices.length} device${r.devices.length===1?'':'s'} subscribed${r.devices.length?': '+r.devices.map(d=>esc(d.label||'device')).join(', '):''}.</div>
+    <div class="row">${sub?'<button class="btn" id="pushtest">Send a test</button><button class="btn ghost" id="pushoff">Turn off on this device</button>':'<button class="btn pri" id="pushon">Enable notifications on this device</button>'}</div>`;
+  $('#pushon')&&($('#pushon').onclick=async()=>{try{const perm=await Notification.requestPermission();if(perm!=='granted')return toast('Permission not granted');
+    const reg=SWREG||await navigator.serviceWorker.ready;const s=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64u(r.key)});
+    await api('/api/push/subscribe',{method:'POST',body:JSON.stringify({subscription:s.toJSON(),label:(isIOS?'iPhone':navigator.platform||'device')+' · '+new Date().toLocaleDateString()})});toast('Notifications enabled');renderPush();}catch(e){toast('Could not enable: '+e.message);}});
+  $('#pushtest')&&($('#pushtest').onclick=async()=>{const x=await api('/api/push/test',{method:'POST'});toast(x.sent?'Sent — check your notifications':'Nothing sent');});
+  $('#pushoff')&&($('#pushoff').onclick=async()=>{await api('/api/push/unsubscribe',{method:'POST',body:JSON.stringify({subscription:sub.toJSON()})});await sub.unsubscribe();toast('Turned off');renderPush();});}
+// tell the server when you are looking, so it does not push what you can already see
+setInterval(()=>{if(!document.hidden)api('/api/presence',{method:'POST'}).catch(()=>{});},20000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)api('/api/presence',{method:'POST'}).catch(()=>{});});
 
 // ---------- activity tray: background shells, subagents and monitors ----------
 const ago=t=>{const s=Math.round(Date.now()/1000-t);return s<60?s+'s':s<3600?Math.round(s/60)+'m':Math.round(s/3600)+'h';};

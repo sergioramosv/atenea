@@ -8,7 +8,7 @@ dependencies = []
 
 [project.optional-dependencies]
 mcp = ["mcp<2"]
-web = ["fastapi", "uvicorn[standard]"]
+web = ["fastapi", "uvicorn[standard]", "pywebpush"]
 
 [build-system]
 requires = ["setuptools>=68"]

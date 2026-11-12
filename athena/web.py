@@ -384,7 +384,7 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False, origin: str | 
     job["next"] = nxt
     job["done"] = True
     secs = time.time() - job["t0"]
-    if job.get("scheduled") or (secs > 90 and not job["cancel"]):
+    if job.get("scheduled") or (secs > 20 and not job["cancel"]):
         _notify_chat(cid, ("⏰ " if job.get("scheduled") else "✅ ") + str(job["result"] or "")[:700])
 
 
@@ -1066,7 +1066,7 @@ def _notify_chat(cid: str, text: str):
         title = _read(cid)["title"]
     except Exception:
         title = "Atenea"
-    NOTIFY.send(f"{title}\n{text}", f"{_panel_url()}/c/{cid}")
+    NOTIFY.send(text, f"{_panel_url()}/c/{cid}", title=title)
 
 
 def run_schedule(item: dict) -> str:
@@ -1144,6 +1144,46 @@ def schedule_run(sid: str):
     if not it:
         raise HTTPException(404)
     return {"chat": run_schedule(it)}
+
+
+# ---------------- push notifications ----------------
+class PushSub(BaseModel):
+    subscription: dict
+    label: str = ""
+
+
+@app.get("/sw.js")
+def service_worker():
+    return FileResponse(os.path.join(HERE, "sw.js"), media_type="text/javascript",
+                        headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"})
+
+
+@app.get("/api/push/key", dependencies=[Depends(auth)])
+def push_key():
+    return {"key": NOTIFY.vapid()["public"], "devices": [{"label": x["label"], "added": x["added"]} for x in NOTIFY.subs()]}
+
+
+@app.post("/api/push/subscribe", dependencies=[Depends(auth)])
+def push_subscribe(p: PushSub):
+    return {"devices": NOTIFY.subscribe(p.subscription, p.label)}
+
+
+@app.post("/api/push/unsubscribe", dependencies=[Depends(auth)])
+def push_unsubscribe(p: PushSub):
+    NOTIFY.unsubscribe(p.subscription.get("endpoint", ""))
+    return {"ok": True}
+
+
+@app.post("/api/push/test", dependencies=[Depends(auth)])
+def push_test():
+    n = NOTIFY.webpush("Atenea", "Notifications are working ✓", "/", force=True)
+    return {"sent": n}
+
+
+@app.post("/api/presence", dependencies=[Depends(auth)])
+def presence():
+    NOTIFY.LAST_SEEN["t"] = time.time()                  # a tab is visible: no need to push
+    return {"ok": True}
 
 
 # ---------------- uploads (photos, videos, any file) ----------------
