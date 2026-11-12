@@ -1517,6 +1517,29 @@ class ScheduleIn(BaseModel):
     enabled: bool | None = None
 
 
+BRIEFING_PROMPT = """Prepara mi resumen de la mañana, en español, breve y fácil de leer en el móvil (máx. ~200 palabras):
+1. Saludo con la fecha de hoy (día de la semana) y si es festivo en España.
+2. El tiempo de hoy donde estoy: usa web_fetch con https://wttr.in/?format=%l:+%c+%t+(máx+%h)+lluvia+%p&lang=es
+   (o mi ciudad si la tienes en memoria) y di si conviene paraguas o abrigo.
+3. Si tienes herramientas de calendario o correo: mis reuniones de hoy y los correos importantes sin leer. Si no las
+   tienes, sáltalo sin comentarlo.
+4. Lo que tengo pendiente: busca con search_documents en mis conversaciones recientes tareas que quedaron a medias o
+   cosas que dije que haría, y revisa list_scheduled.
+5. 2-3 noticias de hoy sobre los temas que me interesan según tu memoria (por defecto: IA y modelos locales), con enlace.
+Termina con una frase corta de ánimo. Sin preámbulos. No guardes nada en memoria."""
+
+
+@app.post("/api/schedules/briefing", dependencies=[Depends(auth)])
+def schedule_briefing(s_: ScheduleIn):
+    when = s_.when or "weekdays 08:00"
+    for it in SCH.load():                                 # only one briefing
+        if it.get("preset") == "briefing":
+            SCH.remove(it["id"])
+    it = SCH.add("☀️ Resumen de la mañana", BRIEFING_PROMPT, when, "auto")
+    SCH.update(it["id"], preset="briefing")
+    return it
+
+
 @app.get("/api/schedules", dependencies=[Depends(auth)])
 def schedules():
     return {"items": SCH.load()}

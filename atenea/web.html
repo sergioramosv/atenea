@@ -319,7 +319,9 @@ img.media,.uatt img{cursor:zoom-in}
         <div class="f"><label for="sc_name">Name</label><input id="sc_name" placeholder="Morning briefing">
           <label for="sc_when">When</label><input id="sc_when" placeholder="weekdays 08:00 · daily 21:30 · weekly mon 09:00 · every 2h · once 2026-12-01 10:00" style="font-family:var(--mono);font-size:13px">
           <label for="sc_prompt">Instruction</label><textarea id="sc_prompt" placeholder="Summarise my important emails and today's meetings."></textarea></div>
-        <div><button class="btn" id="scadd">Add scheduled task</button></div></div>
+        <div class="row"><button class="btn" id="scadd">Add scheduled task</button>
+          <span style="margin-left:auto;display:flex;gap:6px;align-items:center"><select id="brwhen" class="btn" style="height:36px"><option value="weekdays">Weekdays</option><option value="daily">Every day</option></select>
+          <input id="brtime" type="time" value="08:00" class="btn" style="height:36px;width:110px"><button class="btn pri" id="bradd">☀️ Morning briefing</button></span></div></div>
       <div class="card"><h2>Background processes</h2><p class="d">Long-running commands Atenea started (dev servers, watchers, long scripts).</p><div id="bglist"></div></div>
       <div class="card"><h2>Permissions</h2><p class="d">Tools that always ask before running (for example send_email, delete_event). Commands that change files outside the project already ask.</p>
         <div class="f"><label for="s_conf">Ask before</label><input id="s_conf" placeholder="send_email, create_event"></div>
@@ -704,6 +706,8 @@ async function loadSched(){const r=await api('/api/schedules');const fmt=t=>t?ne
   $$('#schlist [data-r]').forEach(b=>b.onclick=async()=>{const x=await api(`/api/schedules/${b.dataset.r}/run`,{method:'POST'});toast('Running…');loadList();openChat(x.chat);});
   $$('#schlist [data-t]').forEach(b=>b.onclick=async()=>{await api(`/api/schedules/${b.dataset.t}`,{method:'PATCH',body:JSON.stringify({enabled:b.dataset.e==='1'})});loadSched();});
   $$('#schlist [data-d]').forEach(b=>b.onclick=async()=>{if(!confirm('Delete this scheduled task?'))return;await api(`/api/schedules/${b.dataset.d}`,{method:'DELETE'});loadSched();});}
+$('#bradd').onclick=async()=>{try{const it=await api('/api/schedules/briefing',{method:'POST',body:JSON.stringify({when:`${$('#brwhen').value} ${$('#brtime').value||'08:00'}`})});
+  toast('Morning briefing scheduled');loadSched();if(confirm('Do you want to see one now?')){const x=await api(`/api/schedules/${it.id}/run`,{method:'POST'});loadList();openChat(x.chat);}}catch(e){toast(e.message);}};
 $('#scadd').onclick=async()=>{try{await api('/api/schedules',{method:'POST',body:JSON.stringify({name:$('#sc_name').value.trim()||'Task',when:$('#sc_when').value.trim(),prompt:$('#sc_prompt').value.trim()})});
   $('#sc_name').value=$('#sc_when').value=$('#sc_prompt').value='';toast('Scheduled');loadSched();}catch(e){toast(e.message);}};
 async function loadBg(){const r=await api('/api/bg');$('#bglist').innerHTML=r.procs.length?r.procs.map(p=>`<div class="sched"><span><b>${esc(p.name)}</b> <span class="w">· ${esc(p.status)} · pid ${p.pid}</span></span>
