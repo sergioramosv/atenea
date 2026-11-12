@@ -354,9 +354,17 @@ def _ctx_max() -> int:
     return int(C.load()["model"].get("context") or 204800)
 
 
-def _new_chat(project: str | None, mode: str | None = None) -> dict:
+def _kind(c: dict) -> str:
+    """'chat' (assistant) or 'code' (a programming session tied to a project folder)."""
+    return c.get("kind") or ("code" if c.get("project") or c.get("client") == "cli" else "chat")
+
+
+def _new_chat(project: str | None, mode: str | None = None, kind: str | None = None) -> dict:
     now = time.time()
-    chat = {"id": uuid.uuid4().hex[:12], "title": "New chat", "project": project or "", "mode": _mode(mode),
+    kind = kind if kind in ("chat", "code") else ("code" if project else "chat")
+    if mode is None and kind == "code":
+        mode = "edits"
+    chat = {"id": uuid.uuid4().hex[:12], "title": "New chat", "project": project or "", "mode": _mode(mode), "kind": kind,
             "created": now, "updated": now, "log": [], "messages": [], "usage": None}
     _write(chat)
     return chat
@@ -795,6 +803,7 @@ class ChatIn(BaseModel):
     project: str | None = None
     mode: str | None = None
     client: str | None = None                # "cli" when the chat was started from the terminal
+    kind: str | None = None                  # "chat" or "code"
 
 
 class ChatPatch(BaseModel):
@@ -821,6 +830,7 @@ def list_chats(q: str = ""):
                     q in (e.get("q", "") + " " + (e.get("a") or "")).lower() for e in c["log"]):
                 continue
             out.append({"id": c["id"], "title": c["title"], "project": c.get("project", ""), "client": c.get("client"),
+                        "kind": _kind(c),
                         "updated": c["updated"], "running": running, "turns": len(c["log"])})
     out.sort(key=lambda c: c["updated"], reverse=True)
     return {"chats": out}
@@ -830,13 +840,14 @@ class NewChatIn(BaseModel):
     project: str | None = None
     mode: str | None = None
     client: str | None = None
+    kind: str | None = None
 
 
 @app.post("/api/chats", dependencies=[Depends(auth)])
 def create_chat(n: NewChatIn):
     """Create an empty conversation (the terminal CLI does this at start so it can show the app link)."""
     with _lock:
-        c = _new_chat(n.project, n.mode)
+        c = _new_chat(n.project, n.mode, n.kind or ("code" if n.client == "cli" else None))
         if n.client:
             c["client"] = n.client
             _write(c)
@@ -848,6 +859,7 @@ def get_chat(cid: str):
     c = _read(cid)
     jid = _running(cid)
     return {"id": c["id"], "title": c["title"], "project": c.get("project", ""), "log": c["log"], "client": c.get("client"),
+            "kind": _kind(c), "runner": bool(c.get("runner")) and _runner_online(c.get("runner")),
             "job": jid, "pending": JOBS[jid]["text"] if jid else (c.get("pending") or {}).get("q"),
             "pending_origin": (c.get("pending") or {}).get("origin"), "pending_label": (c.get("pending") or {}).get("label"), "queue": QUEUES.get(cid, []), "mode": c.get("mode") or _mode(None),
             "usage": c.get("usage") or {"ctx": 0, "max": _ctx_max(), "tps": None, "out": 0}}
@@ -937,7 +949,7 @@ def chat(inp: ChatIn):
     if not inp.text.strip():
         raise HTTPException(400, "Empty message")
     with _lock:
-        c = _read(inp.chat) if inp.chat else _new_chat(inp.project, inp.mode)
+        c = _read(inp.chat) if inp.chat else _new_chat(inp.project, inp.mode, inp.kind)
         if inp.client and not c.get("client"):
             c["client"] = inp.client
         running = _running(c["id"])
@@ -1271,6 +1283,98 @@ def compact(cid: str):
         _write(c)
     AGENTS.pop(cid, None)
     return {"ok": True, "summary": summary}
+
+
+# ---------------- Code space: projects, GitHub repos, git status and diff ----------------
+def _git(cid: str, args: str, timeout: int = 30) -> str:
+    c = _read(cid)
+    cwd = _cwd(c.get("project"))
+    cmd = f"git -C {json.dumps(cwd)} {args}"
+    if c.get("runner"):
+        out = _runner_call(cid, "bash", {"command": f"cd {json.dumps(c.get('project'))} && git {args}"}, timeout=timeout)
+        return re.sub(r"\n?\[exit code \d+\]\s*$", "", out)
+    r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
+    return r.stdout if r.returncode == 0 else ""
+
+
+@app.get("/api/code/projects", dependencies=[Depends(auth)])
+def code_projects():
+    """Folders you can open a Code session in: configured projects, recent session folders, ~/projects/*."""
+    cfg, seen, out = C.load(), set(), []
+
+    def add(path: str, name: str | None = None, source: str = ""):
+        real = os.path.realpath(os.path.expanduser(path))
+        if real in seen or not os.path.isdir(real):
+            return
+        seen.add(real)
+        out.append({"path": real, "name": name or os.path.basename(real), "git": os.path.isdir(os.path.join(real, ".git")),
+                    "source": source})
+    for alias, path in (cfg.get("projects") or {}).items():
+        add(path, alias, "project")
+    if os.path.isdir(CHATS_DIR):
+        recent = []
+        for f in os.listdir(CHATS_DIR):
+            try:
+                c = json.load(open(os.path.join(CHATS_DIR, f), encoding="utf-8"))
+            except Exception:
+                continue
+            if _kind(c) == "code" and c.get("project") and not c.get("runner"):
+                recent.append((c.get("updated", 0), c["project"]))
+        for _, p in sorted(recent, reverse=True)[:12]:
+            add(_cwd(p), None, "recent")
+    ws = os.path.expanduser(cfg.get("workspace", "~/projects"))
+    if os.path.isdir(ws):
+        for d in sorted(os.listdir(ws)):
+            if not d.startswith("."):
+                add(os.path.join(ws, d), None, "workspace")
+    return {"projects": out, "workspace": ws}
+
+
+@app.get("/api/github/repos", dependencies=[Depends(auth)])
+def github_repos():
+    r = subprocess.run("gh repo list --limit 60 --json nameWithOwner,description,pushedAt,isPrivate", shell=True,
+                       capture_output=True, text=True, timeout=30)
+    if r.returncode != 0:
+        raise HTTPException(503, "GitHub CLI not available or not signed in")
+    return {"repos": sorted(json.loads(r.stdout), key=lambda x: x.get("pushedAt") or "", reverse=True)}
+
+
+class CloneIn(BaseModel):
+    repo: str
+
+
+@app.post("/api/code/clone", dependencies=[Depends(auth)])
+def code_clone(ci: CloneIn):
+    if not re.fullmatch(r"[\w.-]+/[\w.-]+", ci.repo):
+        raise HTTPException(400, "Use owner/name")
+    ws = os.path.expanduser(C.load().get("workspace", "~/projects"))
+    os.makedirs(ws, exist_ok=True)
+    dest = os.path.join(ws, ci.repo.split("/")[1])
+    if not os.path.isdir(dest):
+        r = subprocess.run(["gh", "repo", "clone", ci.repo, dest], capture_output=True, text=True, timeout=600)
+        if r.returncode != 0:
+            raise HTTPException(500, f"Clone failed: {r.stderr[-300:]}")
+    return {"path": dest}
+
+
+@app.get("/api/chats/{cid}/git", dependencies=[Depends(auth)])
+def chat_git(cid: str):
+    c = _read(cid)
+    if _kind(c) != "code" or not c.get("project"):
+        return {"repo": False}
+    branch = _git(cid, "rev-parse --abbrev-ref HEAD").strip()
+    if not branch:
+        return {"repo": False}
+    status = [ln for ln in _git(cid, "status --porcelain").splitlines() if ln.strip()]
+    return {"repo": True, "branch": branch, "changes": [{"status": ln[:2].strip(), "path": ln[3:]} for ln in status[:200]],
+            "count": len(status)}
+
+
+@app.get("/api/chats/{cid}/diff", dependencies=[Depends(auth)])
+def chat_diff(cid: str):
+    diff = _git(cid, "diff HEAD --no-color", timeout=60)
+    untracked = [ln[3:] for ln in _git(cid, "status --porcelain").splitlines() if ln.startswith("??")]
+    return {"diff": diff[:400_000], "untracked": untracked[:200]}
 
 
 # ---------------- introspection: /context /mcp /skills /tools /agents /hooks /doctor ----------------
@@ -1630,7 +1734,8 @@ def runner_register(ri: RunnerIn):
             c = _read(ri.chat)
         else:
             c = _new_chat(ri.cwd, "edits")
-        c.update(runner=rid, runner_name=ri.name[:60], runner_platform=ri.platform[:40], project=ri.cwd, client="cli")
+        c.update(runner=rid, runner_name=ri.name[:60], runner_platform=ri.platform[:40], project=ri.cwd, client="cli",
+                 kind="code")
         _write(c)
     AGENTS.pop(c["id"], None)                             # rebuild with remote tools
     return {"runner": rid, "chat": c["id"], "url": f"{_panel_url()}/c/{c['id']}"}

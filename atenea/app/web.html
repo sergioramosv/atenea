@@ -53,7 +53,7 @@ a{color:var(--acc)}
 main{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0}
 header{height:56px;flex:none;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:0 20px}
 #menu{display:none}
-#title{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid transparent;border-radius:7px;padding:3px 6px;margin-left:-6px;max-width:60%}
+#title{flex:0 1 auto;min-width:80px;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid transparent;border-radius:7px;padding:3px 6px;margin-left:-6px;max-width:60%}
 #title[contenteditable=true]{border-color:var(--acc);outline:none;background:var(--card)}
 .chip{font-size:12px;padding:4px 9px;border-radius:7px;background:var(--hover);color:var(--ink2);font-family:var(--mono);white-space:nowrap}
 .chip.warn{background:var(--warn-bg);color:var(--warn-ink);font-family:var(--f);font-weight:500}
@@ -96,6 +96,17 @@ header{height:56px;flex:none;border-bottom:1px solid var(--line);display:flex;al
 .mic.rec{background:#C0392B;color:#fff;animation:blink 1.2s infinite}.mic.busy{opacity:.5}
 .speak{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:2px 4px;border-radius:6px;margin-left:2px}.speak:hover{color:var(--ink);background:var(--hover)}
 .speak.on{color:var(--acc)}
+.space{display:grid;grid-template-columns:1fr 1fr;gap:3px;background:var(--hover);border-radius:10px;padding:3px}
+.space button{display:flex;align-items:center;justify-content:center;gap:7px;height:32px;border:0;border-radius:8px;background:transparent;color:var(--ink2);font-weight:500;font-size:14px}
+.space button.on{background:var(--sel);color:var(--ink);box-shadow:0 1px 2px rgba(17,19,21,.08)}
+.modal{position:fixed;inset:0;z-index:70;background:rgba(17,19,21,.35);display:flex;align-items:center;justify-content:center;padding:16px}.modal[hidden]{display:none}
+.mbox{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);width:min(560px,100%);max-height:min(640px,90dvh);display:flex;flex-direction:column}
+.mhd{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 6px;font-size:16px}
+.mtabs{display:flex;gap:4px;padding:4px 12px 8px;border-bottom:1px solid var(--line)}.mtabs button{border:0;background:transparent;border-radius:8px;padding:6px 10px;color:var(--ink2);font-size:13.5px}.mtabs button.on{background:var(--hover);color:var(--ink);font-weight:500}
+.mbody{overflow:auto;padding:8px}.prj{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;background:transparent;border-radius:10px;padding:9px 10px}
+.prj:hover{background:var(--hover)}.prj b{font-weight:600;font-size:14.5px}.prj .pth{font:12px var(--mono);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prj .tg{margin-left:auto;font-size:11px;padding:2px 7px;border-radius:6px;background:var(--hover);color:var(--muted);flex:none}
+.gitchip{cursor:pointer}.gitchip:hover{filter:brightness(.95)}
 .u.q{opacity:.75;border-style:dashed}.qtag{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--muted);white-space:normal}
 .qtag button{border:0;background:transparent;color:var(--muted);text-decoration:underline;padding:0;font-size:12px}.qtag button:hover{color:var(--ink)}
 .u{align-self:flex-end;max-width:min(560px,85%);background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 15px;white-space:pre-wrap;word-wrap:break-word}
@@ -236,6 +247,7 @@ img.media,.uatt img{cursor:zoom-in}
 <div class="app">
 <aside id="side" aria-label="Conversations">
   <div class="brand"><img class="logo-l" src="/brand/atenea-mark.svg" alt=""><img class="logo-d" src="/brand/atenea-mark-dark.svg" alt=""><b id="bname">Atenea</b></div>
+  <div class="space" role="tablist"><button data-s="chat" role="tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Chat</button><button data-s="code" role="tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg>Code</button></div>
   <button class="newbtn" id="newchat"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New chat</button>
   <div class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
     <input id="q" type="search" placeholder="Search chats" aria-label="Search chats"></div>
@@ -254,6 +266,7 @@ img.media,.uatt img{cursor:zoom-in}
     <button class="ib" id="menu" aria-label="Open conversations"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h10M4 17h16"/></svg></button>
     <span id="title" title="Click to rename">New chat</span>
     <span class="chip" id="hproj" hidden></span>
+    <span class="chip gitchip" id="hgit" hidden title="Changes in the repo"></span>
     <span class="chip warn" id="hstate" hidden>Waiting for you</span>
     <button class="ib" id="hmore" style="margin-left:auto" title="More" aria-label="More"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button>
   </header>
@@ -345,6 +358,10 @@ img.media,.uatt img{cursor:zoom-in}
   <pre id="apcode" hidden></pre>
 </aside>
 </div>
+<div class="modal" id="pickm" hidden><div class="mbox" role="dialog" aria-label="New Code session">
+  <div class="mhd"><b>New Code session</b><button class="ib" id="pickx" aria-label="Close">✕</button></div>
+  <div class="mtabs"><button data-t="proj" class="on">Projects on ZEUS</button><button data-t="gh">GitHub</button><button data-t="path">Other folder</button></div>
+  <div class="mbody" id="pickbody"></div></div></div>
 <div class="pop" id="rwmenu" hidden style="position:fixed;bottom:auto;z-index:60"></div>
 <div class="pop" id="hmenu" hidden style="position:fixed;bottom:auto;right:16px;left:auto;top:52px;z-index:60;min-width:220px">
   <button class="opt" data-h="fork"><span class="tx"><b style="color:var(--ink)">Duplicate chat</b><span>Copy this conversation to try another path</span></span></button>
@@ -407,9 +424,13 @@ function groupOf(ts){const d=new Date(ts*1000),n=new Date();const day=x=>new Dat
   const diff=(day(n)-day(d))/864e5;return diff<1?'Today':diff<2?'Yesterday':diff<7?'Previous 7 days':diff<30?'Previous 30 days':'Older';}
 async function loadList(){const q=$('#q').value.trim();let r;try{r=await api('/api/chats?q='+encodeURIComponent(q));}catch(e){return;}S.chats=r.chats;renderList();
   clearTimeout(loadList._t);loadList._t=setTimeout(loadList,S.chats.some(c=>c.running)?4000:30000);}
-function renderList(){const L=$('#list');if(!S.chats.length){L.innerHTML=`<div class="nolist">${$('#q').value?'No chats match your search.':'Your conversations will appear here.'}</div>`;return;}
-  let h='',g='';for(const c of S.chats){const gg=groupOf(c.updated);if(gg!==g){g=gg;h+=`<div class="grp">${g}</div>`;}
-    h+=`<a class="it${c.id===S.chat?.id?' on':''}" href="/c/${c.id}" data-id="${c.id}">${c.running?'<span class="run" title="Working"></span>':''}${c.client==='cli'?'<span title="Started in the terminal" style="font-family:var(--mono);font-size:11px;color:var(--muted)">&gt;_</span>':''}<span class="tt">${esc(c.title)}</span>${c.project?`<span class="pj">${esc(c.project.split('/').filter(Boolean).pop()||c.project)}</span>`:''}
+const pname=p=>String(p||'').split('/').filter(Boolean).pop()||p;
+function renderList(){const L=$('#list');const code=S.space==='code';const items=S.chats.filter(c=>(c.kind||'chat')===S.space);
+  if(!items.length){L.innerHTML=`<div class="nolist">${$('#q').value?'Nothing matches your search.':code?'Your coding sessions will appear here, grouped by project. Start one with “New session” or run <code>atenea</code> in a folder.':'Your conversations will appear here.'}</div>`;return;}
+  if(code){const by={};for(const c of items)(by[c.project||'']=by[c.project||'']||[]).push(c);
+    var ordered=Object.entries(by).sort((a,b)=>Math.max(...b[1].map(x=>x.updated))-Math.max(...a[1].map(x=>x.updated))).flatMap(([p,cs])=>cs.map(c=>({...c,_g:p})));}
+  let h='',g=null;for(const c of (code?ordered:items)){const gg=code?c._g:groupOf(c.updated);if(gg!==g){g=gg;h+=code?`<div class="grp" title="${esc(gg)}">⌂ ${esc(pname(gg)||'no folder')}</div>`:`<div class="grp">${g}</div>`;}
+    h+=`<a class="it${c.id===S.chat?.id?' on':''}" href="/c/${c.id}" data-id="${c.id}">${c.running?'<span class="run" title="Working"></span>':''}${c.client==='cli'?'<span title="Started in the terminal" style="font-family:var(--mono);font-size:11px;color:var(--muted)">&gt;_</span>':''}<span class="tt">${esc(c.title)}</span>
       <span class="acts"><button class="ib ren" title="Rename" aria-label="Rename"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
       <button class="ib del" title="Delete" aria-label="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button></span></a>`;}
   L.innerHTML=h;}
@@ -420,6 +441,43 @@ $('#list').addEventListener('click',async e=>{const a=e.target.closest('.it');if
 let qt;$('#q').addEventListener('input',()=>{clearTimeout(qt);qt=setTimeout(loadList,250);});
 function side(open){$('#side').classList.toggle('open',open);$('#scrim').classList.toggle('on',open);}
 $('#menu').onclick=()=>side(true);$('#scrim').onclick=()=>side(false);
+// ---------- spaces: Chat and Code ----------
+function setSpace(sp,keep){S.space=sp==='code'?'code':'chat';try{localStorage.setItem('space',S.space);}catch(_){}
+  $$('.space button').forEach(b=>b.classList.toggle('on',b.dataset.s===S.space));
+  $('#newchat').lastChild.textContent=S.space==='code'?'New session':'New chat';$('#q').placeholder=S.space==='code'?'Search sessions':'Search chats';
+  if(!S.chat){S.mode=S.space==='code'?'edits':defMode();renderMode();$('#title').textContent=S.space==='code'?'New session':'New chat';}
+  $('#in').placeholder=S.space==='code'?'Describe the change, or ask about the code…':`Ask ${S.cfg?.assistant_name||'Atenea'} anything…`;
+  renderList();if(!keep&&!S.chat)empty();}
+$$('.space button').forEach(b=>b.onclick=()=>{if(S.space===b.dataset.s)return;setSpace(b.dataset.s,true);if(S.chat&&(S.chat.kind||'chat')!==S.space){S.codeProject=null;newChat(true);}else if(!S.chat)empty();});
+// project picker for Code sessions
+let PICK='proj';
+async function pickTab(t){PICK=t;$$('.mtabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));const B=$('#pickbody');
+  if(t==='path'){B.innerHTML=`<div style="padding:8px;display:flex;flex-direction:column;gap:10px"><label style="font-size:13.5px;color:var(--ink2)">Folder on ZEUS</label>
+    <input id="pickpath" placeholder="~/projects/my-app" style="border:1px solid var(--line);border-radius:9px;padding:9px 12px;background:var(--bg);outline:none;font:14px var(--mono)">
+    <div style="font-size:12.5px;color:var(--muted)">To work on folders of your Mac, run <code>atenea</code> in that folder on the Mac: the session appears here.</div>
+    <div><button class="btn pri" id="pickgo">Open</button></div></div>`;
+    $('#pickgo').onclick=()=>{const v=$('#pickpath').value.trim();if(v)startCode(v);};$('#pickpath').focus();return;}
+  B.innerHTML='<div class="nolist">Loading…</div>';
+  try{if(t==='proj'){const r=await api('/api/code/projects');
+      B.innerHTML=r.projects.length?r.projects.map(p=>`<button class="prj" data-p="${esc(p.path)}"><span style="font-size:18px">${p.git?'⎇':'📁'}</span><span style="min-width:0"><b>${esc(p.name)}</b><div class="pth">${esc(p.path)}</div></span><span class="tg">${p.source==='recent'?'recent':p.source==='project'?'project':'folder'}</span></button>`).join(''):`<div class="nolist">No projects yet in <code>${esc(r.workspace)}</code>. Clone one from the GitHub tab, or open any folder.</div>`;}
+    else{const r=await api('/api/github/repos');
+      B.innerHTML=r.repos.map(x=>`<button class="prj" data-r="${esc(x.nameWithOwner)}"><span style="font-size:18px">${x.isPrivate?'🔒':'⎇'}</span><span style="min-width:0"><b>${esc(x.nameWithOwner.split('/')[1])}</b><div class="pth">${esc(x.description||x.nameWithOwner)}</div></span><span class="tg">${x.pushedAt?new Date(x.pushedAt).toLocaleDateString():''}</span></button>`).join('');}
+    B.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>startCode(b.dataset.p));
+    B.querySelectorAll('[data-r]').forEach(b=>b.onclick=async()=>{b.querySelector('.tg').textContent='cloning…';try{const r=await api('/api/code/clone',{method:'POST',body:JSON.stringify({repo:b.dataset.r})});startCode(r.path);}catch(e){toast(e.message);b.querySelector('.tg').textContent='failed';}});}
+  catch(e){B.innerHTML=`<div class="nolist">${esc(e.message)}</div>`;}}
+function openPicker(){$('#pickm').hidden=false;pickTab(PICK);}
+$('#pickx').onclick=()=>{$('#pickm').hidden=true;};$('#pickm').addEventListener('click',e=>{if(e.target.id==='pickm')$('#pickm').hidden=true;});
+$$('.mtabs button').forEach(b=>b.onclick=()=>pickTab(b.dataset.t));
+function startCode(path){$('#pickm').hidden=true;S.codeProject=path;S.mode='edits';renderMode();newChat(true);}
+async function loadGit(){const chip=$('#hgit');if(!S.chat?.id||(S.chat.kind||'chat')!=='code'){chip.hidden=true;return;}
+  try{const r=await api(`/api/chats/${S.chat.id}/git`);if(!r.repo){chip.hidden=true;return;}chip.hidden=false;
+    chip.textContent=`⎇ ${r.branch}${r.count?` · ${r.count} changed`:''}`;chip.title=r.changes.map(c=>c.status+' '+c.path).join('\n')||'No changes';}catch(_){chip.hidden=true;}}
+async function showChanges(){if(!S.chat?.id)return;const r=await api(`/api/chats/${S.chat.id}/diff`);
+  $('#apt').textContent='Changes · '+pname(S.chat.project);$('#apver').textContent=($('#hgit').textContent||'').replace(/^⎇ /,'');
+  $('#apframe').hidden=true;const code=$('#apcode');code.hidden=false;code.innerHTML=(r.diff?diffHtml(r.diff):'<div style="padding:12px;color:var(--muted)">No changes to tracked files.</div>')
+    +(r.untracked.length?`<div style="padding:10px 4px;font-family:var(--f)"><b>New files</b><br>${r.untracked.map(esc).join('<br>')}</div>`:'');
+  $('#apview').hidden=true;$('#apopen').hidden=true;$('#apdl').hidden=true;document.body.classList.add('art-on');}
+
 // ---------- views ----------
 function show(v){S.view=v;$$('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));$('#nav-settings').classList.toggle('on',v==='settings');side(false);
   if(v==='settings'){$('#title').textContent='Settings';$('#hproj').hidden=$('#hstate').hidden=true;fillSettings();loadStatus();loadMemory();renderRules();loadSched();loadBg();renderPush();loadBackups();loadKb();}
@@ -428,10 +486,17 @@ $('#nav-settings').onclick=()=>show(S.view==='settings'?'chat':'settings');
 $('#logout').onclick=async()=>{await api('/api/logout',{method:'POST'});location.href='/login';};
 // ---------- chat ----------
 const SUGG=['What can you do?','Summarise this week\'s important emails','Find and fix the failing tests in my project','How is ZEUS doing?'];
-function empty(){const nm=S.cfg?.assistant_name||'Atenea';$('#msgs').innerHTML=`<div class="empty">${MARK().replace(/<img /g,'<img style="width:72px;height:72px;margin:0 auto 18px" ')}
+const SUGG_CODE=['Explain how this repo is organised','Find and fix the failing tests','Review my uncommitted changes','/team add a feature: '];
+function empty(){const nm=S.cfg?.assistant_name||'Atenea';
+  if(S.space==='code'){if(!S.codeProject){$('#msgs').innerHTML=`<div class="empty"><div style="font-size:44px;margin-bottom:10px">&lt;/&gt;</div><h2>What are we building?</h2><p>Code sessions work inside a project folder or repo, with diffs, tests and git.</p>
+      <div class="row" style="justify-content:center"><button class="btn pri" id="emppick">Choose a project</button></div><p style="margin-top:18px;font-size:13px">Or run <code>atenea</code> in a folder on ZEUS or on your Mac.</p></div>`;$('#emppick').onclick=openPicker;return;}
+    $('#msgs').innerHTML=`<div class="empty"><div style="font-size:44px;margin-bottom:10px">&lt;/&gt;</div><h2>${esc(pname(S.codeProject))}</h2><p style="font-family:var(--mono);font-size:12.5px">${esc(S.codeProject)}</p>
+      <div class="sugg">${SUGG_CODE.map(x=>`<button>${esc(x)}</button>`).join('')}</div><p style="margin-top:14px"><a href="#" id="emppick">Change project</a></p></div>`;
+    $$('.sugg button').forEach(b=>b.onclick=()=>{$('#in').value=b.textContent;grow();if(!b.textContent.endsWith(': '))send();else $('#in').focus();});$('#emppick').onclick=e=>{e.preventDefault();openPicker();};return;}
+  $('#msgs').innerHTML=`<div class="empty">${MARK().replace(/<img /g,'<img style="width:72px;height:72px;margin:0 auto 18px" ')}
   <h2>How can I help?</h2><p>${esc(nm)} runs on ZEUS. Your files never leave home.</p><div class="sugg">${SUGG.map(s=>`<button>${esc(s)}</button>`).join('')}</div></div>`;
   $$('.sugg button').forEach(b=>b.onclick=()=>{$('#in').value=b.textContent;grow();send();});}
-function headerProj(){const p=S.chat?.project||'';$('#hproj').hidden=!p;$('#hproj').textContent=p;
+function headerProj(){const p=S.chat?.project||(S.space==='code'?S.codeProject:'')||'';$('#hproj').hidden=!p;$('#hproj').textContent=p?'⌂ '+pname(p):'';$('#hproj').title=p;
   const locked=!!(S.chat&&(S.chat.log?.length||S.job));$('#projsel').classList.toggle('locked',locked);$('#proj').value=locked?p:$('#proj').value;projLabel();}
 function projLabel(){const v=$('#proj').value;$('#projname').textContent=v||'Default folder';$('#projsel').classList.toggle('dflt',!v);}
 function userEl(t){const d=document.createElement('div');d.className='u';d.innerHTML='<span class="ut"></span><span class="uacts"><button class="ib" data-u="rewind" title="Rewind to here" aria-label="Rewind to here"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button><button class="ib" data-u="fork" title="Fork from here" aria-label="Fork from here"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="5" r="2"/><circle cx="18" cy="5" r="2"/><circle cx="12" cy="19" r="2"/><path d="M6 7v2a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V7M12 12v5"/></svg></button><button class="ib" data-u="copy" title="Copy" aria-label="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></span>';
@@ -490,15 +555,15 @@ async function hydrate(el){const id=el.dataset.a;delete ART[id];const m=await ar
   el.innerHTML=`<span class="ai"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 14l-2 2 2 2M16 14l2 2-2 2"/></svg></span>
     <span class="atx"><span class="at">${esc(m.title)}</span><span class="as">Page · version ${m.version}</span></span><span class="ao">Open</span>`;
   el.onclick=()=>openArt(id);}
-async function openArt(id,ver){const m=await artMeta(id);if(!m)return toast('Artifact not found');S.art=id;$('#apt').textContent=m.title;
+async function openArt(id,ver){$('#apview').hidden=false;$('#apopen').hidden=false;$('#apdl').hidden=false;const m=await artMeta(id);if(!m)return toast('Artifact not found');S.art=id;$('#apt').textContent=m.title;
   $('#apver').textContent=`v${m.version}`;$('#apopen').href=`/a/${id}`;$('#apdl').href=`/a/${id}?download=1`;
   $('#apframe').src=`/a/${id}?t=${Date.now()}`;$('#apcode').hidden=true;$('#apframe').hidden=false;$('#apview').textContent='Code';
   document.body.classList.add('art-on');$$('.acard').forEach(e=>e.classList.toggle('on',e.dataset.a===id));}
 function closeArt(){document.body.classList.remove('art-on');S.art=null;$('#apframe').src='about:blank';$$('.acard').forEach(e=>e.classList.remove('on'));}
 function scrollEnd(force){const t=$('#thread');if(force||t.scrollHeight-t.scrollTop-t.clientHeight<200)t.scrollTop=t.scrollHeight;}
-function newChat(){loadCommands();stopPoll();S.chat=null;S.job=null;S.mode=defMode();renderMode();renderUsage(null);history.pushState({}, '', '/');$('#title').textContent='New chat';$('#hstate').hidden=true;empty();headerProj();setBusy(false);show('chat');renderList();$('#in').focus();}
+function newChat(keepProject){if(S.space==='code'&&!keepProject){S.codeProject=null;}loadCommands();stopPoll();S.chat=null;S.job=null;S.mode=S.space==='code'?'edits':defMode();$('#hgit').hidden=true;renderMode();renderUsage(null);history.pushState({}, '', '/');$('#title').textContent=S.space==='code'?'New session':'New chat';$('#hstate').hidden=true;empty();headerProj();setBusy(false);show('chat');renderList();$('#in').focus();}
 async function openChat(id,push=true){stopPoll();let c;try{c=await api('/api/chats/'+id);}catch(e){toast('Conversation not found');return newChat();}
-  S.chat=c;S.job=c.job;loadCommands();S.mode=c.mode||defMode();renderMode();renderUsage(c.usage);if(push)history.pushState({}, '', '/c/'+id);show('chat');$('#title').textContent=c.title;
+  S.chat=c;S.job=c.job;loadCommands();if((c.kind||'chat')!==S.space)setSpace(c.kind||'chat',true);if(c.kind==='code')S.codeProject=c.project;loadGit();S.mode=c.mode||defMode();renderMode();renderUsage(c.usage);if(push)history.pushState({}, '', '/c/'+id);show('chat');$('#title').textContent=c.title;
   const M=$('#msgs');M.innerHTML='';for(const e of c.log){M.append(e.origin?sysEl(e.q,e.origin,e.label):userEl(e.q));M.append(botEl(e));}
   const le=c.log[c.log.length-1];if(le?.meta?.mode==='plan'&&!c.job&&!c.pending)planBar(M.lastElementChild);
   if(c.job){if(c.pending)M.append(c.pending_origin?sysEl(c.pending,c.pending_origin,c.pending_label):userEl(c.pending));M.append(liveEl());
@@ -514,7 +579,7 @@ function queuedEl(t,qid){const d=document.createElement('div');d.className='u q'
 function btnState(){const s=$('#send'),busy=!!S.job,has=!!$('#in').value.trim()||!!(S.atts||[]).length,stop=busy&&!has;s.classList.toggle('stop',stop);
   s.setAttribute('aria-label',stop?'Stop':busy?'Queue message':'Send');s.title=stop?'Stop':busy?'Queue message (sent when Atenea finishes)':'Send';
   s.innerHTML=stop?'<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>':'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
-  s.disabled=!busy&&!has;const nm=S.cfg?.assistant_name||'Atenea';$('#in').placeholder=busy?'Queue another message…':`Ask ${nm} anything…`;}
+  s.disabled=!busy&&!has;const nm=S.cfg?.assistant_name||'Atenea';$('#in').placeholder=busy?'Queue another message…':S.space==='code'?'Describe the change, or ask about the code…':`Ask ${nm} anything…`;}
 function setBusy(b){btnState();}
 async function send(){if(S.atts.some(a=>!a.done&&!a.err))return toast('Wait for the upload to finish');
   let t=$('#in').value.trim();const at=attText();if(!t&&!at)return;if(at){t=(t||'Here are some files.')+at;S.atts=[];renderAtts();}
@@ -525,7 +590,7 @@ async function send(){if(S.atts.some(a=>!a.done&&!a.err))return toast('Wait for 
       if(r.queued){el.dataset.q=r.queued;}else{el.remove();openChat(S.chat.id,false);}}
     catch(e){el.remove();$('#in').value=t;grow();toast('Could not queue: '+e.message);}return;}
   $('.empty')?.remove();const M=$('#msgs');M.append(userEl(t));M.append(liveEl());scrollEnd(true);setBusy(true);
-  try{const r=await api('/api/chat',{method:'POST',body:JSON.stringify({text:t,chat:S.chat?.id||null,project:S.chat?null:($('#proj').value||null),mode:S.mode})});
+  try{const r=await api('/api/chat',{method:'POST',body:JSON.stringify({text:t,chat:S.chat?.id||null,project:S.chat?null:(S.space==='code'?S.codeProject:null),mode:S.mode,kind:S.chat?undefined:S.space})});
     S.job=r.job;S.lastEv=0;if(!S.chat){S.chat={id:r.chat,title:r.title,project:r.project,log:[]};history.pushState({}, '', '/c/'+r.chat);}
     $('#title').textContent=S.chat.title;headerProj();loadList();poll();}
   catch(e){$('.live .out').innerHTML=md('**Could not send:** '+e.message);$('.live')?.classList.remove('live');setBusy(false);}}
@@ -551,7 +616,7 @@ async function poll(){const jid=S.job;if(!jid)return;let j;try{j=await api('/api
     if(inp){qa.querySelector('.pri').onclick=()=>go(inp.value);inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();go(inp.value);}};}}
   $('#hstate').hidden=!j.approval&&!j.question;if(j.question&&!S.asked){S.asked=1;notice('❓ Question');}if(!j.question)S.asked=0;if(j.approval&&!S.noticed){S.noticed=1;notice('⏸ Needs you');}if(!j.approval)S.noticed=0;
   const na=(j.artifacts||[]).length;if(na>(S.lastArt||0)){const a=j.artifacts[na-1];S.lastArt=na;delete ART[a.id];openArt(a.id);}
-  if(j.done){b.querySelector('.qa').innerHTML='';if(!j.next)notice('✓ Done');
+  if(j.done){b.querySelector('.qa').innerHTML='';loadGit();if(!j.next)notice('✓ Done');
     if(S.voiceTurn&&!j.next){S.voiceTurn=false;if((S.cfg?.voice||{}).speak_replies)setTimeout(()=>speakText(plainForSpeech(j.result),b.querySelector('.speak')),50);}S.lastArt=0;b.querySelector('.wk')?.remove();const th2=b.querySelector('.think');if(th2&&!th2.hidden){th2.open=false;th2.querySelector('.tl').textContent='Thought process';}
     if(j.meta?.mode==='plan'&&!j.next)planBar(b);b.classList.remove('live');b.querySelector('.out').innerHTML=md(j.result||'(no answer)');finishOut(b.querySelector('.out'),j.artifacts);st.open=false;if(!j.events.length)st.hidden=true;
     if(j.meta)b.querySelector('.st').textContent=`· ${j.meta.secs}s`;$('#hstate').hidden=true;
@@ -566,8 +631,8 @@ $('#in').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isCo
 $('#send').onclick=async()=>{if(S.job&&!$('#in').value.trim()){const r=await api(`/api/jobs/${S.job}/stop`,{method:'POST'}).catch(()=>({queued:[]}));
     $$('.u.q').forEach(e=>e.remove());if(r.queued?.length){$('#in').value=r.queued.join('\n\n');grow();toast('Stopping… queued messages are back in the box');}else toast('Stopping…');}
   else send();};
-$('#newchat').onclick=newChat;
-$('#apclose').onclick=closeArt;
+$('#newchat').onclick=()=>{if(S.space==='code'){newChat();openPicker();}else newChat();};
+$('#apclose').onclick=closeArt;$('#hgit').onclick=showChanges;
 $('#apview').onclick=async()=>{const code=$('#apcode');if(code.hidden){const t=await fetch(`/a/${S.art}`,{credentials:'same-origin'}).then(r=>r.text()).catch(()=>'');
   code.textContent=t;code.hidden=false;$('#apframe').hidden=true;$('#apview').textContent='Preview';}else{code.hidden=true;$('#apframe').hidden=false;$('#apview').textContent='Code';}};
 $('#proj').onchange=()=>{projLabel();try{localStorage.setItem('proj',$('#proj').value);}catch(_){}};
@@ -803,8 +868,8 @@ $('#camin').onchange=e=>{[...e.target.files].forEach(uploadFile);e.target.value=
 function renderPlus(){const projs=Object.keys(S.cfg?.projects||{}),cur=$('#proj').value,locked=$('#projsel').classList.contains('locked');
   $('#popplus').innerHTML=`<button class="opt" data-p="files"><span class="ic">📎</span><span class="tx"><b style="color:var(--ink)">Photos, videos or files</b><span>Or drag them here, or paste an image</span></span></button>
     <button class="opt" data-p="cam"><span class="ic">📷</span><span class="tx"><b style="color:var(--ink)">Take a photo or video</b></span></button>
-    <div class="hd" style="padding-top:8px"><span>Work in folder</span>${locked?'<span style="font-weight:400">fixed for this chat</span>':''}</div>
-    ${['',...projs].map(p=>`<button class="opt${p===cur?' cur':''}" data-f="${esc(p)}"${locked?' disabled':''}><span class="ic">📁</span><span class="tx"><b style="color:var(--ink)">${p?esc(p):'Default folder'}</b><span>${esc(p?S.cfg.projects[p]:S.cfg?.workspace||'')}</span></span><span class="ck">✓</span></button>`).join('')}`;
+    ${S.space==='code'?`<button class="opt" data-cp="1"><span class="ic">⌂</span><span class="tx"><b style="color:var(--ink)">${S.chat?'Project: '+esc(pname(S.chat.project)):'Choose project…'}</b><span>${esc(S.chat?.project||S.codeProject||'')}</span></span></button>`:''}`;
+  $$('#popplus [data-cp]').forEach(b=>b.onclick=e=>{e.stopPropagation();closePops();if(!S.chat)openPicker();});
   $$('#popplus [data-p]').forEach(b=>b.onclick=e=>{e.stopPropagation();closePops();$(b.dataset.p==='files'?'#filein':'#camin').click();});
   $$('#popplus [data-f]').forEach(b=>b.onclick=e=>{e.stopPropagation();if(b.disabled)return;$('#proj').value=b.dataset.f;$('#proj').onchange();closePops();});}
 $('#plus').onclick=e=>{e.stopPropagation();const p=$('#popplus'),open=p.hidden;closePops();if(open){renderPlus();p.hidden=false;}};
@@ -919,7 +984,8 @@ async function loadStatus(){const s=await api('/api/status');const pct=(a,b)=>b?
 async function mini(){try{const s=await api('/api/status');const ok=s.ornith==='active';$('#mdot').className='dot '+(ok?'ok':'bad');renderModel(s);
   $('#mbusy').textContent=s.busy?`${s.busy} working`:(ok?'online':'offline');$('#mgpu').textContent=`GPU ${s.gpu_temp||'—'} °C · ${s.gpu_power||'—'} W`;}catch(e){}}
 // ---------- start ----------
+try{S.space=localStorage.getItem('space')==='code'?'code':'chat';}catch(_){S.space='chat';}
 function defMode(){let m=null;try{m=localStorage.getItem('mode');}catch(_){}return MODES[m]?m:(S.cfg?.default_mode||'auto');}
-(async()=>{try{await loadCfg();}catch(e){}S.mode=defMode();renderMode();renderUsage(null);renderModel(null);const m=location.pathname.match(/^\/c\/(\w+)/);if(m)await openChat(m[1],false);else{empty();headerProj();}
+(async()=>{try{await loadCfg();}catch(e){}setSpace(S.space,true);S.mode=defMode();renderMode();renderUsage(null);renderModel(null);const m=location.pathname.match(/^\/c\/(\w+)/);if(m)await openChat(m[1],false);else{empty();headerProj();}
   loadList();mini();setInterval(mini,30000);$('#in').focus();})();
 </script></body></html>
