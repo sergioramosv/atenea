@@ -1,12 +1,17 @@
-"""Atenea web panel: login page, chat, settings and status.  Run: python -m athena.web
+"""Atenea web panel: login page, conversations, settings and status.  Run: python -m athena.web
 
 Auth: a full-page login (password in config["web"]["password"], generated on first run). On success the
-server sets a signed, HttpOnly session cookie valid for 30 days, so you log in once per device."""
+server sets a signed, HttpOnly session cookie valid for 30 days, so you log in once per device.
+
+Conversations: each one is a JSON file in ~/.config/athena/chats/<id>.json holding
+  {id, title, project, created, updated, log: [{q, a, events, meta, t}], messages: [agent messages]}
+`log` is what the UI shows; `messages` is the model context, used to resume the conversation after a restart."""
 from __future__ import annotations
 
 import base64
 import hashlib
 import hmac
+import json
 import os
 import secrets
 import subprocess
@@ -15,7 +20,7 @@ import time
 import uuid
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 
 from . import config as C
@@ -23,10 +28,12 @@ from .runtime import build_agent
 
 app = FastAPI(title="Atenea", docs_url=None, redoc_url=None)
 JOBS: dict[str, dict] = {}
-AGENTS: dict[str, object] = {}          # one web conversation per project folder
+AGENTS: dict[str, object] = {}          # live agents, one per conversation id
 COOKIE = "atenea_session"
 SESSION_DAYS = 30
 HERE = os.path.dirname(__file__)
+CHATS_DIR = os.path.join(os.path.dirname(C.PATH), "chats")
+_lock = threading.Lock()
 
 
 # ---------------- auth ----------------
@@ -88,11 +95,45 @@ def logout(response: Response):
     return {"ok": True}
 
 
-# ---------------- chat ----------------
-class ChatIn(BaseModel):
-    text: str
-    project: str | None = None
-    new: bool = False
+# ---------------- conversation storage ----------------
+def _path(cid: str) -> str:
+    if not cid or not cid.isalnum():
+        raise HTTPException(400, "Bad conversation id")
+    return os.path.join(CHATS_DIR, cid + ".json")
+
+
+def _read(cid: str) -> dict:
+    try:
+        return json.load(open(_path(cid), encoding="utf-8"))
+    except FileNotFoundError:
+        raise HTTPException(404, "Conversation not found")
+
+
+def _write(chat: dict):
+    os.makedirs(CHATS_DIR, exist_ok=True)
+    tmp = _path(chat["id"]) + ".tmp"
+    json.dump(chat, open(tmp, "w", encoding="utf-8"), ensure_ascii=False)
+    os.replace(tmp, _path(chat["id"]))
+
+
+def _new_chat(project: str | None) -> dict:
+    now = time.time()
+    chat = {"id": uuid.uuid4().hex[:12], "title": "New chat", "project": project or "", "created": now,
+            "updated": now, "log": [], "messages": []}
+    _write(chat)
+    return chat
+
+
+def _running(cid: str) -> str | None:
+    for jid, j in JOBS.items():
+        if j["chat"] == cid and not j["done"]:
+            return jid
+    return None
+
+
+def _title(text: str) -> str:
+    t = " ".join(text.split())
+    return (t[:60].rsplit(" ", 1)[0] + "…") if len(t) > 60 else (t or "New chat")
 
 
 def _cwd(project: str | None) -> str:
@@ -100,11 +141,24 @@ def _cwd(project: str | None) -> str:
     return os.path.expanduser(cfg.get("projects", {}).get(project or "", project or "") or cfg["workspace"])
 
 
-def _run_job(jid: str, text: str, project: str | None, new: bool):
+def _agent(chat: dict):
+    """The live agent for a conversation, rebuilt from disk when needed (after a restart, for example)."""
+    ag = AGENTS.get(chat["id"])
+    if ag is None:
+        ag = build_agent(_cwd(chat.get("project")))
+        if chat.get("messages"):
+            ag.messages = [ag.messages[0]] + [m for m in chat["messages"] if m["role"] != "system"]
+        AGENTS[chat["id"]] = ag
+    return ag
+
+
+# ---------------- running a turn ----------------
+def _run_job(jid: str, cid: str, text: str):
     job = JOBS[jid]
-    cwd = _cwd(project)
 
     def ev(kind, data):
+        if job["cancel"]:
+            raise KeyboardInterrupt("cancelled")
         if kind in ("tool_call", "notice", "subagent"):
             job["events"].append({"t": round(time.time() - job["t0"], 1), "kind": kind,
                                   "data": {k: str(v)[:400] for k, v in data.items()}})
@@ -112,6 +166,8 @@ def _run_job(jid: str, text: str, project: str | None, new: bool):
     def approve(tool, args):
         job["approval"] = {"tool": tool.name, "args": str(args)[:1500], "answer": None}
         for _ in range(600):
+            if job["cancel"]:
+                break
             if job["approval"]["answer"] is not None:
                 ok = job["approval"]["answer"]
                 job["approval"] = None
@@ -119,25 +175,118 @@ def _run_job(jid: str, text: str, project: str | None, new: bool):
             time.sleep(1)
         job["approval"] = None
         return False
+
     try:
-        if new or cwd not in AGENTS:
-            AGENTS[cwd] = build_agent(cwd)
-        ag = AGENTS[cwd]
+        with _lock:
+            chat = _read(cid)
+        ag = _agent(chat)
         ag.on_event, ag.approve = ev, approve
         s0, t0 = ag.stats.requests, time.time()
         job["result"] = ag.run(text)
         job["meta"] = {"steps": ag.stats.requests - s0, "secs": round(time.time() - t0)}
+    except KeyboardInterrupt:
+        job["result"] = "_Stopped._"
+        job["meta"] = {"steps": 0, "secs": round(time.time() - job["t0"]), "stopped": True}
     except Exception as e:
         job["result"] = f"**Error:** {type(e).__name__}: {e}"
+    with _lock:
+        try:
+            chat = _read(cid)
+            ag = AGENTS.get(cid)
+            if ag is not None:
+                chat["messages"] = ag.messages
+            chat["log"].append({"q": text, "a": job["result"], "events": job["events"], "meta": job["meta"],
+                                "t": job["t0"]})
+            chat["updated"] = time.time()
+            _write(chat)
+        except HTTPException:                               # deleted while it was running
+            pass
     job["done"] = True
+
+
+class ChatIn(BaseModel):
+    text: str
+    chat: str | None = None
+    project: str | None = None
+
+
+class ChatPatch(BaseModel):
+    title: str | None = None
+    project: str | None = None
+
+
+@app.get("/api/chats", dependencies=[Depends(auth)])
+def list_chats(q: str = ""):
+    out = []
+    q = q.lower().strip()
+    if os.path.isdir(CHATS_DIR):
+        for f in os.listdir(CHATS_DIR):
+            if not f.endswith(".json"):
+                continue
+            try:
+                c = json.load(open(os.path.join(CHATS_DIR, f), encoding="utf-8"))
+            except Exception:
+                continue
+            running = bool(_running(c["id"]))
+            if not c["log"] and not running:
+                continue                                    # empty chats are not listed
+            if q and q not in c["title"].lower() and not any(
+                    q in (e.get("q", "") + " " + (e.get("a") or "")).lower() for e in c["log"]):
+                continue
+            out.append({"id": c["id"], "title": c["title"], "project": c.get("project", ""),
+                        "updated": c["updated"], "running": running, "turns": len(c["log"])})
+    out.sort(key=lambda c: c["updated"], reverse=True)
+    return {"chats": out}
+
+
+@app.get("/api/chats/{cid}", dependencies=[Depends(auth)])
+def get_chat(cid: str):
+    c = _read(cid)
+    return {"id": c["id"], "title": c["title"], "project": c.get("project", ""), "log": c["log"],
+            "job": _running(cid)}
+
+
+@app.patch("/api/chats/{cid}", dependencies=[Depends(auth)])
+def patch_chat(cid: str, p: ChatPatch):
+    with _lock:
+        c = _read(cid)
+        if p.title is not None and p.title.strip():
+            c["title"] = p.title.strip()[:120]
+        _write(c)
+    return {"ok": True}
+
+
+@app.delete("/api/chats/{cid}", dependencies=[Depends(auth)])
+def delete_chat(cid: str):
+    jid = _running(cid)
+    if jid:
+        JOBS[jid]["cancel"] = True
+    AGENTS.pop(cid, None)
+    with _lock:
+        try:
+            os.remove(_path(cid))
+        except FileNotFoundError:
+            pass
+    return {"ok": True}
 
 
 @app.post("/api/chat", dependencies=[Depends(auth)])
 def chat(inp: ChatIn):
+    if not inp.text.strip():
+        raise HTTPException(400, "Empty message")
+    with _lock:
+        c = _read(inp.chat) if inp.chat else _new_chat(inp.project)
+        if _running(c["id"]):
+            raise HTTPException(409, "This conversation is still working")
+        if not c["log"] and c["title"] == "New chat":
+            c["title"] = _title(inp.text)
+        c["updated"] = time.time()
+        _write(c)
     jid = uuid.uuid4().hex[:10]
-    JOBS[jid] = {"t0": time.time(), "events": [], "done": False, "result": None, "approval": None, "meta": None}
-    threading.Thread(target=_run_job, args=(jid, inp.text, inp.project, inp.new), daemon=True).start()
-    return {"job": jid}
+    JOBS[jid] = {"t0": time.time(), "events": [], "done": False, "result": None, "approval": None, "meta": None,
+                 "chat": c["id"], "cancel": False}
+    threading.Thread(target=_run_job, args=(jid, c["id"], inp.text), daemon=True).start()
+    return {"job": jid, "chat": c["id"], "title": c["title"], "project": c.get("project", "")}
 
 
 @app.get("/api/jobs/{jid}", dependencies=[Depends(auth)])
@@ -145,7 +294,8 @@ def job(jid: str):
     if jid not in JOBS:
         raise HTTPException(404)
     j = JOBS[jid]
-    return {k: j[k] for k in ("events", "done", "result", "approval", "meta")} | {"secs": round(time.time() - j["t0"])}
+    return {k: j[k] for k in ("events", "done", "result", "approval", "meta", "chat")} | \
+        {"secs": round(time.time() - j["t0"])}
 
 
 @app.post("/api/jobs/{jid}/approve/{answer}", dependencies=[Depends(auth)])
@@ -156,25 +306,11 @@ def approve(jid: str, answer: str):
     return {"ok": bool(a)}
 
 
-@app.get("/api/history", dependencies=[Depends(auth)])
-def history(project: str | None = None):
-    ag = AGENTS.get(_cwd(project))
-    if not ag:
-        return {"messages": []}
-    out = []
-    for m in ag.messages[1:]:
-        if m["role"] == "user" and not str(m.get("content", "")).startswith(("Your last tool call", "Your reply was",
-                                                                              "Not finished yet")):
-            out.append({"role": "user", "text": m["content"]})
-        elif m["role"] == "assistant" and (m.get("content") or "").strip() and not m.get("tool_calls"):
-            out.append({"role": "assistant", "text": m["content"]})
-    return {"messages": out}
-
-
-@app.post("/api/new", dependencies=[Depends(auth)])
-def new_chat(project: str | None = None):
-    AGENTS.pop(_cwd(project), None)
-    return {"ok": True}
+@app.post("/api/jobs/{jid}/stop", dependencies=[Depends(auth)])
+def stop(jid: str):
+    if jid in JOBS:
+        JOBS[jid]["cancel"] = True
+    return {"ok": jid in JOBS}
 
 
 # ---------------- settings & status ----------------
@@ -195,7 +331,9 @@ def put_config(new: dict):
     new.pop("web", None)                                   # password/secret are not changed from the browser
     cfg.update(new)
     C.save(cfg)
-    AGENTS.clear()
+    for cid in list(AGENTS):                               # rebuild idle agents with the new settings
+        if not _running(cid):
+            AGENTS.pop(cid, None)
     return {"ok": True}
 
 
@@ -213,10 +351,11 @@ def status():
             "gpu_power": _sh("sensors | awk '/PPT/{print $2}'"),
             "disk_used": _sh("df -BG /mnt/models | awk 'NR==2{print $3}'"),
             "disk_total": _sh("df -BG /mnt/models | awk 'NR==2{print $2}'"),
-            "uptime": _sh("uptime -p"), "projects": list(cfg.get("projects", {}).keys())}
+            "uptime": _sh("uptime -p"), "projects": list(cfg.get("projects", {}).keys()),
+            "busy": sum(1 for j in JOBS.values() if not j["done"])}
 
 
-# ---------------- pages ----------------
+# ---------------- pages & assets ----------------
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
     if _valid(request.cookies.get(COOKIE)):
@@ -225,10 +364,25 @@ def login_page(request: Request):
 
 
 @app.get("/", response_class=HTMLResponse)
-def index(request: Request):
+@app.get("/c/{cid}", response_class=HTMLResponse)
+def index(request: Request, cid: str | None = None):
     if not _valid(request.cookies.get(COOKIE)):
         return RedirectResponse("/login")
     return open(os.path.join(HERE, "web.html"), encoding="utf-8").read()
+
+
+@app.get("/brand/{name}")
+def brand(name: str):
+    f = os.path.join(HERE, "brand", os.path.basename(name))
+    if not os.path.isfile(f):
+        raise HTTPException(404)
+    return FileResponse(f, media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/favicon.ico")
+@app.get("/favicon.svg")
+def favicon():
+    return FileResponse(os.path.join(HERE, "brand", "atenea-icon.svg"), media_type="image/svg+xml")
 
 
 def main():
