@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Athena</title>
+<style>
+:root{--bg:#f6f5f2;--card:#fff;--fg:#1d1d1f;--mut:#6b6b70;--acc:#3b5bdb;--line:#e3e1dc;--ok:#2b8a3e;--bad:#c92a2a}
+@media (prefers-color-scheme:dark){:root{--bg:#141416;--card:#1e1e22;--fg:#ececf0;--mut:#9a9aa3;--acc:#7c9cff;--line:#2e2e34}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
+header{display:flex;align-items:center;gap:16px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0}
+header h1{font-size:18px;margin:0}nav button{background:none;border:0;color:var(--mut);font:inherit;padding:6px 10px;border-radius:8px;cursor:pointer}
+nav button.on{color:var(--fg);background:var(--bg)}main{max-width:900px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+#log{min-height:300px;max-height:60vh;overflow:auto}.msg{margin:10px 0;white-space:pre-wrap}.me{color:var(--acc);font-weight:600}
+.ev{font:12px/1.4 ui-monospace,monospace;color:var(--mut)}textarea,input,select{width:100%;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+textarea{min-height:80px}.row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}.row>*{flex:1;min-width:140px}
+button.p{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:9px 16px;font:inherit;cursor:pointer;flex:0 0 auto}
+button.s{background:none;border:1px solid var(--line);color:var(--fg);border-radius:8px;padding:9px 16px;font:inherit;cursor:pointer;flex:0 0 auto}
+label{display:block;font-size:13px;color:var(--mut);margin:12px 0 4px}.hide{display:none}.kv{display:grid;grid-template-columns:140px 1fr;gap:6px}
+.appr{border:2px solid var(--bad);border-radius:10px;padding:10px;margin:8px 0}
+</style></head><body>
+<header><h1>🦉 Athena</h1><nav><button data-t="chat" class="on">Chat</button><button data-t="cfg">Settings</button><button data-t="st">Status</button></nav></header>
+<main>
+<section id="chat"><div class="card"><div id="log"></div><div id="appr"></div>
+<textarea id="in" placeholder="Write a task or question… (Ctrl+Enter to send)"></textarea>
+<div class="row"><select id="proj"></select><button class="s" id="new">New conversation</button><button class="p" id="send">Send</button></div></div></section>
+<section id="cfg" class="hide"><div class="card">
+<label>Assistant name</label><input id="c_name">
+<label>Model — URL</label><input id="c_url"><label>Model — name</label><input id="c_model">
+<label>Default working folder</label><input id="c_ws">
+<label>Projects (JSON: alias → path)</label><textarea id="c_proj"></textarea>
+<label>Telegram — bot token</label><input id="c_tok"><label>Telegram — allowed user IDs (comma separated)</label><input id="c_users">
+<label>MCP servers (JSON)</label><textarea id="c_mcp" style="min-height:140px"></textarea>
+<label>Tools that require confirmation (comma separated)</label><input id="c_conf">
+<label>Extra instructions</label><textarea id="c_ins"></textarea>
+<div class="row"><button class="p" id="save">Save</button><span id="saved" class="ev"></span></div></div></section>
+<section id="st" class="hide"><div class="card kv" id="stbox"></div></section>
+</main>
+<script>
+const $=s=>document.querySelector(s);let job=null,cfg=null;
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+ ['chat','cfg','st'].forEach(id=>$('#'+id).classList.toggle('hide',id!==b.dataset.t));if(b.dataset.t==='st')status();});
+async function api(p,o={}){const r=await fetch(p,{headers:{'Content-Type':'application/json'},...o});if(!r.ok)throw new Error(r.status);return r.json();}
+function add(cls,txt){const d=document.createElement('div');d.className='msg '+cls;d.textContent=txt;$('#log').append(d);$('#log').scrollTop=1e9;return d;}
+async function loadCfg(){cfg=await api('/api/config');$('#c_name').value=cfg.assistant_name;$('#c_url').value=cfg.model.url;$('#c_model').value=cfg.model.model;
+ $('#c_ws').value=cfg.workspace;$('#c_proj').value=JSON.stringify(cfg.projects,null,2);$('#c_tok').value=cfg.telegram.token||'';
+ $('#c_users').value=(cfg.telegram.allowed_users||[]).join(',');$('#c_mcp').value=JSON.stringify(cfg.mcp_servers,null,2);
+ $('#c_conf').value=(cfg.confirm_tools||[]).join(',');$('#c_ins').value=cfg.instructions||'';
+ $('#proj').innerHTML='<option value="">(default folder)</option>'+Object.keys(cfg.projects).map(k=>`<option>${k}</option>`).join('');}
+$('#save').onclick=async()=>{try{const n={assistant_name:$('#c_name').value,model:{...cfg.model,url:$('#c_url').value,model:$('#c_model').value},
+ workspace:$('#c_ws').value,projects:JSON.parse($('#c_proj').value||'{}'),telegram:{token:$('#c_tok').value,allowed_users:$('#c_users').value.split(',').map(s=>s.trim()).filter(Boolean).map(Number)},
+ mcp_servers:JSON.parse($('#c_mcp').value||'{}'),confirm_tools:$('#c_conf').value.split(',').map(s=>s.trim()).filter(Boolean),instructions:$('#c_ins').value};
+ await api('/api/config',{method:'PUT',body:JSON.stringify(n)});$('#saved').textContent='Saved ✓';loadCfg();}catch(e){$('#saved').textContent='Error: '+e.message;}};
+let fresh=false;$('#new').onclick=()=>{fresh=true;$('#log').innerHTML='';add('ev','— new conversation —');};
+async function send(){const t=$('#in').value.trim();if(!t||job)return;$('#in').value='';add('me','You: '+t);
+ const r=await api('/api/chat',{method:'POST',body:JSON.stringify({text:t,project:$('#proj').value||null,new:fresh})});fresh=false;job=r.job;poll(0);}
+$('#send').onclick=send;$('#in').onkeydown=e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))send();};
+async function poll(seen){const j=await api('/api/jobs/'+job);j.events.slice(seen).forEach(e=>{
+ const d=e.data;add('ev',`${e.t}s ${e.kind==='tool_call'?'🔧 '+d.name+' '+(d.args||''):e.kind==='text'?'💬 '+d.text:'⚠️ '+(d.text||d.task)}`.slice(0,300));});
+ $('#appr').innerHTML=j.approval?`<div class="appr">🔐 Allow <b>${j.approval.tool}</b>?<pre class="ev">${j.approval.args.replace(/</g,'&lt;')}</pre>
+ <div class="row"><button class="p" onclick="ans('yes')">Yes</button><button class="s" onclick="ans('no')">No</button></div></div>`:'';
+ if(j.done){add('',j.result||'(no answer)');add('ev',`— ${j.secs}s —`);job=null;return;}setTimeout(()=>poll(j.events.length),1500);}
+window.ans=a=>api(`/api/jobs/${job}/approve/${a}`,{method:'POST'});
+async function status(){const s=await api('/api/status');$('#stbox').innerHTML=Object.entries({'Model (ornith)':s.ornith,'Telegram (hermes)':s.hermes||'stopped',
+ 'RAM':s.ram,'GPU temperature':s.gpu_temp,'GPU power':s.gpu_power,'Models disk':s.disk}).map(([k,v])=>`<div class="ev">${k}</div><div>${v}</div>`).join('');}
+loadCfg().catch(()=>add('ev','Sign in (user: sergio) to use the panel.'));
+</script></body></html>

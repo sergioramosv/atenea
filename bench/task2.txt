@@ -1,0 +1,32 @@
+Proyecto Python "tracker" (gestor de tareas). Los tests (python3 -m unittest) fallan. Hay que:
+
+1) BUGS: arregla los bugs de tracker/ sin modificar los tests existentes (los docstrings definen el comportamiento correcto).
+
+2) DEPENDENCIAS ENTRE TAREAS:
+   - Task tiene un nuevo campo `depends_on`: lista de ids (por defecto vacía).
+   - `add ... --after 1,3` crea la tarea con esas dependencias (todas deben existir).
+   - Nuevo comando `link ID --after X[,Y...]`: añade dependencias a una tarea existente. Debe rechazarse si
+     algún id no existe o si crearía un ciclo (incluida la dependencia de una tarea consigo misma).
+   - `start ID` y `done ID` deben fallar si alguna dependencia no está en estado "done", con el mensaje
+     "error: bloqueada por <ids>" (ids ascendentes separados por comas, solo los no terminados).
+   - Nuevo comando `next`: muestra las tareas en estado "open" cuyas dependencias están todas "done",
+     ordenadas por prioridad (ascendente), luego por fecha `due` (las que no tienen fecha al final) y luego por id.
+     Mismo formato de línea que `list`.
+   - Cualquier error del CLI (id inexistente, ciclo, bloqueo, consulta inválida...): imprime "error: <mensaje>"
+     en stderr, devuelve 1 y NO modifica el fichero.
+
+3) FORMATO DE FICHERO VERSIÓN 2:
+   - Se guarda siempre como {"version": 2, "tasks": [...]} incluyendo depends_on.
+   - Debe seguir cargando ficheros version 1 (sin depends_on -> lista vacía).
+   - Si la versión es mayor que 2, Storage lanza ValueError.
+
+4) LENGUAJE DE CONSULTA (tracker/query.py), ampliado:
+   - La palabra OR (en mayúsculas, como término aparte) separa alternativas; dentro de cada alternativa los
+     términos se combinan con AND. Ej.: "tag:backend priority<=1 OR status:done".
+   - Un término precedido de "-" se niega. Ej.: "-tag:docs".
+   - Nuevo término `blocked:yes` / `blocked:no`: tarea con alguna dependencia no terminada / sin ninguna.
+     Para evaluarlo, filter_tasks(tasks, expr) debe recibir la colección completa de tareas (como hoy).
+   - La expresión vacía devuelve todas las tareas. Un término inválido (o un OR al principio/final) -> ValueError.
+
+Mantén la firma main(argv=None, out=sys.stdout, today=None).
+Verifica ejecutando los tests y termina cuando todo pase.

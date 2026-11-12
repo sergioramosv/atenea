@@ -1,0 +1,1 @@
+Proyecto Python con utils.py: implementa TODAS las funciones de utils.py siguiendo su docstring al pie de la letra (y corrige suma_pares, que tiene un bug). No cambies nombres ni firmas. Las funciones son independientes entre sí.
