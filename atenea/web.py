@@ -245,6 +245,17 @@ def _slot_acquire(cid: str, ag) -> int | None:
             _slots["busy"].add(slot)
             restore = True                               # cheap (~0.1 s) and safe even if a subagent used the slot
             _slots["owner"][slot] = cid
+        if restore and not os.path.exists(os.path.join(SLOT_DIR, _slot_file(cid))):
+            base = _base_file(ag)                        # new chat: start from the processed instructions
+            if os.path.exists(os.path.join(SLOT_DIR, base)):
+                try:
+                    r = _llama(f"/slots/{slot}?action=restore", {"filename": base})
+                    print(f"[slots] new chat {cid}: base restored ({r.get('n_restored')} tokens)", flush=True)
+                except Exception:
+                    try:
+                        os.remove(os.path.join(SLOT_DIR, base))
+                    except OSError:
+                        pass
         if restore and os.path.exists(os.path.join(SLOT_DIR, _slot_file(cid))):
             try:
                 r = _llama(f"/slots/{slot}?action=restore", {"filename": _slot_file(cid)})
@@ -263,20 +274,54 @@ def _slot_acquire(cid: str, ag) -> int | None:
         return None
 
 
+def _base_file(ag) -> str:
+    import hashlib
+    h = hashlib.sha1((ag.messages[0]["content"] + json.dumps(ag.schemas(), sort_keys=True)).encode()).hexdigest()[:12]
+    return f"atenea-base-{h}.bin"
+
+
+def _build_base(slot: int, ag, name: str):
+    """Process only the instructions + tools once and keep that state, so new chats start without re-reading them."""
+    body = {"messages": [{"role": "system", "content": ag.messages[0]["content"]}, {"role": "user", "content": "hola"}],
+            "tools": ag.schemas(), "max_tokens": 1, "id_slot": slot, "cache_prompt": True,
+            "chat_template_kwargs": {"enable_thinking": False}}
+    try:
+        _llama("/v1/chat/completions", body, timeout=600)
+        _llama(f"/slots/{slot}?action=save", {"filename": name})
+        print(f"[slots] base ready: {name}", flush=True)
+    except Exception as e:
+        print(f"[slots] base build failed: {e}", flush=True)
+
+
 def _slot_release(cid: str, ag, slot: int | None):
     ag.profile.extra = None
     if slot is None:
         return
+    keep_busy = False
     try:
         if ag.stats.requests:
             _llama(f"/slots/{slot}?action=save", {"filename": _slot_file(cid)})
             _slot_gc()
+            base = _base_file(ag)
+            if not os.path.exists(os.path.join(SLOT_DIR, base)):
+                keep_busy = True                         # build it in the background on this slot, then free it
+
+                def bg():
+                    try:
+                        _build_base(slot, ag, base)
+                    finally:
+                        with _slot_lock:
+                            _slots["busy"].discard(slot)
+                            _slots["owner"][slot] = None
+                            _slots["used"][slot] = time.time()
+                threading.Thread(target=bg, daemon=True).start()
     except Exception as e:
         print(f"[slots] save failed: {e}", flush=True)
     finally:
-        with _slot_lock:
-            _slots["busy"].discard(slot)
-            _slots["used"][slot] = time.time()
+        if not keep_busy:
+            with _slot_lock:
+                _slots["busy"].discard(slot)
+                _slots["used"][slot] = time.time()
 
 
 def _slot_gc():

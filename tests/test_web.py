@@ -41,6 +41,9 @@ class FakeModel:
                 body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
                 if self.path.startswith("/slots"):
                     return self._json({"n_saved": 1, "n_restored": 1})
+                if body.get("max_tokens") == 1:                  # the panel pre-processing a chat "base"
+                    return self._json({"choices": [{"message": {"role": "assistant", "content": "."},
+                                                    "finish_reason": "length"}], "usage": {}})
                 model.requests.append(body)
                 r = dict(model.replies.pop(0)) if model.replies else {"role": "assistant", "content": "(no more replies)"}
                 time.sleep(r.pop("_delay", 0))
