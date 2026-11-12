@@ -1740,8 +1740,17 @@ def _live_stream(cid: str, jid: str, user_text: str, stt_secs: float):
         time.sleep(0.12)
 
 
+def _is_echo(heard: str, said: str) -> bool:
+    """Did the mic just pick up Atenea's own voice from the speaker? (iOS echo cancellation is off: it ruins audio)."""
+    norm = lambda t: re.findall(r"\w+", t.lower())
+    h, s_ = norm(heard), set(norm(said))
+    if len(h) <= 1:
+        return True
+    return sum(1 for w in h if w in s_) / len(h) >= 0.6
+
+
 @app.post("/api/live/turn", dependencies=[Depends(auth)])
-async def live_turn(request: Request, chat: str | None = None):
+async def live_turn(request: Request, chat: str | None = None, echo: int = 0):
     """One spoken turn of Atenea en vivo: audio in, a streamed spoken answer out. The turn is a normal chat message,
     so it is saved in the conversation and can use tools."""
     import urllib.request
@@ -1756,6 +1765,8 @@ async def live_turn(request: Request, chat: str | None = None):
     except Exception as e:
         raise HTTPException(503, f"Voice service unavailable: {e}")
     stt_secs = round(time.time() - t0, 2)
+    if echo and _is_echo(text, request.headers.get("X-Atenea-Said", "")[:4000].encode("latin-1", "ignore").decode("utf-8", "ignore")):
+        return StreamingResponse(iter([json.dumps({"type": "echo", "text": text}) + "\n"]), media_type="application/x-ndjson")
     if len(re.sub(r"\W", "", text)) < 2 or re.fullmatch(r"(?i)\W*(gracias|subtítulos.*|amara\.org.*)\W*", text):
         return StreamingResponse(iter([json.dumps({"type": "empty", "stt": stt_secs}) + "\n"]), media_type="application/x-ndjson")
     with _lock:

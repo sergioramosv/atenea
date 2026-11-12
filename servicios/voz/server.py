@@ -96,7 +96,7 @@ def _wav(audio, sr: int) -> bytes:
     a = np.asarray(audio, dtype=np.float32).squeeze()
     peak = float(np.abs(a).max()) if a.size else 0.0
     if peak > 1e-4:
-        a = a * (0.89 / peak)                       # same loudness for every voice, without clipping
+        a = a * (0.7 / peak)                       # same loudness for every voice, without clipping
     a = np.clip(a, -1, 1)
     buf = io.BytesIO()
     with wave.open(buf, "wb") as w:

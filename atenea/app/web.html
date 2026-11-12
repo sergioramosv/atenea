@@ -260,6 +260,7 @@ img.media,.uatt img{cursor:zoom-in}
 .lvsheet[hidden]{display:none}.lvsh{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:15px}.lvb.sm{width:36px;height:36px}
 .vopt{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:11px 12px;border-radius:12px;border:1px solid transparent;background:none;color:#ECEDEF;font-size:15px}
 .vopt small{display:block;color:#9AA0A8;font-size:12.5px;margin-top:2px}.vopt.cur{border-color:#3E8E63;background:rgba(62,142,99,.15)}.vopt .vg{margin-left:auto;font-size:11px;color:#9AA0A8;border:1px solid rgba(255,255,255,.18);border-radius:8px;padding:2px 7px}
+.vaec{display:flex;gap:10px;align-items:flex-start;margin:14px 4px 4px;font-size:14px}.vaec small{display:block;color:#9AA0A8;font-size:12.5px;margin-top:2px}.vaec input{margin-top:3px}
 .vgrp{font-size:11.5px;letter-spacing:.6px;color:#8E949B;margin:12px 4px 4px}
 .lvbar{display:flex;justify-content:center;gap:28px}.lvb{width:64px;height:64px;border-radius:50%;border:0;background:rgba(255,255,255,.12);color:#ECEDEF;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .lvb.on{background:#ECEDEF;color:#111}.lvb.end{background:#C0392B}
@@ -404,7 +405,7 @@ img.media,.uatt img{cursor:zoom-in}
   <button class="opt" data-h="del"><span class="tx"><b style="color:var(--bad)">Delete chat</b></span></button></div>
 <div class="live" id="live" hidden role="dialog" aria-label="Atenea live">
   <div class="lvtop"><span class="lvtitle">Atenea en vivo</span><span id="lvlat"></span><button class="lvvoice" id="lvvoice" aria-label="Change voice"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 10v4M7 7v10M11 4v16M15 8v8M19 10v4"/></svg><span id="lvvname">Voice</span></button></div>
-  <div class="lvsheet" id="lvsheet" hidden><div class="lvsh"><b>Atenea's voice</b><button class="lvb sm" id="lvshx" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><div id="lvvlist"></div></div>
+  <div class="lvsheet" id="lvsheet" hidden><div class="lvsh"><b>Atenea's voice</b><button class="lvb sm" id="lvshx" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><div id="lvvlist"></div><label class="vaec"><input type="checkbox" id="lvaec"> <span><b>iPhone echo cancellation</b><small>Off: clean sound; Atenea checks whether she is hearing herself. On: interrupts instantly but iOS makes the sound crackle.</small></span></label></div>
   <div class="lvmid"><div class="orb" id="orb"><i></i><i></i><i></i></div><div id="lvstate">Connecting…</div>
     <div class="lvtx"><div id="lvuser"></div><div id="lvbot"></div></div></div>
   <div class="lvbar"><button class="lvb" id="lvmute" aria-label="Mute microphone"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
@@ -952,49 +953,59 @@ $('#pvshare').onclick=async()=>{try{if(PV.file&&navigator.canShare&&navigator.ca
     await navigator.clipboard.writeText(new URL(PV.src,location.href).href);toast('Link copied');}catch(err){if(err.name!=='AbortError')toast('Could not share: '+err.message);}};
 
 // ---------- Atenea en vivo: hands-free voice conversation with barge-in ----------
-const LV={on:false,vad:null,stream:null,ctx:null,src:null,q:[],playing:false,ctrl:null,job:null,muted:false,turn:0};
+const LV={aec:(()=>{try{return localStorage.getItem('lv_aec')==='1';}catch(_){return false;}})(),ducked:false,gain:null,said:'',vad:null,stream:null,ctx:null,src:null,q:[],playing:false,ctrl:null,job:null,muted:false,turn:0};
 const VADV='0.0.24',ORTV='1.14.0';
 function loadScript(u){return new Promise((ok,bad)=>{if([...document.scripts].some(x=>x.src===u))return ok();const sc=document.createElement('script');sc.src=u;sc.onload=ok;sc.onerror=()=>bad(new Error('could not load '+u));document.head.appendChild(sc);});}
 function lvState(t,k){$('#lvstate').textContent=t;$('#orb').className='orb '+(k||'')+(LV.muted?' muted':'');}
 function f32wav(f){const b=new ArrayBuffer(44+f.length*2),v=new DataView(b),w=(o,s)=>[...s].forEach((c,i)=>v.setUint8(o+i,c.charCodeAt(0)));
   w(0,'RIFF');v.setUint32(4,36+f.length*2,true);w(8,'WAVEfmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,16000,true);v.setUint32(28,32000,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,f.length*2,true);
   for(let i=0;i<f.length;i++){const x=Math.max(-1,Math.min(1,f[i]));v.setInt16(44+i*2,x<0?x*0x8000:x*0x7FFF,true);}return new Blob([b],{type:'audio/wav'});}
-function lvStopAudio(){LV.q=[];LV.playing=false;if(LV.src){try{LV.src.onended=null;LV.src.stop();}catch(_){}LV.src=null;}}
+function lvOut(){if(!LV.gain){LV.gain=LV.ctx.createGain();LV.gain.connect(LV.ctx.destination);}return LV.gain;}
+function lvDuck(on){LV.ducked=on;if(LV.gain)LV.gain.gain.setTargetAtTime(on?0.2:1,LV.ctx.currentTime,0.03);}
+function lvStopAudio(){lvDuck(false);LV.q=[];LV.playing=false;if(LV.src){try{LV.src.onended=null;LV.src.stop();}catch(_){}LV.src=null;}}
 function lvBarge(){LV.turn++;lvStopAudio();if(LV.ctrl){try{LV.ctrl.abort();}catch(_){}LV.ctrl=null;}
   if(LV.job){api(`/api/jobs/${LV.job}/stop`,{method:'POST'}).catch(()=>{});LV.job=null;}}
 async function lvPlayNext(turn){if(LV.playing||!LV.q.length||turn!==LV.turn)return;LV.playing=true;const item=LV.q.shift();
   try{const buf=await LV.ctx.decodeAudioData(Uint8Array.from(atob(item.audio),c=>c.charCodeAt(0)).buffer);if(turn!==LV.turn){LV.playing=false;return;}
-    const src=LV.ctx.createBufferSource();src.buffer=buf;src.connect(LV.ctx.destination);LV.src=src;lvState('Speaking','speak');
+    const src=LV.ctx.createBufferSource();src.buffer=buf;src.connect(lvOut());LV.src=src;LV.said+=' '+item.text;if(!LV.ducked)lvState('Speaking','speak');
     src.onended=()=>{LV.src=null;LV.playing=false;if(LV.q.length)lvPlayNext(turn);else if(!LV.ctrl&&turn===LV.turn)lvState(LV.muted?'Muted':'Listening','');};src.start();}
   catch(e){LV.playing=false;lvPlayNext(turn);}}
-async function lvSend(audio){const turn=++LV.turn;lvStopAudio();lvState('Thinking','think');const ctrl=new AbortController();LV.ctrl=ctrl;const t0=performance.now();let first=true;
-  try{const r=await fetch('/api/live/turn'+(S.chat?.id?`?chat=${S.chat.id}`:''),{method:'POST',body:f32wav(audio),credentials:'same-origin',signal:ctrl.signal});
+async function lvSend(audio){const check=!LV.aec&&!!(LV.playing||LV.q.length||LV.ctrl);   // maybe it is Atenea hearing herself
+  let turn=check?LV.turn:++LV.turn;if(!check){lvStopAudio();lvState('Thinking','think');LV.said='';}
+  const ctrl=new AbortController(),t0=performance.now();let first=true,decided=!check;if(!check)LV.ctrl=ctrl;
+  try{const q=new URLSearchParams();if(S.chat?.id)q.set('chat',S.chat.id);if(check)q.set('echo','1');
+    const r=await fetch('/api/live/turn?'+q,{method:'POST',body:f32wav(audio),credentials:'same-origin',signal:ctrl.signal,
+      headers:check?{'X-Atenea-Said':unescape(encodeURIComponent(LV.said.slice(-1500)))}:{}});
     if(!r.ok)throw new Error((await r.text()).slice(0,120));
-    const rd=r.body.getReader(),dec=new TextDecoder();let buf='';$('#lvbot').textContent='';
+    const rd=r.body.getReader(),dec=new TextDecoder();let buf='';
     while(true){const {value,done}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});let i;
-      while((i=buf.indexOf('\n'))>=0){const line=buf.slice(0,i);buf=buf.slice(i+1);if(!line.trim())continue;const m=JSON.parse(line);if(turn!==LV.turn)return;
+      while((i=buf.indexOf('\n'))>=0){const line=buf.slice(0,i);buf=buf.slice(i+1);if(!line.trim())continue;const m=JSON.parse(line);
+        if(!decided){if(m.type==='echo'||m.type==='empty'){lvDuck(false);if(LV.playing)lvState('Speaking','speak');return;}
+          decided=true;lvBarge();turn=LV.turn;LV.ctrl=ctrl;LV.said='';lvState('Thinking','think');}   // real interruption: drop the old answer
+        if(turn!==LV.turn)return;
         if(m.type==='empty'){lvState(LV.muted?'Muted':'Listening','');LV.ctrl=null;return;}
-        if(m.type==='user'){$('#lvuser').textContent=m.text;LV.job=m.job;if(!S.chat||S.chat.id!==m.chat){S.chat={id:m.chat};history.replaceState({},'','/c/'+m.chat);}}
+        if(m.type==='user'){$('#lvuser').textContent=m.text;$('#lvbot').textContent='';LV.job=m.job;if(!S.chat||S.chat.id!==m.chat){S.chat={id:m.chat};history.replaceState({},'','/c/'+m.chat);}}
         if(m.type==='say'){$('#lvbot').textContent+=($('#lvbot').textContent?' ':'')+m.text;$('#lvbot').scrollTop=1e6;
           if(first){first=false;$('#lvlat').textContent=((performance.now()-t0)/1000).toFixed(1)+' s';}
           if(m.audio){LV.q.push(m);lvPlayNext(turn);}}
         if(m.type==='end'){LV.job=null;}}}
-    LV.ctrl=null;if(!LV.playing&&!LV.q.length&&turn===LV.turn)lvState(LV.muted?'Muted':'Listening','');}
-  catch(e){if(e.name==='AbortError')return;LV.ctrl=null;lvState('Error: '+e.message,'');}}
+    if(turn===LV.turn)LV.ctrl=null;if(!LV.playing&&!LV.q.length&&turn===LV.turn)lvState(LV.muted?'Muted':'Listening','');}
+  catch(e){if(e.name==='AbortError')return;if(!decided){lvDuck(false);return;}LV.ctrl=null;lvState('Error: '+e.message,'');}}
 async function liveOpen(){$('#live').hidden=false;document.body.style.overflow='hidden';$('#lvuser').textContent='';$('#lvbot').textContent='Talk whenever you want. If you speak while I answer, I stop.';$('#lvlat').textContent='';
   LV.muted=false;$('#lvmute').classList.remove('on');lvState('Connecting…','think');
   try{LV.ctx=LV.ctx||new (window.AudioContext||window.webkitAudioContext)();await LV.ctx.resume();
     await loadScript(`https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORTV}/dist/ort.min.js`);
     await loadScript(`https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@${VADV}/dist/bundle.min.js`);
-    LV.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});
+    LV.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:LV.aec,noiseSuppression:LV.aec,autoGainControl:LV.aec,channelCount:1}});
     LV.vad=await vad.MicVAD.new({stream:LV.stream,model:'v5',baseAssetPath:`https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@${VADV}/dist/`,onnxWASMBasePath:`https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORTV}/dist/`,
       positiveSpeechThreshold:0.6,negativeSpeechThreshold:0.4,minSpeechFrames:8,redemptionFrames:16,preSpeechPadFrames:10,
-      onSpeechStart:()=>{if(LV.muted)return;if(LV.playing||LV.ctrl)lvBarge();lvState('Listening…','user');},
-      onVADMisfire:()=>{if(!LV.ctrl&&!LV.playing)lvState(LV.muted?'Muted':'Listening','');},
+      onSpeechStart:()=>{if(LV.muted)return;if(LV.playing||LV.ctrl||LV.q.length){if(LV.aec)lvBarge();else{lvDuck(true);lvState('Listening…','user');return;}}lvState('Listening…','user');},
+      onVADMisfire:()=>{if(LV.ducked){lvDuck(false);if(LV.playing)lvState('Speaking','speak');return;}if(!LV.ctrl&&!LV.playing)lvState(LV.muted?'Muted':'Listening','');},
       onSpeechEnd:a=>{if(!LV.muted)lvSend(a);}});
     LV.vad.start();LV.on=true;lvState('Listening','');lvVoices().catch(()=>{});}
   catch(e){lvState('Could not start: '+e.message,'');}}
-function liveClose(){lvBarge();LV.on=false;try{LV.vad&&LV.vad.destroy();}catch(_){}LV.vad=null;if(LV.stream){LV.stream.getTracks().forEach(t=>t.stop());LV.stream=null;}
+function liveStopMic(){try{LV.vad&&LV.vad.destroy();}catch(_){}LV.vad=null;if(LV.stream){LV.stream.getTracks().forEach(t=>t.stop());LV.stream=null;}}
+function liveClose(){lvBarge();LV.on=false;liveStopMic();
   $('#live').hidden=true;document.body.style.overflow='';if(S.chat?.id)openChat(S.chat.id,false);loadList();}
 $('#livebtn').onclick=liveOpen;$('#lvend').onclick=liveClose;
 $('#lvmute').onclick=()=>{LV.muted=!LV.muted;$('#lvmute').classList.toggle('on',LV.muted);if(LV.muted){LV.vad&&LV.vad.pause();}else{LV.vad&&LV.vad.start();}lvState(LV.muted?'Muted':'Listening','');};
@@ -1149,8 +1160,9 @@ async function lvVoices(){const r=await api('/api/voices');$('#lvvname').textCon
   $('#lvvlist').innerHTML=h;$$('#lvvlist .vopt').forEach(b=>b.onclick=async()=>{const v={...((S.cfg||{}).voice||{}),voice:b.dataset.v};
     try{await api('/api/config',{method:'PUT',body:JSON.stringify({voice:v})});if(S.cfg)S.cfg.voice=v;await lvVoices();lvSample(b.dataset.v);}catch(e){toast(e.message);}});}
 async function lvSample(v){try{lvBarge();const r=await fetch('/api/tts',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:'Hola Sergio, soy Atenea. ¿Te gusta cómo sueno?',voice:v})});
-  const buf=await LV.ctx.decodeAudioData(await r.arrayBuffer());const src=LV.ctx.createBufferSource();src.buffer=buf;src.connect(LV.ctx.destination);LV.src=src;src.start();}catch(e){toast('Could not play: '+e.message);}}
-$('#lvvoice').onclick=()=>{$('#lvsheet').hidden=!$('#lvsheet').hidden;if(!$('#lvsheet').hidden)lvVoices();};$('#lvshx').onclick=()=>{$('#lvsheet').hidden=true;};
+  const buf=await LV.ctx.decodeAudioData(await r.arrayBuffer());const src=LV.ctx.createBufferSource();src.buffer=buf;src.connect(lvOut());LV.src=src;src.start();}catch(e){toast('Could not play: '+e.message);}}
+$('#lvaec').onchange=async()=>{LV.aec=$('#lvaec').checked;try{localStorage.setItem('lv_aec',LV.aec?'1':'0');}catch(_){}toast('Restarting the microphone…');liveStopMic();await liveOpen();};
+$('#lvvoice').onclick=()=>{$('#lvaec').checked=LV.aec;$('#lvsheet').hidden=!$('#lvsheet').hidden;if(!$('#lvsheet').hidden)lvVoices();};$('#lvshx').onclick=()=>{$('#lvsheet').hidden=true;};
 async function loadVoices(){try{const r=await api('/api/voices');$('#v_voice').innerHTML=r.voices.map(v=>`<option value="${esc(v)}"${v===r.current?' selected':''}>${esc(VNAME(v))}</option>`).join('');}catch(_){$('#v_voice').innerHTML='<option value="">Voice service off</option>';}}
 $('#v_voice').onchange=async()=>{try{const v={...((S.cfg||{}).voice||{}),voice:$('#v_voice').value};await api('/api/config',{method:'PUT',body:JSON.stringify({voice:v})});if(S.cfg)S.cfg.voice=v;toast('Voice saved');$('#v_try').click();}catch(e){toast(e.message);}};
 $('#v_try').onclick=async()=>{const b=$('#v_try');b.disabled=true;try{const r=await fetch('/api/tts',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:'Hola Sergio, soy Atenea. Así sueno con esta voz. ¿Qué te parece?',voice:$('#v_voice').value})});
