@@ -28,6 +28,7 @@ from pydantic import BaseModel
 
 from . import artifacts as A
 from . import background as BG
+from . import docs as DOCS
 from . import media as MEDIA
 from . import monitors as MON
 from . import notify as NOTIFY
@@ -399,7 +400,7 @@ def _agent(chat: dict):
             ag.messages = [ag.messages[0]] + [m for m in chat["messages"] if m["role"] != "system"]
         # keep the context meter right before the first model call of this process (it reports 0 until then)
         ag.context_tokens = (chat.get("usage") or {}).get("ctx") or _est(ag.messages) + _est(ag.schemas())
-        ag.messages[0]["content"] += "\n" + A.INSTRUCTIONS + "\n" + ACTIVITY_INSTR + "\n" + MEDIA.INSTRUCTIONS
+        ag.messages[0]["content"] += "\n" + A.INSTRUCTIONS + "\n" + ACTIVITY_INSTR + "\n" + MEDIA.INSTRUCTIONS + "\n" + DOCS.INSTRUCTIONS
         for t in BG.tools(lambda: ag.cwd, chat["id"]) + MON.tools(lambda: ag.cwd, chat["id"]):
             ag._tools[t.name] = t
         ag.spawn_bg = lambda sub, task, name, _cid=chat["id"]: _spawn_bg(_cid, sub, task, name)
@@ -448,6 +449,11 @@ def _agent(chat: dict):
                   {"type": "object", "properties": {"prompt": {"type": "string"}, "width": {"type": "integer"},
                    "height": {"type": "integer"}, "seed": {"type": "integer"}}, "required": ["prompt"]},
                   lambda prompt, width=1024, height=1024, seed=-1: MEDIA.generate_image(prompt, width, height, seed)),
+            _Tool("create_document", "Create a real PDF, Word (docx) or Excel (xlsx) file from Markdown (tables become "
+                  "Excel sheets). Returns a markdown link to show it.",
+                  {"type": "object", "properties": {"title": {"type": "string"}, "content": {"type": "string"},
+                   "format": {"type": "string", "enum": ["pdf", "docx", "xlsx"]}}, "required": ["title", "content"]},
+                  lambda title, content, format="pdf": DOCS.create_document(title, content, format)),
             _Tool("edit_image", "Edit an existing image following an instruction (~60 s): change style, objects, "
                   "background, text, season… Returns a markdown line to show the result.",
                   {"type": "object", "properties": {"path": {"type": "string"}, "instruction": {"type": "string"}},

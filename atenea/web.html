@@ -364,13 +364,13 @@ function mediaSrc(src){src=unesc(src);return /^(\/|~\/)/.test(src)?'/api/file?pa
 function media(alt,src){const u=esc(mediaSrc(src)),a=esc(unesc(alt)),ext=(unesc(src).split('?')[0].match(/\.(\w+)$/)||[])[1]?.toLowerCase()||'';
   if(['mp4','webm','mov','m4v','ogv'].includes(ext))return `<video class="media" controls preload="metadata" src="${u}"></video>`;
   if(['mp3','wav','ogg','m4a','flac'].includes(ext))return `<audio class="media" controls src="${u}"></audio>`;
-  if(['pdf','txt','csv','json','md','log','zip'].includes(ext))return `<a class="filechip" href="${u}" target="_blank" rel="noopener">📄 ${a||unesc(src).split('/').pop()}</a>`;
+  if(['pdf','txt','csv','json','md','log','zip','docx','xlsx','pptx','odt','ods'].includes(ext))return `<a class="filechip" href="${u}" target="_blank" rel="noopener">📄 ${a||unesc(src).split('/').pop()}</a>`;
   return `<a href="${u}" target="_blank" rel="noopener" class="imgl"><img class="media" src="${u}" alt="${a}" loading="lazy"></a>`;}
 function inline(s){const keep=[];const k=h=>{keep.push(h);return `\u0001${keep.length-1}\u0001`;};
   s=s.replace(/`([^`]+)`/g,(_,c)=>k(`<code>${c}</code>`))
    .replace(/\[\[artifact:([a-z0-9]{6,16})\]\]/g,(_,id)=>k(`<span class="acard" data-a="${id}"></span>`))
    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g,(_,a,u)=>k(media(a,u)))
-   .replace(/\[([^\]]+)\]\(((?:https?:|\/)[^)\s]+)\)/g,(_,t,u)=>k(`<a href="${esc(mediaSrc(u))}" target="_blank" rel="noopener">${t}</a>`));
+   .replace(/\[([^\]]+)\]\(((?:https?:|\/)[^)\s]+)\)/g,(_,t,u)=>k(`<a href="${esc(mediaSrc(u))}" target="_blank" rel="noopener"${u.startsWith('/')?' class="filechip"':''}>${t}</a>${u.startsWith('/')&&/\.(pdf|docx|xlsx|pptx|csv|zip)$/i.test(u)?` <a class="filechip" href="${esc(mediaSrc(u))}&download=1" title="Download">⬇</a>`:''}`));
   s=s.replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/(^|[\s(])[*_]([^*_\n]+)[*_](?=[\s).,!?:;]|$)/g,'$1<i>$2</i>');
   return s.replace(/\u0001(\d+)\u0001/g,(_,i)=>keep[+i]);}
 function md(src){const blocks=[];src=String(src??'').replace(/```(\w*)\n?([\s\S]*?)```/g,(_,l,c)=>{blocks.push(c.replace(/\n$/,''));return `\u0000${blocks.length-1}\u0000`;});
