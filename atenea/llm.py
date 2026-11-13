@@ -140,7 +140,10 @@ class LLM:
                                                                   "function": {"name": "", "arguments": ""}})
                         c["id"] = tc.get("id") or c["id"]
                         f = tc.get("function") or {}
+                        had = bool(c["function"]["name"])
                         c["function"]["name"] += f.get("name") or ""
+                        if not had and c["function"]["name"]:
+                            on_delta("tool", c["function"]["name"])          # a tool call is starting
                         c["function"]["arguments"] += f.get("arguments") or ""
                     if ch.get("finish_reason"):
                         finish = ch["finish_reason"]

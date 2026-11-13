@@ -539,6 +539,9 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False, origin: str | 
     def ev(kind, data):
         if job["cancel"]:
             raise KeyboardInterrupt("cancelled")
+        if kind == "delta" and data["kind"] == "tool":
+            job["tool_start"] = (data["text"], time.time())
+            return
         if kind == "delta":
             lv = job["live"]
             key = "thinking" if data["kind"] == "reasoning" else "text"
@@ -632,7 +635,7 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False, origin: str | 
         fast = _is_quick(text, ag.mode) and not resume
         if origin == "voice":                               # live voice: short spoken answers, think only for real tasks
             ag.note += VOICE_NOTE
-            fast = not resume and not _TASK_WORDS.search(text)
+            fast = not resume and not _VOICE_THINK.search(text)
         ag.profile.think = False if fast else None
         job["quick"] = fast
         slot = _slot_acquire(cid, ag)
@@ -1663,14 +1666,17 @@ def _run_flow(item: dict):
 
 
 VOICE_NOTE = ("\n[Voz en directo: contesta como en una llamada, 1-3 frases cortas, sin formato. Si algo se entiende mejor "
-              "viéndolo (datos, listas, pasos, tablas), PRIMERO di una frase breve y DESPUÉS, en el mismo mensaje, llama a "
-              "show_card; al terminar no repitas lo de la tarjeta.]")
+              "viéndolo (datos, listas, pasos, tablas), di una frase breve y llama a la herramienta show_card (una llamada de "
+              "función real, nunca texto como [[card]]); después no repitas lo de la tarjeta.]")
+_VOICE_THINK = re.compile(r"\b(programa|código|codigo|arregla|depura|investiga|analiza|calcula|razona|demuestra|"
+                          r"planifica|plan de|compara)\w*", re.I)
 _UNFINISHED = re.compile(r"(\.\.\.|…|\b(y|o|que|pero|porque|de|del|a|al|en|con|por|para|el|la|los|las|un|una|mi|tu|su|si|cuando|como|pues|entonces|o sea)\W*)$", re.I)
 _SENT = re.compile(r"(.+?[.!?…:;](?=\s)|.+?\n)", re.S)
 
 
 def _speakable(t: str) -> str:
     t = re.sub(r"```.*?```", " ", t, flags=re.S)
+    t = re.sub(r"\[\[[^\]]*\]\]", " ", t)
     t = re.sub(r"!\[[^\]]*\]\([^)]*\)", " ", t)
     t = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", t)
     t = re.sub(r"https?://\S+", " ", t)
@@ -1695,7 +1701,9 @@ def _live_stream(cid: str, jid: str, user_text: str, stt_secs: float):
     """NDJSON: the transcript, then each sentence of Atenea's answer as text + WAV, as soon as it is written."""
     yield json.dumps({"type": "user", "text": user_text, "chat": cid, "job": jid, "stt": stt_secs}) + "\n"
     job, done_upto, last_turn, t0, spoken = JOBS[jid], 0, None, time.time(), False
-    ncards, nart, imgs_seen = 0, 0, set()
+    ncards, nart, imgs_seen, filler = 0, 0, set(), None
+    FILL = {"show_card": "Te lo enseño en pantalla.", "web_search": "Déjame buscarlo.", "web_fetch": "Lo miro.",
+            "generate_image": "Te la preparo, tarda un poquito."}
 
     def cards():
         nonlocal ncards, nart
@@ -1731,6 +1739,13 @@ def _live_stream(cid: str, jid: str, user_text: str, stt_secs: float):
             yield json.dumps({"type": "end", "cancelled": True}) + "\n"
             return
         yield from cards()
+        ts = job.get("tool_start")
+        if ts and not spoken and filler != ts:              # silence while a tool call is written: say something
+            filler = ts
+            line = say(FILL.get(ts[0], "Un momento, lo miro."))
+            if line:
+                spoken = True
+                yield line
         live = job["live"]
         if live is not last_turn:                           # a new model call (after a tool): start reading it from 0
             last_turn, done_upto = live, 0
