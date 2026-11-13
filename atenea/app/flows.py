@@ -365,10 +365,11 @@ TEMPLATES = {
                        "1. Resumen: una tabla con TODAS las asignaturas (también las que no tienen nada): actividades "
                        "pendientes con fecha de entrega, entregadas y materiales subidos en los últimos 14 días. "
                        "Di claramente qué asignaturas no tienen nada pendiente.\n"
-                       "2. Próximas entregas ordenadas por fecha, con los días que faltan.\n"
-                       "3. Para cada actividad con \"nueva\": true: qué piden en 2-3 líneas (según el enunciado), busca en "
-                       "internet cómo abordarla (web_search y web_fetch, 2-3 fuentes buenas), pautas paso a paso, "
-                       "errores típicos, tiempo estimado y fuentes con enlace.\n"
+                       "2. Próximas entregas ordenadas por fecha, con los días que faltan. Marca las nuevas (\"nueva\": true).\n"
+                       "3. Para CADA actividad sin entregar (aunque ya me la hayas explicado otro día): qué piden en 2-3 "
+                       "líneas según el enunciado, cómo abordarla (busca en internet con web_search y web_fetch, 2-3 "
+                       "fuentes buenas), pautas paso a paso, errores típicos, tiempo estimado y fuentes con enlace.\n"
+                       "Si no hay nada pendiente, dilo al principio y resume solo los materiales nuevos.\n"
                        "En español, claro y sin emojis. No guardes nada en memoria. No crees archivos: tu respuesta "
                        "final ES el informe completo, escrito en el chat, sin preguntas al final.")}}
 

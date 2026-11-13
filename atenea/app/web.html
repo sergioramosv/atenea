@@ -111,6 +111,14 @@ header{height:56px;flex:none;border-bottom:1px solid var(--line);display:flex;al
 .tk:hover{background:var(--hover)}.tk.on{background:var(--sel);color:var(--ink);box-shadow:0 1px 2px rgba(17,19,21,.06)}
 .tk .tn{font-size:14px;font-weight:500;display:flex;gap:6px;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tk .tw{font-size:12px;color:var(--muted)}
 .tk.off{opacity:.55}
+.th-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;box-shadow:var(--shadow)}
+.th-hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.th-hd b{font-size:16.5px}.th-meta{color:var(--muted);font-size:13px}
+.th-rep{position:relative;margin-top:10px;max-height:340px;overflow:hidden}.th-rep.open{max-height:none}
+.th-rep:not(.open)::after{content:"";position:absolute;left:0;right:0;bottom:0;height:70px;background:linear-gradient(transparent,var(--card))}
+.th-rep table{border-collapse:collapse;font-size:13.5px;display:block;overflow-x:auto}.th-rep td,.th-rep th{border-bottom:1px solid var(--line);padding:5px 8px;text-align:left}
+.th-act{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.th-err{color:var(--bad);margin-top:8px;font-size:14px}
+.th-rem{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--line2);font-size:14px}.th-rem:last-child{border:0}
+.tk.home .tn{font-weight:600}
 .kindsel{display:grid;grid-template-columns:1fr 1fr;gap:8px}.kindsel button{border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:10px 12px;text-align:left;font-size:13px;color:var(--ink2)}
 .kindsel button b{display:block;font-size:14.5px;color:var(--ink);margin-bottom:2px}.kindsel button.on{border-color:var(--acc);background:var(--acc-bg)}
 .kindsel.k3{grid-template-columns:1fr 1fr 1fr}@media(max-width:640px){.kindsel.k3{grid-template-columns:1fr}}.f [hidden]{display:none!important}
@@ -197,7 +205,9 @@ header{height:56px;flex:none;border-bottom:1px solid var(--line);display:flex;al
 .pop .bar{margin-top:0}.pop .rowk{display:flex;justify-content:space-between;font-size:13px}.pop .rowk span:last-child{font-family:var(--mono);color:var(--ink)}
 .hint{max-width:820px;margin:8px auto 0;text-align:center;font-size:12px;color:var(--muted)}
 /* settings */
-#v-settings{overflow:auto}
+#v-settings{overflow:auto}#v-task{overflow:auto}
+.brand .sbx{margin-left:auto;color:var(--muted)}
+@media (min-width:821px){.app.nosb #side{display:none}.app.nosb #menu{display:flex}}
 .set{max-width:860px;width:100%;margin:0 auto;padding:36px 28px 80px;display:flex;flex-direction:column;gap:20px}
 .set h1{margin:0;font-size:28px;letter-spacing:-.02em;font-weight:600}.set>p{margin:-12px 0 4px;color:var(--muted)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px 22px;display:flex;flex-direction:column;gap:14px}
@@ -291,7 +301,7 @@ img.media,.uatt img{cursor:zoom-in}
 <body>
 <div class="app">
 <aside id="side" aria-label="Conversations">
-  <div class="brand"><img class="logo-l" src="/brand/atenea-mark.svg" alt=""><img class="logo-d" src="/brand/atenea-mark-dark.svg" alt=""><b id="bname">Atenea</b></div>
+  <div class="brand"><img class="logo-l" src="/brand/atenea-mark.svg" alt=""><img class="logo-d" src="/brand/atenea-mark-dark.svg" alt=""><b id="bname">Atenea</b><button class="ib sbx" id="sbclose" title="Hide sidebar" aria-label="Hide sidebar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 10l-2 2 2 2"/></svg></button></div>
   <div class="space" role="tablist"><button data-s="chat" role="tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Chat</button><button data-s="code" role="tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg>Code</button><button data-s="tasks" role="tab"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg>Tasks</button></div>
   <button class="newbtn" id="newchat"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New chat</button>
   <div class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
@@ -486,7 +496,7 @@ async function loadList(){const q=$('#q').value.trim();let r;try{r=await api('/a
   clearTimeout(loadList._t);loadList._t=setTimeout(loadList,S.chats.some(c=>c.running)?4000:30000);}
 const pname=p=>String(p||'').split('/').filter(Boolean).pop()||p;
 function renderList(){if(S.space==='tasks')return renderTasks();const L=$('#list');const code=S.space==='code';const items=S.chats.filter(c=>(c.kind||'chat')===S.space);
-  if(!items.length){L.innerHTML=`<div class="nolist">${$('#q').value?'Nothing matches your search.':code?'Your coding sessions will appear here, grouped by project. Start one with “New session” or run <code>atenea</code> in a folder.':'Your conversations will appear here.'}</div>`;return;}
+  if(!items.length&&q){L.innerHTML=`<div class="nolist">${$('#q').value?'Nothing matches your search.':code?'Your coding sessions will appear here, grouped by project. Start one with “New session” or run <code>atenea</code> in a folder.':'Your conversations will appear here.'}</div>`;return;}
   if(code){const by={};for(const c of items)(by[c.project||'']=by[c.project||'']||[]).push(c);
     var ordered=Object.entries(by).sort((a,b)=>Math.max(...b[1].map(x=>x.updated))-Math.max(...a[1].map(x=>x.updated))).flatMap(([p,cs])=>cs.map(c=>({...c,_g:p})));}
   let h='',g=null;for(const c of (code?ordered:items)){const gg=code?c._g:groupOf(c.updated);if(gg!==g){g=gg;h+=code?`<div class="grp" title="${esc(gg)}">${ico('folder',12)} ${esc(pname(gg)||'no folder')}</div>`:`<div class="grp">${g}</div>`;}
@@ -500,7 +510,11 @@ $('#list').addEventListener('click',async e=>{const a=e.target.closest('.it');if
   openChat(id);});
 let qt;$('#q').addEventListener('input',()=>{clearTimeout(qt);qt=setTimeout(loadList,250);});
 function side(open){$('#side').classList.toggle('open',open);$('#scrim').classList.toggle('on',open);}
-$('#menu').onclick=()=>side(true);$('#scrim').onclick=()=>side(false);
+const isDesk=()=>matchMedia('(min-width:821px)').matches;
+function sbSet(closed){$('.app').classList.toggle('nosb',closed);try{localStorage.setItem('sb_closed',closed?'1':'0');}catch(_){}}
+try{if(localStorage.getItem('sb_closed')==='1')$('.app').classList.add('nosb');}catch(_){}
+$('#menu').onclick=()=>isDesk()?sbSet(false):side(true);$('#scrim').onclick=()=>side(false);
+$('#sbclose').onclick=()=>isDesk()?sbSet(true):side(false);
 // ---------- Tasks space: reminders and recurring tasks ----------
 const DAYS=['mon','tue','wed','thu','fri','sat','sun'],DAYL={mon:'Mon',tue:'Tue',wed:'Wed',thu:'Thu',fri:'Fri',sat:'Sat',sun:'Sun'};
 function humanWhen(w){w=String(w||'').trim();let m;
@@ -515,7 +529,8 @@ function renderTasks(){const q=$('#q').value.trim().toLowerCase();const L=$('#li
   const grp=k=>items.filter(t=>(t.kind||'task')===k);let h='';
   for(const [k,label] of [['reminder','REMINDERS'],['task','RECURRING TASKS'],['flow','WORKFLOWS']]){const g=grp(k);if(!g.length)continue;h+=`<div class="grp">${label}</div>`;
     h+=g.map(t=>`<a class="tk${t.id===S.task?' on':''}${t.enabled?'':' off'}" data-t="${t.id}"><span class="tn">${ico(k==='reminder'?'clock':k==='flow'?'school':'repeat')} ${esc(t.name)}</span><span class="tw">${esc(humanWhen(t.when))} · ${t.enabled?(t.next?'next '+fmtT(t.next):'done'):'paused'}</span></a>`).join('');}
-  L.innerHTML=h;L.querySelectorAll('[data-t]').forEach(a=>a.onclick=()=>openTask(a.dataset.t));}
+  L.innerHTML=`<a class="tk home${!S.task&&S.view==='task'&&S.thome?' on':''}" data-home="1"><span class="tn">${ico('list')} Latest reports</span><span class="tw">The last report of every task and workflow</span></a>`+h;
+  L.querySelectorAll('[data-t]').forEach(a=>a.onclick=()=>{side(false);openTask(a.dataset.t);});L.querySelector('[data-home]').onclick=()=>{side(false);tasksHome();};}
 function whenEditor(w){const now=new Date(Date.now()+3600e3);const d0=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`,t0=String(now.getHours()).padStart(2,'0')+':00';
   let rep='once',date=d0,time=t0,days=['mon'],md=1,n=30,unit='m',m;w=String(w||'');
   if(m=w.match(/^once (\S+) (\S+)/)){rep='once';date=m[1];time=m[2];}else if(m=w.match(/^daily (\S+)/)){rep='daily';time=m[1];}else if(m=w.match(/^weekdays (\S+)/)){rep='weekdays';time=m[1];}
@@ -529,7 +544,25 @@ function wireWhen(){const upd=()=>{const r=$('#w_rep').value;$('#w_date').hidden
   $('#w_rep').onchange=upd;$$('#w_days button').forEach(b=>b.onclick=()=>{$$('#w_days button').forEach(x=>x.classList.remove('on'));b.classList.add('on');});upd();}
 function readWhen(){const r=$('#w_rep').value,t=$('#w_time').value||'09:00';
   return r==='once'?`once ${$('#w_date').value} ${t}`:r==='daily'?`daily ${t}`:r==='weekdays'?`weekdays ${t}`:r==='weekly'?`weekly ${($('#w_days .on')||{dataset:{d:'mon'}}).dataset.d} ${t}`:r==='monthly'?`monthly ${$('#w_mdn').value||1} ${t}`:`every ${Math.max(5,+$('#w_n').value||30)}${$('#w_unit').value}`;}
-async function openTask(id,preset){S.task=id;S.chat=null;stopPoll();clearTimeout(S.ttimer);show('task');renderTasks();const B=$('#taskbox');
+async function tasksHome(){S.task=null;S.thome=true;S.chat=null;stopPoll();clearTimeout(S.ttimer);show('task');renderTasks();$('#title').textContent='Tasks';const B=$('#taskbox');
+  let r;try{r=await api('/api/schedules/overview');}catch(e){B.innerHTML=`<p>${esc(e.message)}</p>`;return;}if(!S.thome)return;
+  const rems=(S.tasks||[]).filter(t=>t.kind==='reminder'&&t.enabled&&t.next);
+  B.innerHTML=`<h1>Tasks</h1>`+(r.items.length?'':`<div class="card"><p class="d">No tasks or workflows yet. Create one with “New task”, or try the ready-made Campus VIU workflow.</p><div class="row"><button class="btn" id="th-new">New task</button></div></div>`)+
+   r.items.map(t=>{const L=t.last||{};const run=t.running||L.running;
+    return `<div class="th-card" data-id="${t.id}"><div class="th-hd">${ico(t.kind==='flow'?'school':'repeat',16)}<b>${esc(t.name)}</b>
+      <span class="th-meta">${L.t?'· '+fmtT(L.t):'· not run yet'}${run?' · '+ico('wait',12)+' running…':''}${t.enabled?'':' · paused'}</span>
+      <span class="th-meta" style="margin-left:auto">next ${t.next?fmtT(t.next):'—'}</span></div>
+      ${L.error?`<div class="th-err">${esc(L.error)}</div>`:L.report?`<div class="th-rep md">${md(L.report)}</div>`:run?`<p class="th-meta">Preparing the report…</p>`:''}
+      <div class="th-act">${L.report?'<button class="btn" data-more>Show all</button>':''}${L.chat?`<button class="btn" data-chat="${L.chat}">Ask about it</button>`:''}<button class="btn" data-run${run?' disabled':''}>Run now</button><button class="btn ghost" data-edit>Settings &amp; history</button></div></div>`;}).join('')+
+   (rems.length?`<div class="card"><h2>Upcoming reminders</h2>${rems.sort((a,b)=>a.next-b.next).map(t=>`<div class="th-rem"><span>${esc(t.prompt||t.name)}</span><span class="th-meta">${fmtT(t.next)}</span></div>`).join('')}</div>`:'');
+  B.querySelectorAll('.th-card').forEach(c=>{const id=c.dataset.id;
+    c.querySelector('[data-more]')?.addEventListener('click',e=>{const rp=c.querySelector('.th-rep');rp.classList.toggle('open');e.target.textContent=rp.classList.contains('open')?'Show less':'Show all';});
+    c.querySelector('[data-chat]')?.addEventListener('click',e=>openChat(e.target.dataset.chat));
+    c.querySelector('[data-run]').onclick=async e=>{e.target.disabled=true;await api(`/api/schedules/${id}/run`,{method:'POST'});toast('Running…');setTimeout(tasksHome,1500);};
+    c.querySelector('[data-edit]').onclick=()=>openTask(id);});
+  $('#th-new')&&($('#th-new').onclick=()=>openTask(null));
+  if(r.items.some(t=>t.running||(t.last||{}).running))S.ttimer=setTimeout(()=>{if(S.view==='task'&&S.thome)tasksHome();},5000);}
+async function openTask(id,preset){S.thome=false;S.task=id;S.chat=null;stopPoll();clearTimeout(S.ttimer);show('task');renderTasks();const B=$('#taskbox');
   let t=id?await api('/api/schedules/'+id):{kind:'reminder',name:'',prompt:'',when:'',enabled:true,mode:'auto',runs:[]};
   let tpl=null;if(!id&&preset){const r=await api('/api/flows/templates');tpl=r.items.find(x=>x.id===preset);if(tpl)t={...t,kind:'flow',name:tpl.name,prompt:tpl.prompt,when:tpl.when,flow:{connector:tpl.connector,vault:tpl.vault}};}
   if(t.kind==='flow'&&!tpl){const r=await api('/api/flows/templates');tpl=r.items.find(x=>x.connector===(t.flow||{}).connector)||null;}
@@ -571,7 +604,11 @@ async function openTask(id,preset){S.task=id;S.chat=null;stopPoll();clearTimeout
     $('#t_toggle').onclick=async()=>{await api('/api/schedules/'+id,{method:'PATCH',body:JSON.stringify({enabled:!t.enabled})});await loadTasks();openTask(id);};
     if($('#t_reset'))$('#t_reset').onclick=async()=>{if(!confirm('Forget what was already seen? The next run will report every pending item again.'))return;await api(`/api/schedules/${id}/reset`,{method:'POST'});toast('Done');};
     $('#t_del').onclick=async()=>{if(!confirm('Delete this task?'))return;await api('/api/schedules/'+id,{method:'DELETE'});S.task=null;await loadTasks();openTask(null);};
-    B.querySelectorAll('[data-c]').forEach(x=>x.onclick=()=>openChat(x.dataset.c));
+    B.querySelectorAll('.run[data-c]').forEach(x=>x.onclick=async e=>{if(e.target.closest('a,button,details'))return;
+      if(x.querySelector('.th-rep')){x.querySelector('.th-rep').remove();x.querySelector('.ra')&&(x.querySelector('.ra').hidden=false);x.querySelector('.rgo')?.remove();return;}
+      const c=await api('/api/chats/'+x.dataset.c);const a=(c.log[c.log.length-1]||{}).a||'';x.querySelector('.ra')&&(x.querySelector('.ra').hidden=true);
+      x.insertAdjacentHTML('beforeend',`<div class="th-rep open md">${md(a)}</div><div class="rgo"><button class="btn" style="margin-top:8px">Ask about it</button></div>`);
+      x.querySelector('.rgo button').onclick=ev=>{ev.stopPropagation();openChat(x.dataset.c);};});
     if(t.running||t.waiting)S.ttimer=setTimeout(()=>{if(S.view==='task'&&S.task===id&&!document.activeElement?.matches('#taskbox input,#taskbox textarea'))openTask(id);else if(S.view==='task'&&S.task===id)S.ttimer=setTimeout(()=>openTask(id),4000);},4000);}
   else{$('#t_brief').onclick=async()=>{const it=await api('/api/schedules/briefing',{method:'POST',body:JSON.stringify({when:'weekdays 08:00'})});await loadTasks();openTask(it.id);};
     $('#t_viu').onclick=()=>openTask(null,'viu');}}
@@ -580,7 +617,7 @@ async function openTask(id,preset){S.task=id;S.chat=null;stopPoll();clearTimeout
 function setSpace(sp,keep){S.space=['code','tasks'].includes(sp)?sp:'chat';try{localStorage.setItem('space',S.space);}catch(_){}
   $$('.space button').forEach(b=>b.classList.toggle('on',b.dataset.s===S.space));
   $('#newchat').lastChild.textContent=S.space==='code'?'New session':S.space==='tasks'?'New task':'New chat';$('#q').placeholder=S.space==='code'?'Search sessions':S.space==='tasks'?'Search tasks':'Search chats';
-  if(S.space==='tasks'){loadTasks();if(!keep||S.view!=='task')openTask(S.task||null);return;}
+  if(S.space==='tasks'){loadTasks();if(!keep||S.view!=='task'){S.task?openTask(S.task):tasksHome();}return;}
   if(S.view==='task')show('chat');
   if(!S.chat){S.mode=S.space==='code'?'edits':defMode();renderMode();$('#title').textContent=S.space==='code'?'New session':'New chat';}
   $('#in').placeholder=S.space==='code'?'Describe the change, or ask about the code…':`Ask ${S.cfg?.assistant_name||'Atenea'} anything…`;

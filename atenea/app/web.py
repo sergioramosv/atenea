@@ -1644,22 +1644,19 @@ def _run_flow(item: dict):
             return
         base = {"t": t0, "kind": "flow", "secs": round(time.time() - t0), "count": len(r["items"]),
                 "new": len(r["new"]), "log": r["log"][-40:]}
-        if not r["new"]:
-            pend = sum(1 for i in r["items"] if not i.get("entregada"))
-            SCH.record(sid, {**base, "text": f"Sin novedades · {pend} pendientes"})
-            return
-        new_ids = {i["id"] for i in r["new"]}
-        pend = [{**{k: v for k, v in i.items() if k not in ("id", "archivos") and (k != "enunciado" or i["id"] in new_ids)},
-                 "nueva": i["id"] in new_ids} for i in r["items"] if not i.get("entregada")]
+        new_ids = {i["id"] for i in r["new"]}            # always report: new items are only marked as such
+        pend = [{**{k: v for k, v in i.items() if k not in ("id", "archivos")}, "nueva": i["id"] in new_ids}
+                for i in r["items"] if not i.get("entregada")]
         data = json.dumps({**(r.get("data") or {}), "actividades_sin_entregar": pend}, ensure_ascii=False, indent=1)
         with _lock:
             c = _new_chat(None, item.get("mode") or "auto", "task")
             c["title"] = f"{item['name']} · {time.strftime('%d %b %H:%M')}"
             c["task"] = sid
             _write(c)
-            jid = _start(c["id"], f"{item['prompt']}\n\n```json\n{data}\n```", label=f"{len(r['new'])} nuevas")
+            jid = _start(c["id"], f"{item['prompt']}\n\n```json\n{data}\n```",
+                         label=f"{len(r['new'])} nuevas · {len(pend)} pendientes")
             JOBS[jid]["scheduled"] = True
-        SCH.record(sid, {**base, "chat": c["id"], "text": f"{len(r['new'])} nuevas"})
+        SCH.record(sid, {**base, "chat": c["id"], "text": f"{len(r['new'])} nuevas · {len(pend)} pendientes"})
     finally:
         FLOW_RUNNING.pop(sid, None)
         FLOWS.WAIT.pop(sid, None)
@@ -1879,6 +1876,34 @@ def schedule_briefing(s_: ScheduleIn):
     it = SCH.add("Resumen de la mañana", BRIEFING_PROMPT, when, "auto")
     SCH.update(it["id"], preset="briefing")
     return it
+
+
+@app.get("/api/schedules/overview", dependencies=[Depends(auth)])
+def schedules_overview():
+    """The latest report of every task and workflow, for the Tasks home page."""
+    out = []
+    for it in SCH.load():
+        if it.get("kind") == "reminder":
+            continue
+        last = None
+        for h in it.get("history") or []:
+            if h.get("chat"):
+                try:
+                    c = _read(h["chat"])
+                except HTTPException:
+                    continue
+                running = bool(_running(h["chat"]))
+                ans = (c["log"][-1].get("a") if c["log"] else "") or ""
+                last = {"t": h["t"], "chat": h["chat"], "running": running, "report": ans, "text": h.get("text"),
+                        "secs": ((c["log"][-1].get("meta") or {}).get("secs") if c["log"] else None)}
+                break
+            if h.get("error"):
+                last = {"t": h["t"], "error": h["error"], "text": h.get("text")}
+                break
+        out.append({"id": it["id"], "name": it["name"], "kind": it.get("kind", "task"), "when": it["when"], "next": it.get("next"),
+                    "enabled": it.get("enabled", True), "running": it["id"] in FLOW_RUNNING, "last": last})
+    out.sort(key=lambda x: -((x["last"] or {}).get("t") or 0))
+    return {"items": out}
 
 
 @app.get("/api/schedules/{sid}", dependencies=[Depends(auth)])
