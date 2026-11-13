@@ -2114,16 +2114,35 @@ def runner_result(rid: str, res: RunnerResult):
 INSTALL_SH = r"""#!/bin/bash
 # Atenea Código for this computer: `curl -fsSL __SERVER__/install.sh | bash`
 set -e
+trap 'echo; echo "✗ The install stopped at line $LINENO. Copy the lines above and send them to Atenea or Claude."' ERR
 SERVER="${ATENEA_SERVER:-__SERVER__}"
+echo "→ Checking the connection to $SERVER"
+if ! curl -fsS -o /dev/null --max-time 15 "$SERVER/docs"; then
+  echo "✗ Cannot reach $SERVER. Turn Tailscale on in this computer (same account as ZEUS) and try again."; exit 1
+fi
 PY=""
-for p in python3.14 python3.13 python3.12 python3.11 python3.10 python3; do
-  if command -v "$p" >/dev/null 2>&1 && "$p" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)'; then PY="$(command -v $p)"; break; fi
-done
-if [ -z "$PY" ]; then echo "Atenea needs Python 3.10 or newer. On a Mac: brew install python   (then run this again)"; exit 1; fi
-echo "→ Installing Atenea Código with $($PY --version) into ~/.atenea"
+if [ -z "$ATENEA_FORCE_UV" ]; then
+  for p in python3.14 python3.13 python3.12 python3.11 python3; do
+    if command -v "$p" >/dev/null 2>&1 && "$p" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then PY="$(command -v $p)"; break; fi
+  done
+fi
 mkdir -p "$HOME/.atenea" "$HOME/.local/bin"
-[ -x "$HOME/.atenea/venv/bin/python" ] || "$PY" -m venv "$HOME/.atenea/venv"
-"$HOME/.atenea/venv/bin/pip" install -q --upgrade pip prompt_toolkit qrcode >/dev/null
+if [ -n "$PY" ]; then
+  echo "→ Installing Atenea Código with $($PY --version) into ~/.atenea"
+  if [ ! -x "$HOME/.atenea/venv/bin/python" ]; then "$PY" -m venv "$HOME/.atenea/venv"; fi
+  "$HOME/.atenea/venv/bin/python" -m pip install -q --upgrade pip prompt_toolkit qrcode >/dev/null
+else
+  # macOS ships Python 3.9: get a private Python 3.12 with uv (does not touch the system Python)
+  echo "→ Python 3.11+ not found ($(python3 --version 2>/dev/null || echo 'no python3')). Getting a private Python 3.12 for Atenea…"
+  UV="$HOME/.atenea/bin/uv"
+  if [ ! -x "$UV" ]; then
+    curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="$HOME/.atenea/bin" UV_NO_MODIFY_PATH=1 INSTALLER_NO_MODIFY_PATH=1 sh >/dev/null
+  fi
+  if ! "$HOME/.atenea/venv/bin/python" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
+    rm -rf "$HOME/.atenea/venv"; "$UV" venv -q -p 3.12 "$HOME/.atenea/venv"
+  fi
+  "$UV" pip install -q --python "$HOME/.atenea/venv/bin/python" prompt_toolkit qrcode
+fi
 rm -rf "$HOME/.atenea/src.new" && mkdir -p "$HOME/.atenea/src.new"
 curl -fsSL "$SERVER/dist/atenea.tar.gz" | tar xz -C "$HOME/.atenea/src.new"
 rm -rf "$HOME/.atenea/src" && mv "$HOME/.atenea/src.new" "$HOME/.atenea/src"
@@ -2132,10 +2151,11 @@ cat > "$HOME/.local/bin/atenea" <<EOS
 PYTHONPATH="\$HOME/.atenea/src" exec "\$HOME/.atenea/venv/bin/python" -m atenea.codigo.cli "\$@"
 EOS
 chmod +x "$HOME/.local/bin/atenea"
-echo "Installed: ~/.local/bin/atenea"
+echo "✓ Installed: ~/.local/bin/atenea"
 case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *)
-  SHELLRC="$HOME/.zshrc"; [ -n "$BASH_VERSION" ] && [ ! -f "$HOME/.zshrc" ] && SHELLRC="$HOME/.bashrc"
-  echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$SHELLRC"; echo "  (added ~/.local/bin to PATH in $SHELLRC — open a new terminal)";;
+  SHELLRC="$HOME/.zshrc"; [ -n "$BASH_VERSION" ] && [ ! -f "$HOME/.zshrc" ] && [ "$(uname)" != "Darwin" ] && SHELLRC="$HOME/.bashrc"
+  grep -qs 'HOME/.local/bin' "$SHELLRC" || echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$SHELLRC"
+  echo "  (added ~/.local/bin to PATH in $SHELLRC — open a new terminal)";;
 esac
 if [ -z "$ATENEA_SKIP_LOGIN" ]; then "$HOME/.local/bin/atenea" login "$SERVER" < /dev/tty; fi
 """
