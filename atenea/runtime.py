@@ -13,6 +13,7 @@ from . import memory as MEM
 from . import scheduler as SCH
 from . import subagents as SUB
 from . import web_tools as WEB
+from .registry import Tool
 from .agent import Agent
 from .llm import ModelProfile
 from .skills import SkillSet
@@ -149,4 +150,14 @@ def build_agent(cwd: str | None = None, on_event=None, approve=None, verify: str
     for t in BG.tools(lambda: ag.cwd):
         ag._tools[t.name] = t
     ag._tools["team"] = EQ.tool(ag)
+
+    def show_card(title: str, content: str = "", image: str = "") -> str:
+        ag._emit("card", title=title[:120], content=content[:6000], image=image[:500])
+        return "Shown on Sergio's screen."
+    ag._tools["show_card"] = Tool(
+        "show_card", "Live voice conversations only: put a card on Sergio's screen while you talk (a table, a list, "
+        "figures, steps, a link or an image path/URL). Use it whenever something is easier to see than to hear; then "
+        "say only a short spoken summary. `content` is markdown.",
+        {"type": "object", "properties": {"title": {"type": "string"}, "content": {"type": "string"},
+                                          "image": {"type": "string"}}, "required": ["title"]}, show_card)
     return ag

@@ -262,6 +262,12 @@ img.media,.uatt img{cursor:zoom-in}
 .vopt small{display:block;color:#9AA0A8;font-size:12.5px;margin-top:2px}.vopt.cur{border-color:#3E8E63;background:rgba(62,142,99,.15)}.vopt .vg{margin-left:auto;font-size:11px;color:#9AA0A8;border:1px solid rgba(255,255,255,.18);border-radius:8px;padding:2px 7px}
 .vaec{display:flex;gap:10px;align-items:flex-start;margin:14px 4px 4px;font-size:14px}.vaec small{display:block;color:#9AA0A8;font-size:12.5px;margin-top:2px}.vaec input{margin-top:3px}
 .vgrp{font-size:11.5px;letter-spacing:.6px;color:#8E949B;margin:12px 4px 4px}
+.lvcards{width:100%;max-width:560px;display:flex;flex-direction:column;gap:10px;overflow:auto;max-height:42vh}.lvcards:empty{display:none}
+.lvcard{background:#F4F2EC;color:#1A1C1E;border-radius:16px;padding:12px 14px;font-size:14.5px;line-height:1.45;box-shadow:0 8px 30px rgba(0,0,0,.35);animation:lvin .25s ease-out}
+.lvcard h4{margin:0 0 6px;font-size:15px}.lvcard img{max-width:100%;border-radius:10px;display:block;margin-top:6px}.lvcard table{border-collapse:collapse;width:100%;font-size:13.5px}.lvcard td,.lvcard th{border-bottom:1px solid #ddd8cc;padding:4px 6px;text-align:left}
+.lvcard a{color:#2F6F4E;font-weight:600}.lvcard p{margin:4px 0}.lvcard ul,.lvcard ol{margin:4px 0;padding-left:20px}
+@keyframes lvin{from{opacity:0;transform:translateY(10px)}}
+.live.hascards .orb{width:76px;height:76px}.live.hascards .lvmid{justify-content:flex-start;padding-top:8px;gap:12px}.live.hascards .lvtx{min-height:0}.live.hascards #lvbot{font-size:16px;max-height:16vh}
 .lvbar{display:flex;justify-content:center;gap:28px}.lvb{width:64px;height:64px;border-radius:50%;border:0;background:rgba(255,255,255,.12);color:#ECEDEF;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .lvb.on{background:#ECEDEF;color:#111}.lvb.end{background:#C0392B}
 .pv{align-items:stretch}.pv .lbbar{z-index:2;background:linear-gradient(rgba(0,0,0,.85),rgba(0,0,0,.55) 70%,transparent)}#pvname{flex:1;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#pvcount{font:12px var(--mono);color:#9AA0A8}
@@ -344,6 +350,8 @@ img.media,.uatt img{cursor:zoom-in}
   <section class="view" id="v-settings">
     <div class="set">
       <h1>Settings</h1><p>Changes apply to new messages.</p>
+      <div class="card"><h2>Guide</h2><p class="d">How to install Atenea Código on your Mac and how to use live voice, Tasks and Workflows.</p>
+        <div class="row"><a class="btn" href="/docs" target="_blank" rel="noopener">Open the guide</a></div></div>
       <div class="card"><h2>General</h2>
         <div class="f"><label for="s_name">Assistant name</label><input id="s_name">
           <label for="s_ins">Extra instructions</label><textarea id="s_ins" placeholder="E.g. Reply in Spanish. My name is Sergio."></textarea></div></div>
@@ -407,7 +415,7 @@ img.media,.uatt img{cursor:zoom-in}
   <div class="lvtop"><span class="lvtitle">Atenea en vivo</span><span id="lvlat"></span><button class="lvvoice" id="lvvoice" aria-label="Change voice"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 10v4M7 7v10M11 4v16M15 8v8M19 10v4"/></svg><span id="lvvname">Voice</span></button></div>
   <div class="lvsheet" id="lvsheet" hidden><div class="lvsh"><b>Atenea's voice</b><button class="lvb sm" id="lvshx" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div><div id="lvvlist"></div><label class="vaec"><input type="checkbox" id="lvaec"> <span><b>iPhone echo cancellation</b><small>Off: clean sound; Atenea checks whether she is hearing herself. On: interrupts instantly but iOS makes the sound crackle.</small></span></label></div>
   <div class="lvmid"><div class="orb" id="orb"><i></i><i></i><i></i></div><div id="lvstate">Connecting…</div>
-    <div class="lvtx"><div id="lvuser"></div><div id="lvbot"></div></div></div>
+    <div class="lvtx"><div id="lvuser"></div><div id="lvbot"></div></div><div class="lvcards" id="lvcards"></div></div>
   <div class="lvbar"><button class="lvb" id="lvmute" aria-label="Mute microphone"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
     <button class="lvb end" id="lvend" aria-label="End"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div></div>
 <div class="lb pv" id="pv" hidden role="dialog" aria-label="PDF viewer">
@@ -985,14 +993,18 @@ async function lvSend(audio,force){clearTimeout(LV.wt);if(LV.pend&&!force){const
         if(turn!==LV.turn)return;
         if(m.type==='empty'){lvState(LV.muted?'Muted':'Listening','');LV.ctrl=null;return;}
         if(m.type==='wait'){LV.ctrl=null;LV.pend=audio;$('#lvuser').textContent=m.text;lvState('Listening…','user');LV.wt=setTimeout(()=>{const a=LV.pend;if(a)lvSend(a,true);},1100);return;}
-        if(m.type==='user'){$('#lvuser').textContent=m.text;$('#lvbot').textContent='';LV.job=m.job;if(!S.chat||S.chat.id!==m.chat){S.chat={id:m.chat};history.replaceState({},'','/c/'+m.chat);}}
+        if(m.type==='user'){$('#lvuser').textContent=m.text;$('#lvbot').textContent='';$('#lvcards').innerHTML='';$('#live').classList.remove('hascards');LV.job=m.job;if(!S.chat||S.chat.id!==m.chat){S.chat={id:m.chat};history.replaceState({},'','/c/'+m.chat);}}
+        if(m.type==='card')lvCard(m);
         if(m.type==='say'){$('#lvbot').textContent+=($('#lvbot').textContent?' ':'')+m.text;$('#lvbot').scrollTop=1e6;
           if(first){first=false;$('#lvlat').textContent=((performance.now()-t0)/1000).toFixed(1)+' s';}
           if(m.audio){LV.q.push(m);lvPlayNext(turn);}}
         if(m.type==='end'){LV.job=null;}}}
     if(turn===LV.turn)LV.ctrl=null;if(!LV.playing&&!LV.q.length&&turn===LV.turn)lvState(LV.muted?'Muted':'Listening','');}
   catch(e){if(e.name==='AbortError')return;if(!decided){lvDuck(false);return;}LV.ctrl=null;lvState('Error: '+e.message,'');}}
-async function liveOpen(){$('#live').hidden=false;document.body.style.overflow='hidden';$('#lvuser').textContent='';$('#lvbot').textContent='Talk whenever you want. If you speak while I answer, I stop.';$('#lvlat').textContent='';
+function lvCard(c){const d=document.createElement('div');d.className='lvcard';
+  d.innerHTML=(c.title?`<h4>${esc(c.title)}</h4>`:'')+(c.image?`<img src="${esc(mediaSrc(c.image))}" alt="">`:'')+(c.content?`<div class="lvmd">${md(c.content)}</div>`:'');
+  $('#lvcards').prepend(d);$('#live').classList.add('hascards');}
+async function liveOpen(){$('#lvcards').innerHTML='';$('#live').classList.remove('hascards');$('#live').hidden=false;document.body.style.overflow='hidden';$('#lvuser').textContent='';$('#lvbot').textContent='Talk whenever you want. If you speak while I answer, I stop.';$('#lvlat').textContent='';
   LV.muted=false;$('#lvmute').classList.remove('on');lvState('Connecting…','think');
   try{LV.ctx=LV.ctx||new (window.AudioContext||window.webkitAudioContext)();await LV.ctx.resume();
     await loadScript(`https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORTV}/dist/ort.min.js`);
@@ -1151,7 +1163,7 @@ $('#bknow').onclick=async()=>{toast('Backing up…');try{await api('/api/backups
 function projRow(a='',p=''){const d=document.createElement('div');d.className='prow';d.innerHTML=`<input placeholder="alias" value="${esc(a)}" aria-label="Alias"><input placeholder="~/projects/my-app" value="${esc(p)}" aria-label="Folder"><button class="ib" title="Remove" aria-label="Remove">${ico('x')}</button>`;
   d.querySelector('button').onclick=()=>d.remove();$('#plist').append(d);}
 $('#padd').onclick=()=>projRow();
-const VINFO=v=>v.startsWith('kokoro:')?{g:'Spain',n:({ef_dora:'Dora',em_alex:'Alex',em_santa:'Santa'})[v.slice(7)]||v.slice(7),d:({ef_dora:'Woman',em_alex:'Man',em_santa:'Man, deep'})[v.slice(7)]||'',e:'Kokoro'}
+const VINFO=v=>v.startsWith('melo:')?{g:'Spain',n:'Melo',d:'Woman, Castilian · slower (about +1 s)',e:'MeloTTS'}:v.startsWith('kokoro:')?{g:'Spain',n:({ef_dora:'Dora',em_alex:'Alex',em_santa:'Santa'})[v.slice(7)]||v.slice(7),d:({ef_dora:'Woman',em_alex:'Man',em_santa:'Man, deep'})[v.slice(7)]||'',e:'Kokoro'}
   :v.startsWith('supertonic:')?{g:'Latin American',n:(v.slice(11).startsWith('F')?'Woman ':'Man ')+v.slice(12),d:'Smooth, Latin American accent',e:'Supertonic'}
   :{g:'Spain',n:v.replace(/^es_ES-|-medium$/g,''),d:'Robotic (old voice)',e:'Piper'};
 const VNAME=v=>{const i=VINFO(v);return `${i.n} · ${i.g} (${i.e})`;};

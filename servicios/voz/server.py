@@ -94,6 +94,10 @@ def reaper():
                 _stt["model"] = None
             if _stt["fast"] is not None and time.time() - _stt["fast_last"] > 900:
                 _stt["fast"] = None
+            p = _melo["proc"]
+            if p is not None and p.poll() is None and time.time() - _melo["last"] > 600:
+                p.terminate()                               # frees ~1.5 GB for Ornith
+                _melo["proc"] = None
 
 
 def transcribe(data: bytes, fast: bool = False) -> dict:
@@ -148,8 +152,34 @@ def _kokoro():
         return _eng["ko"]
 
 
+MELO_PY = os.environ.get("ATENEA_MELO_PY", "/mnt/models/tools/melo-venv/bin/python")
+_melo: dict = {"proc": None, "last": 0.0}
+
+
+def _melo_tts(text: str, speed: float) -> bytes:
+    """MeloTTS lives in its own venv/process (old dependencies); start it on demand, it is stopped when idle."""
+    import urllib.request
+    with _lock:
+        p = _melo["proc"]
+        if p is None or p.poll() is not None:
+            env = {**os.environ, "HF_HOME": "/mnt/models/tools/melo-cache"}
+            _melo["proc"] = subprocess.Popen([MELO_PY, os.path.join(HERE, "melo_server.py")], env=env,
+                                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        _melo["last"] = time.time()
+    for _ in range(120):                                    # first start loads the model (~15 s)
+        try:
+            req = urllib.request.Request("http://127.0.0.1:8084/tts", json.dumps({"text": text, "speed": speed}).encode(),
+                                         {"Content-Type": "application/json"})
+            return urllib.request.urlopen(req, timeout=60).read()
+        except OSError:
+            time.sleep(0.5)
+    raise RuntimeError("MeloTTS did not start")
+
+
 def voices() -> list[str]:
     out = []
+    if os.path.exists(MELO_PY):
+        out.append("melo:ES")
     if os.path.isdir(os.path.join(MODELS, "supertonic", "voice_styles")):
         out += sorted("supertonic:" + f[:-5] for f in os.listdir(os.path.join(MODELS, "supertonic", "voice_styles")) if f.endswith(".json"))
     if os.path.isfile(os.path.join(MODELS, "kokoro", "voices-v1.0.bin")):
@@ -165,6 +195,11 @@ def speak(text: str, voice: str = "", speaker: int = 1, speed: float = 1.0) -> b
         st = _eng["st_styles"].get(name) or _eng["st_styles"].setdefault(name, tts.get_voice_style(name))
         wav, _ = tts.synthesize(text, st, lang="es", total_steps=int(os.environ.get("ATENEA_SUPERTONIC_STEPS", "6")), speed=1.05 * speed, silence_duration=0.15)
         return _wav(wav, tts.sample_rate)
+    if voice.startswith("melo:"):
+        w = _melo_tts(text, speed)
+        with wave.open(io.BytesIO(w)) as r:
+            a = np.frombuffer(r.readframes(r.getnframes()), dtype="<i2").astype(np.float32) / 32767
+            return _wav(a, r.getframerate())
     if voice.startswith("kokoro:"):
         a, sr = _kokoro().create(text, voice=voice.split(":", 1)[1], speed=speed, lang="es")
         return _wav(a, sr)

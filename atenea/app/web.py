@@ -548,6 +548,9 @@ def _run_job(jid: str, cid: str, text: str, resume: bool = False, origin: str | 
             job["live"] = {"thinking": "", "text": ""}
         if kind == "todos":
             job["todos"] = data["todos"]
+        if kind == "card":
+            job["cards"].append(data)
+            return
         if kind in ("tool_call", "notice", "subagent"):
             job["events"].append({"t": round(time.time() - job["t0"], 1), "kind": kind,
                                   "data": {k: str(v)[:400] for k, v in data.items()}})
@@ -691,7 +694,7 @@ def _start(cid: str, text: str, resume: bool = False, t0: float | None = None, o
     jid = uuid.uuid4().hex[:10]
     JOBS[jid] = {"t0": t0 or time.time(), "events": [], "done": False, "result": None, "approval": None, "meta": None,
                  "chat": cid, "cancel": False, "text": text, "next": None, "artifacts": [], "resumed": resume,
-                 "live": {"thinking": "", "text": ""}, "todos": [], "ckpt": {}, "origin": origin, "label": label,
+                 "live": {"thinking": "", "text": ""}, "todos": [], "ckpt": {}, "cards": [], "origin": origin, "label": label,
                  "question": None}
     try:
         c = _read(cid)
@@ -1659,7 +1662,9 @@ def _run_flow(item: dict):
         FLOWS.WAIT.pop(sid, None)
 
 
-VOICE_NOTE = "\n[Voz en directo: contesta como en una llamada, 1-3 frases cortas, sin formato. Si usas herramientas, dilo breve.]"
+VOICE_NOTE = ("\n[Voz en directo: contesta como en una llamada, 1-3 frases cortas, sin formato. Si algo se entiende mejor "
+              "viéndolo (datos, listas, pasos, tablas), PRIMERO di una frase breve y DESPUÉS, en el mismo mensaje, llama a "
+              "show_card; al terminar no repitas lo de la tarjeta.]")
 _UNFINISHED = re.compile(r"(\.\.\.|…|\b(y|o|que|pero|porque|de|del|a|al|en|con|por|para|el|la|los|las|un|una|mi|tu|su|si|cuando|como|pues|entonces|o sea)\W*)$", re.I)
 _SENT = re.compile(r"(.+?[.!?…:;](?=\s)|.+?\n)", re.S)
 
@@ -1690,6 +1695,28 @@ def _live_stream(cid: str, jid: str, user_text: str, stt_secs: float):
     """NDJSON: the transcript, then each sentence of Atenea's answer as text + WAV, as soon as it is written."""
     yield json.dumps({"type": "user", "text": user_text, "chat": cid, "job": jid, "stt": stt_secs}) + "\n"
     job, done_upto, last_turn, t0, spoken = JOBS[jid], 0, None, time.time(), False
+    ncards, nart, imgs_seen = 0, 0, set()
+
+    def cards():
+        nonlocal ncards, nart
+        out = []
+        while ncards < len(job["cards"]):
+            c = job["cards"][ncards]
+            ncards += 1
+            out.append({"type": "card", "title": c.get("title", ""), "content": c.get("content", ""), "image": c.get("image", "")})
+        while nart < len(job["artifacts"]):
+            a = job["artifacts"][nart]
+            nart += 1
+            out.append({"type": "card", "title": a.get("title", "Page"), "content": f"[Open]({'/a/' + a['id']})", "image": ""})
+        txt = job["live"].get("text", "") + " " + str(job.get("result") or "")
+        for m in re.finditer(r"!\[([^\]]*)\]\(([^)\s]+)\)|\[([^\]]+)\]\((/[^)\s]+\.(?:pdf|docx|xlsx|pptx|csv|zip))\)", txt):
+            key = m.group(2) or m.group(4)
+            if key in imgs_seen:
+                continue
+            imgs_seen.add(key)
+            out.append({"type": "card", "title": m.group(1) or m.group(3) or "", "content": "" if m.group(2) else f"[{m.group(3)}]({key})",
+                        "image": m.group(2) or ""})
+        return [json.dumps(x, ensure_ascii=False) + "\n" for x in out]
 
     def say(sentence: str):
         s = _speakable(sentence)
@@ -1703,6 +1730,7 @@ def _live_stream(cid: str, jid: str, user_text: str, stt_secs: float):
         if job["cancel"]:
             yield json.dumps({"type": "end", "cancelled": True}) + "\n"
             return
+        yield from cards()
         live = job["live"]
         if live is not last_turn:                           # a new model call (after a tool): start reading it from 0
             last_turn, done_upto = live, 0
@@ -1733,6 +1761,7 @@ def _live_stream(cid: str, jid: str, user_text: str, stt_secs: float):
             if job["cancel"]:
                 break
         if finished:
+            yield from cards()
             yield json.dumps({"type": "end", "secs": round(time.time() - t0, 1)}) + "\n"
             return
         time.sleep(0.12)
@@ -2070,6 +2099,14 @@ case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *)
 esac
 if [ -z "$ATENEA_SKIP_LOGIN" ]; then "$HOME/.local/bin/atenea" login "$SERVER" < /dev/tty; fi
 """
+
+
+@app.get("/docs")
+@app.get("/guia")
+def guide():
+    """Public (tailnet-only) guide: install Atenea Código on the Mac and how to use everything."""
+    html = open(os.path.join(HERE, "guia.html"), encoding="utf-8").read().replace("__SERVER__", _panel_url())
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/install.sh")

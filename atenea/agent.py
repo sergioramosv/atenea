@@ -65,7 +65,7 @@ PLAN_NOTE = ("\n\n[Plan mode: investigate using read-only tools only, then reply
 #   ask   -> edits, commands and external actions        edits -> commands and external actions
 #   auto  -> only external actions (tools marked dangerous) plan -> nothing runs except read-only tools
 MODES = ("ask", "edits", "auto", "plan")
-READ_ONLY = {"read_file", "list_files", "grep", "load_skill", "todo_write", "ask_user"}
+READ_ONLY = {"read_file", "list_files", "grep", "load_skill", "todo_write", "ask_user", "show_card"}
 EDIT_TOOLS = {"write_file", "edit_file"}
 
 
