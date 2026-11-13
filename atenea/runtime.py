@@ -136,7 +136,10 @@ def build_agent(cwd: str | None = None, on_event=None, approve=None, verify: str
     m = cfg["model"]
     profile = ModelProfile(url=m["url"], model=m.get("model", "ornith"), temperature=m.get("temperature", 1.0))
     cwd = os.path.expanduser(cwd or cfg["workspace"])
-    os.makedirs(cwd, exist_ok=True)
+    try:
+        os.makedirs(cwd, exist_ok=True)
+    except OSError:          # a folder on another computer (Atenea Código on the Mac): it lives there, not on ZEUS
+        pass
     tools = mcp_tools(cfg) + MEM.tools() + WEB.tools() + SCH.tools()
     for t in tools:
         if t.name in set(cfg.get("confirm_tools") or []):
