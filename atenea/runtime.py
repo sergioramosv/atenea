@@ -11,6 +11,7 @@ from . import background as BG
 from . import team as EQ
 from . import memory as MEM
 from . import scheduler as SCH
+from . import plug as PLUG
 from . import subagents as SUB
 from . import web_tools as WEB
 from .registry import Tool
@@ -140,7 +141,7 @@ def build_agent(cwd: str | None = None, on_event=None, approve=None, verify: str
         os.makedirs(cwd, exist_ok=True)
     except OSError:          # a folder on another computer (Atenea Código on the Mac): it lives there, not on ZEUS
         pass
-    tools = mcp_tools(cfg) + MEM.tools() + WEB.tools() + SCH.tools()
+    tools = mcp_tools(cfg) + MEM.tools() + WEB.tools() + SCH.tools() + PLUG.tools()
     for t in tools:
         if t.name in set(cfg.get("confirm_tools") or []):
             t.dangerous = True
