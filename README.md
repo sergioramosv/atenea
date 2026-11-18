@@ -85,7 +85,7 @@ atenea -c                    # continue the last conversation of this folder · 
 **On another computer (e.g. your Mac, through Tailscale):**
 
 ```bash
-curl -fsSL https://zeus.tailbf0b1c.ts.net/install.sh | bash     # needs Python 3.10+ (brew install python)
+curl -fsSL https://<your-server>.ts.net/install.sh | bash     # needs Python 3.10+ (brew install python)
 cd ~/my-project && atenea
 ```
 
