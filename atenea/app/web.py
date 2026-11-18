@@ -2198,7 +2198,8 @@ def service_worker():
 
 @app.get("/api/push/key", dependencies=[Depends(auth)])
 def push_key():
-    return {"key": NOTIFY.vapid()["public"], "devices": [{"label": x["label"], "added": x["added"]} for x in NOTIFY.subs()]}
+    return {"key": NOTIFY.vapid()["public"], "https_url": (C.load()["web"].get("public_url") or "").rstrip("/"),
+            "devices": [{"label": x["label"], "added": x["added"]} for x in NOTIFY.subs()]}
 
 
 @app.post("/api/push/subscribe", dependencies=[Depends(auth)])

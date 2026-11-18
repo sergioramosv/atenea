@@ -416,8 +416,11 @@ def expand_mentions(text: str, cwd: str) -> str:
 
 def login(server: str | None):
     import getpass
-    server = (server or input("Atenea server [https://zeus.tailbf0b1c.ts.net]: ").strip()
-              or "https://zeus.tailbf0b1c.ts.net").rstrip("/")
+    server = (server or os.environ.get("ATENEA_SERVER") or _remote_conf().get("server")
+              or input("Atenea server (e.g. https://zeus.your-tailnet.ts.net): ").strip()).rstrip("/")
+    if not server.startswith("http"):
+        print(RED("Give the server address, e.g. https://zeus.your-tailnet.ts.net"))
+        return 1
     pw = getpass.getpass("Password: ")
     req = urllib.request.Request(server + "/api/login", json.dumps({"password": pw}).encode(),
                                  {"Content-Type": "application/json"})
@@ -681,7 +684,10 @@ def main(argv=None):
         print("Signed out.")
         return 0
     if argv[:1] == ["update"]:
-        server = (_remote_conf().get("server") or "https://zeus.tailbf0b1c.ts.net")
+        server = _remote_conf().get("server") or os.environ.get("ATENEA_SERVER")
+        if not server:
+            print(RED("I don't know your server yet. Run: atenea login https://<your-server>.ts.net"))
+            return 1
         return os.system(f"curl -fsSL {server}/install.sh | ATENEA_SKIP_LOGIN=1 bash")
     ap = argparse.ArgumentParser(prog="atenea", description="Atenea Código: your local coding agent in the terminal.")
     ap.add_argument("prompt", nargs="*", help="first message (optional)")

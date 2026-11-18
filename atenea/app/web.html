@@ -1142,8 +1142,9 @@ const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform===
 const standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
 let SWREG=null;if('serviceWorker' in navigator&&isSecureContext){navigator.serviceWorker.register('/sw.js',{scope:'/'}).then(r=>SWREG=r).catch(()=>{});}
 const b64u=s=>{const p='='.repeat((4-s.length%4)%4),b=atob((s+p).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(b,c=>c.charCodeAt(0));};
-async function renderPush(){const box=$('#pushbox');const httpsUrl='https://zeus.tailbf0b1c.ts.net';
-  if(!isSecureContext){box.innerHTML=`Push notifications need a secure (HTTPS) address, and this page is <code>${esc(location.origin)}</code>.<br>Open Atenea at <a href="${httpsUrl}">${httpsUrl}</a> (through Tailscale)${isIOS?', add it to the Home Screen from there (Share → Add to Home Screen) and open it from the icon':''}, then come back here.`;return;}
+async function renderPush(){const box=$('#pushbox');
+  if(!isSecureContext){let httpsUrl='';try{httpsUrl=(await api('/api/push/key')).https_url||'';}catch(_){}
+    box.innerHTML=`Push notifications need a secure (HTTPS) address, and this page is <code>${esc(location.origin)}</code>.<br>Open Atenea at ${httpsUrl?`<a href="${esc(httpsUrl)}">${esc(httpsUrl)}</a>`:'its HTTPS address'} (through Tailscale)${isIOS?', add it to the Home Screen from there (Share → Add to Home Screen) and open it from the icon':''}, then come back here.`;return;}
   if(isIOS&&!standalone){box.innerHTML='On iPhone, notifications only work in the installed app: tap <b>Share → Add to Home Screen</b>, open Atenea from the new icon and come back to this page.';return;}
   if(!('PushManager' in window)||!('Notification' in window)){box.textContent='This browser does not support push notifications.';return;}
   const r=await api('/api/push/key');const sub=SWREG?await SWREG.pushManager.getSubscription():null;
