@@ -25,6 +25,7 @@ class ModelProfile:
     keep_reasoning: bool = True      # send the model's previous reasoning back (essential with Ornith)
     extra: dict | None = None        # extra request fields, e.g. {"id_slot": 1} to pin a llama.cpp slot
     think: bool | None = None        # False = answer without reasoning (fast path for simple messages)
+    max_parallel: int | None = None  # calls at once against this server (None: set_max_parallel / ATENEA_MAX_PARALLEL / 2)
 
     def key(self) -> str | None:
         if self.api_key:
@@ -36,9 +37,36 @@ class ModelProfile:
         return open(p).read().strip() if os.path.exists(p) else None
 
 
-# At most N generations at once against the model server. On a single (i)GPU, a third request makes every request
-# crawl (a long prompt being read starves the others), so extra calls wait their turn. ATENEA_MAX_PARALLEL to change.
-GATE = threading.BoundedSemaphore(max(1, int(os.environ.get("ATENEA_MAX_PARALLEL") or os.environ.get("ATHENA_MAX_PARALLEL", "2"))))
+# At most N generations at once against each model server. On a single (i)GPU, a third request makes every request
+# crawl (a long prompt being read starves the others), so extra calls wait their turn. The limit is per server URL
+# and can be changed at any time, in this order of priority:
+#   ModelProfile(max_parallel=4)  >  set_max_parallel(4, url)  >  set_max_parallel(4)  >  $ATENEA_MAX_PARALLEL  >  2
+# A server started with `llama-server -np 4` can take 4.
+_LIMITS: dict[str, int] = {}
+_GATES: dict[str, tuple[int, threading.Semaphore]] = {}
+_GATES_LOCK = threading.Lock()
+
+
+def set_max_parallel(n: int, url: str | None = None) -> None:
+    """Change how many calls run at once against one server (url) or against every server (url=None)."""
+    with _GATES_LOCK:
+        _LIMITS[url or "*"] = max(1, int(n))
+
+
+def max_parallel(profile: "ModelProfile") -> int:
+    env = os.environ.get("ATENEA_MAX_PARALLEL") or os.environ.get("ATHENA_MAX_PARALLEL")
+    return max(1, int(profile.max_parallel or _LIMITS.get(profile.url) or _LIMITS.get("*") or env or 2))
+
+
+def _gate(profile: "ModelProfile") -> threading.Semaphore:
+    n = max_parallel(profile)
+    with _GATES_LOCK:
+        cur = _GATES.get(profile.url)
+        if cur is None or cur[0] != n:
+            # a new limit takes effect for new calls; calls already running release the semaphore they took
+            cur = (n, threading.Semaphore(n))
+            _GATES[profile.url] = cur
+        return cur[1]
 
 
 class InvalidToolCall(Exception):
@@ -57,14 +85,15 @@ class LLM:
 
     def chat(self, messages: list[dict], tools: list[dict] | None = None, temperature: float | None = None,
              on_delta=None, on_wait=None) -> dict:
-        if not GATE.acquire(blocking=False):
+        gate = _gate(self.p)
+        if not gate.acquire(blocking=False):
             if on_wait:
                 on_wait()
-            GATE.acquire()
+            gate.acquire()
         try:
             return self._chat(messages, tools, temperature, on_delta)
         finally:
-            GATE.release()
+            gate.release()
 
     def _chat(self, messages, tools, temperature, on_delta) -> dict:
         """Return {"message", "finish", "usage", "secs"}. Raises InvalidToolCall.
