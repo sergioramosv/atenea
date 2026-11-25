@@ -55,6 +55,10 @@ MSG_EMPTY = ("Your reply was cut off or empty. Continue: use the tools to make t
              "and, once everything is verified, reply with a summary.")
 MSG_VERIFY = ("Not finished yet: the verification `{cmd}` fails:\n{out}\n"
               "Fix the problem and verify again before finishing.")
+MSG_TURNS_LEFT = ("[{n} tool turn(s) left. Use them only for what you still must check; then give your final answer "
+                  "as the task asked.]")
+MSG_FINAL = ("You have used all your tool turns. Do not call any tool: give your final answer now, as the task asked, "
+             "with what you have found so far.")
 MSG_DENIED = "The user did NOT authorize this action. Do not retry it; continue without it or ask what they prefer."
 MSG_PLAN_BLOCK = ("Plan mode is on: you may only read and search. Do not modify files, run commands or take external "
                   "actions. Finish your investigation and reply with a concise, numbered plan for the user to approve.")
@@ -102,6 +106,8 @@ class Agent:
     extra_instructions: str = ""
     verify: str | None = None                               # command that must pass before finishing
     max_turns: int = 80
+    turns_warning: int = 2                                  # say "N turns left" when this many remain (0 = never)
+    free_todo_turns: int = 4                                # turns that only update the todo list do not count, up to this
     on_event: EventFn | None = None
     approve: ApproveFn | None = None
     system: str | None = None
@@ -282,8 +288,10 @@ class Agent:
                 task += f"\n\n[context from hook `{cmd}`]\n{so.strip()[:3000]}"
         self.messages.append({"role": "user", "content": task + (PLAN_NOTE if self.mode == "plan" else "") + self.note})
         self._nudges = self._verify_fails = self._stop_hooks = 0
-        for turn in range(self.max_turns):
-            self._emit("turn", n=turn + 1)
+        used = free = turn = 0
+        while used < self.max_turns:
+            turn += 1
+            self._emit("turn", n=turn)
             T.compact(self.messages)
             try:
                 r = self.llm.chat(self.messages, self.schemas(), temperature=0.6 if self._cooldown else None,
@@ -370,6 +378,32 @@ class Agent:
                 self._emit("tool_result", name=n, output=outs[c["id"]][:1000])
             for c, n, a in parsed:
                 self.messages.append({"role": "tool", "tool_call_id": c["id"], "content": outs[c["id"]]})
+            # planning is free (up to a cap): a model that keeps a todo list should not lose turns to it
+            if all(n == "todo_write" for _, n, _ in parsed) and free < self.free_todo_turns:
+                free += 1
+            else:
+                used += 1
+            left = self.max_turns - used
+            if self.turns_warning and 0 < left <= self.turns_warning and self.messages[-1].get("role") == "tool":
+                self.messages[-1]["content"] += "\n\n" + MSG_TURNS_LEFT.format(n=left)
+        return self._final_answer()
+
+    def _final_answer(self) -> str:
+        """Out of turns: one last call that may not use tools, so the model answers instead of being cut off."""
+        self.messages.append({"role": "user", "content": MSG_FINAL})
+        extra = self.profile.extra
+        self.profile.extra = {**(extra or {}), "tool_choice": "none"}
+        try:
+            r = self.llm.chat(self.messages, self.schemas())
+            content = (r["message"].get("content") or "").strip()
+            self.stats.requests += 1
+        except Exception:
+            content = ""
+        finally:
+            self.profile.extra = extra
+        if content and "<tool_call>" not in content:
+            self.messages.append({"role": "assistant", "content": content})
+            return self._finish(content)
         return self._finish("Turn limit reached without finishing.")
 
     def _finish(self, text: str) -> str:
